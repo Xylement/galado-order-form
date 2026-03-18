@@ -31,6 +31,24 @@
       --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
+    [data-theme="dark"] {
+      --primary: #F5F3EF;
+      --primary-on: #1C1917;
+      --secondary: #A8A29E;
+      --accent: #D4A843;
+      --accent-light: #E9C97B;
+      --accent-glow: rgba(212, 168, 67, 0.15);
+      --bg: #0C0A09;
+      --bg-warm: #1C1917;
+      --card: #1C1917;
+      --card-foreground: #E7E5E4;
+      --muted: #78716C;
+      --border: #2E2A27;
+      --border-focus: #D4A843;
+      --shadow-card: 0 1px 3px rgba(0,0,0,0.2), 0 4px 12px rgba(0,0,0,0.15);
+      --shadow-card-hover: 0 2px 8px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.2);
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -40,6 +58,12 @@
       -webkit-text-size-adjust: 100%;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .card, input, textarea, select, .radio-option label, .check-option label,
+    .btn-submit, .btn-reset, .toast, .theme-toggle, .order-id-prefix, .photo-btn {
+      transition: all var(--transition);
     }
 
     .container {
@@ -379,6 +403,47 @@
       letter-spacing: 0.5px;
     }
 
+    /* ── Dark Mode Toggle ── */
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      background: var(--card);
+      color: var(--card-foreground);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-card);
+      transition: all var(--transition);
+      z-index: 100;
+      -webkit-appearance: none;
+    }
+
+    .theme-toggle:active {
+      transform: scale(0.92);
+    }
+
+    .theme-toggle svg {
+      width: 20px;
+      height: 20px;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .theme-toggle:active svg {
+      transform: rotate(30deg);
+    }
+
+    .theme-toggle .icon-sun { display: none; }
+    .theme-toggle .icon-moon { display: block; }
+
+    [data-theme="dark"] .theme-toggle .icon-sun { display: block; }
+    [data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+
     /* ── Reduced Motion ── */
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -396,6 +461,12 @@
   </style>
 </head>
 <body>
+
+<!-- Dark Mode Toggle -->
+<button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+</button>
 
 <div class="container">
   <header>
@@ -634,6 +705,19 @@
 <div class="toast" id="toast"></div>
 
 <script>
+  // Dark mode toggle with localStorage persistence
+  const themeToggle = document.getElementById('themeToggle');
+  const savedTheme = localStorage.getItem('galado_theme');
+  if (savedTheme) {
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  }
+  themeToggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('galado_theme', next);
+  });
+
   // Auto-set today's date
   const dateInput = document.getElementById('orderDate');
   dateInput.valueAsDate = new Date();
