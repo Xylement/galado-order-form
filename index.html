@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>GALADO Walk-In Phone Case Order Form</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px 20px 40px;
+    }
+
+    header {
+      text-align: center;
+      padding: 28px 0 20px;
+    }
+
+    header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      font-size: 15px;
+      color: #6e6e73;
+      margin-top: 4px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e5e5ea;
+    }
+
+    .field {
+      margin-bottom: 18px;
+    }
+
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #3a3a3c;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="tel"],
+    input[type="email"],
+    input[type="date"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 16px; /* prevents zoom on iPad */
+      border: 1.5px solid #d2d2d7;
+      border-radius: 10px;
+      background: #fafafa;
+      color: #1d1d1f;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: #0071e3;
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(0,113,227,0.12);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 14px center;
+      padding-right: 36px;
+    }
+
+    .radio-group, .check-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .radio-option, .check-option {
+      position: relative;
+    }
+
+    .radio-option input, .check-option input {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .radio-option label, .check-option label {
+      display: inline-flex;
+      align-items: center;
+      padding: 10px 18px;
+      font-size: 15px;
+      font-weight: 400;
+      border: 1.5px solid #d2d2d7;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+      -webkit-user-select: none;
+      background: #fafafa;
+    }
+
+    .radio-option input:checked + label,
+    .check-option input:checked + label {
+      background: #0071e3;
+      color: #fff;
+      border-color: #0071e3;
+      font-weight: 500;
+    }
+
+    .other-input {
+      margin-top: 10px;
+      display: none;
+    }
+
+    .other-input.visible {
+      display: block;
+    }
+
+    .inline-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .delivery-section {
+      display: none;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid #e5e5ea;
+    }
+
+    .delivery-section.visible {
+      display: block;
+    }
+
+    .btn-submit {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      font-size: 17px;
+      font-weight: 600;
+      color: #fff;
+      background: #0071e3;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      -webkit-appearance: none;
+    }
+
+    .btn-submit:active {
+      background: #005bb5;
+      transform: scale(0.99);
+    }
+
+    .btn-reset {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      margin-top: 10px;
+      font-size: 15px;
+      font-weight: 500;
+      color: #0071e3;
+      background: transparent;
+      border: 1.5px solid #0071e3;
+      border-radius: 12px;
+      cursor: pointer;
+      -webkit-appearance: none;
+    }
+
+    .btn-reset:active {
+      background: rgba(0,113,227,0.06);
+    }
+
+    .order-id-display {
+      font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 15px;
+      color: #0071e3;
+      font-weight: 600;
+    }
+
+    /* Toast notification */
+    .toast {
+      position: fixed;
+      top: -80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1d1d1f;
+      color: #fff;
+      padding: 14px 28px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 500;
+      z-index: 1000;
+      transition: top 0.4s ease;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .toast.show {
+      top: 40px;
+    }
+
+    .photo-btn {
+      padding: 10px 18px;
+      font-size: 15px;
+      font-weight: 500;
+      border: 1.5px solid #0071e3;
+      border-radius: 10px;
+      background: #fff;
+      color: #0071e3;
+      cursor: pointer;
+      -webkit-appearance: none;
+    }
+
+    .photo-btn:active {
+      background: rgba(0,113,227,0.08);
+    }
+
+    /* Print-friendly */
+    @media print {
+      body { background: #fff; }
+      .card { box-shadow: none; border: 1px solid #ddd; }
+      .btn-submit, .btn-reset { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>GALADO</h1>
+    <p>Walk-In Phone Case Order Form</p>
+  </header>
+
+  <form id="orderForm" autocomplete="off">
+
+    <!-- Order Info -->
+    <div class="card">
+      <div class="card-title">Order Information</div>
+      <div class="inline-row">
+        <div class="field">
+          <label for="orderDate">Date</label>
+          <input type="date" id="orderDate" required>
+        </div>
+        <div class="field">
+          <label for="orderId">Order ID</label>
+          <div style="display:flex;align-items:center;gap:0">
+            <span style="padding:12px 8px 12px 14px;font-size:16px;font-weight:600;background:#fafafa;border:1.5px solid #d2d2d7;border-right:none;border-radius:10px 0 0 10px;color:#1d1d1f;white-space:nowrap;">GT2-</span>
+            <input type="text" id="orderId" placeholder="0001" inputmode="text" style="border-radius:0 10px 10px 0;" required>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="handledBy">Handled By</label>
+        <input type="text" id="handledBy" placeholder="Staff name">
+      </div>
+    </div>
+
+    <!-- Product Details -->
+    <div class="card">
+      <div class="card-title">Product Details</div>
+
+      <div class="field">
+        <label for="phoneModel">Phone Model</label>
+        <input type="text" id="phoneModel" placeholder="e.g. iPhone 16 Pro Max" required>
+      </div>
+
+      <div class="field">
+        <label>Case Type</label>
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" name="caseType" id="ct1" value="ProGuard">
+            <label for="ct1">ProGuard</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="caseType" id="ct2" value="Mirror Case">
+            <label for="ct2">Mirror Case</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="caseType" id="ct3" value="Other" data-toggle="caseTypeOther">
+            <label for="ct3">Other</label>
+          </div>
+        </div>
+        <div class="other-input" id="caseTypeOther">
+          <input type="text" placeholder="Specify case type">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Design</label>
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" name="design" id="d1" value="Name Only">
+            <label for="d1">Name Only</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="design" id="d2" value="Insert Photo">
+            <label for="d2">Insert Photo</label>
+          </div>
+        </div>
+        <div id="photoUploadSection" style="display:none;margin-top:12px;">
+          <label for="photoUpload">Upload or Snap Photo</label>
+          <input type="file" id="photoUpload" accept="image/*" capture="environment" style="display:none;">
+          <div style="display:flex;gap:10px;margin-top:6px;">
+            <button type="button" id="btnSnap" class="photo-btn">Snap Photo</button>
+            <button type="button" id="btnUpload" class="photo-btn">Choose from Library</button>
+          </div>
+          <div id="photoPreview" style="margin-top:10px;display:none;">
+            <img id="photoThumb" style="max-width:100%;max-height:200px;border-radius:10px;border:1.5px solid #d2d2d7;">
+            <button type="button" id="btnRemovePhoto" style="display:block;margin-top:8px;font-size:14px;color:#ff3b30;background:none;border:none;cursor:pointer;font-weight:500;">Remove Photo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Case Color</label>
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" name="caseColor" id="cc1" value="Black">
+            <label for="cc1">Black</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="caseColor" id="cc2" value="White">
+            <label for="cc2">White</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="caseColor" id="cc3" value="Black (MagSafe)">
+            <label for="cc3">Black (MagSafe)</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="caseColor" id="cc4" value="White (MagSafe)">
+            <label for="cc4">White (MagSafe)</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="caseColor" id="cc5" value="Other" data-toggle="caseColorOther">
+            <label for="cc5">Other</label>
+          </div>
+        </div>
+        <div class="other-input" id="caseColorOther">
+          <input type="text" placeholder="Specify color">
+        </div>
+      </div>
+    </div>
+
+    <!-- Customization -->
+    <div class="card">
+      <div class="card-title">Customization</div>
+
+      <div class="field">
+        <label for="fontStyle">Font Style (Refer / Attach Photo)</label>
+        <input type="text" id="fontStyle" placeholder="Describe font style or reference">
+      </div>
+
+      <div class="field">
+        <label for="textInsert">Text to Insert</label>
+        <input type="text" id="textInsert" placeholder="e.g. Name, quote, etc.">
+      </div>
+
+      <div class="field">
+        <label for="textPosition">Text Position (if any)</label>
+        <input type="text" id="textPosition" placeholder="e.g. Center, Bottom-right">
+      </div>
+
+      <div class="field">
+        <label>Preview Required?</label>
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" name="preview" id="pv1" value="Yes">
+            <label for="pv1">Yes</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="preview" id="pv2" value="No">
+            <label for="pv2">No</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="remarks">Special Requests / Remarks</label>
+        <textarea id="remarks" placeholder="Any special instructions..."></textarea>
+      </div>
+    </div>
+
+    <!-- Customer Info -->
+    <div class="card">
+      <div class="card-title">Customer Information</div>
+
+      <div class="inline-row">
+        <div class="field">
+          <label for="customerName">Customer Name</label>
+          <input type="text" id="customerName" placeholder="Full name" required>
+        </div>
+        <div class="field">
+          <label for="phoneNumber">Phone Number</label>
+          <input type="tel" id="phoneNumber" placeholder="e.g. 012-3456789" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Collection Method</label>
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" name="collection" id="col1" value="Pick-up">
+            <label for="col1">Pick-up</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="collection" id="col2" value="Delivery">
+            <label for="col2">Delivery</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="delivery-section" id="deliverySection">
+        <div class="field">
+          <label for="address">Delivery Address</label>
+          <textarea id="address" placeholder="Full delivery address"></textarea>
+        </div>
+        <div class="field">
+          <label for="email">Email Address</label>
+          <input type="email" id="email" placeholder="email@example.com">
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <button type="submit" class="btn-submit">Submit Order</button>
+    <button type="button" class="btn-reset" id="resetBtn">Clear Form</button>
+
+  </form>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // Auto-set today's date
+  const dateInput = document.getElementById('orderDate');
+  dateInput.valueAsDate = new Date();
+
+  // Photo upload handling for "Insert Photo" design option
+  const photoUploadSection = document.getElementById('photoUploadSection');
+  const photoInput = document.getElementById('photoUpload');
+  const photoPreview = document.getElementById('photoPreview');
+  const photoThumb = document.getElementById('photoThumb');
+
+  document.querySelectorAll('input[name="design"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const isPhoto = document.getElementById('d2').checked;
+      photoUploadSection.style.display = isPhoto ? 'block' : 'none';
+      if (!isPhoto) {
+        photoInput.value = '';
+        photoPreview.style.display = 'none';
+      }
+    });
+  });
+
+  document.getElementById('btnSnap').addEventListener('click', () => {
+    photoInput.setAttribute('capture', 'environment');
+    photoInput.click();
+  });
+
+  document.getElementById('btnUpload').addEventListener('click', () => {
+    photoInput.removeAttribute('capture');
+    photoInput.click();
+  });
+
+  photoInput.addEventListener('change', () => {
+    const file = photoInput.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        photoThumb.src = e.target.result;
+        photoPreview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  document.getElementById('btnRemovePhoto').addEventListener('click', () => {
+    photoInput.value = '';
+    photoPreview.style.display = 'none';
+  });
+
+  // Toggle "Other" text inputs
+  document.querySelectorAll('input[type="radio"][data-toggle]').forEach(radio => {
+    const name = radio.name;
+    document.querySelectorAll(`input[name="${name}"]`).forEach(r => {
+      r.addEventListener('change', () => {
+        const targetId = radio.dataset.toggle;
+        const target = document.getElementById(targetId);
+        target.classList.toggle('visible', radio.checked);
+        if (radio.checked) {
+          target.querySelector('input').focus();
+        }
+      });
+    });
+  });
+
+  // Toggle delivery section
+  document.querySelectorAll('input[name="collection"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const show = document.getElementById('col2').checked;
+      document.getElementById('deliverySection').classList.toggle('visible', show);
+    });
+  });
+
+  // Toast
+  function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.style.background = msg.includes('⚠️') ? '#ff9500' : '#1d1d1f';
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3500);
+  }
+
+  // Collect form data
+  function collectFormData() {
+    const getRadio = name => {
+      const el = document.querySelector(`input[name="${name}"]:checked`);
+      if (!el) return '';
+      if (el.value === 'Other') {
+        const otherId = el.dataset.toggle;
+        return 'Other: ' + (document.getElementById(otherId)?.querySelector('input')?.value || '');
+      }
+      return el.value;
+    };
+
+    return {
+      date: dateInput.value,
+      orderId: 'GT2-' + document.getElementById('orderId').value,
+      handledBy: document.getElementById('handledBy').value,
+      phoneModel: document.getElementById('phoneModel').value,
+      caseType: getRadio('caseType'),
+      design: getRadio('design'),
+      caseColor: getRadio('caseColor'),
+      fontStyle: document.getElementById('fontStyle').value,
+      textInsert: document.getElementById('textInsert').value,
+      textPosition: document.getElementById('textPosition').value,
+      previewRequired: getRadio('preview'),
+      remarks: document.getElementById('remarks').value,
+      customerName: document.getElementById('customerName').value,
+      phoneNumber: document.getElementById('phoneNumber').value,
+      collection: getRadio('collection'),
+      address: document.getElementById('address').value,
+      email: document.getElementById('email').value,
+    };
+  }
+
+  // ========================================================
+  // GOOGLE SHEETS CONFIG — paste your Apps Script URL here
+  // ========================================================
+  const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaSLfQDuXFpbOn0r2p0bRGKFKZTsuQVtLNM82A9YhA055UXACr7hHpx-5ixpIwjtAP/exec';
+
+  // Submit
+  document.getElementById('orderForm').addEventListener('submit', async e => {
+    e.preventDefault();
+
+    const submitBtn = document.querySelector('.btn-submit');
+    const originalText = submitBtn.textContent;
+
+    // Prevent double-tap
+    if (submitBtn.disabled) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Submitting...';
+    submitBtn.style.opacity = '0.6';
+
+    const data = { ...collectFormData(), submittedAt: new Date().toISOString() };
+    console.log('Order submitted:', data);
+
+    // Also keep a local backup in localStorage
+    const orders = JSON.parse(localStorage.getItem('galado_orders') || '[]');
+    orders.push(data);
+    localStorage.setItem('galado_orders', JSON.stringify(orders));
+
+    // Send to Google Sheets
+    try {
+      if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL !== 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
+        const res = await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        showToast('✅ Order submitted & saved to Google Sheets!');
+      } else {
+        showToast('⚠️ Order saved locally — Google Sheets not configured');
+      }
+    } catch (err) {
+      console.error('Google Sheets error:', err);
+      showToast('⚠️ Order saved locally — could not reach Google Sheets');
+    }
+
+    // Re-enable button
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
+    submitBtn.style.opacity = '1';
+
+    // Reset after short delay
+    setTimeout(() => {
+      document.getElementById('orderForm').reset();
+      dateInput.valueAsDate = new Date();
+      document.getElementById('orderId').value = '';
+      photoUploadSection.style.display = 'none';
+      photoInput.value = '';
+      photoPreview.style.display = 'none';
+      document.querySelectorAll('.other-input').forEach(el => el.classList.remove('visible'));
+      document.getElementById('deliverySection').classList.remove('visible');
+    }, 500);
+  });
+
+  // Reset button
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    if (confirm('Clear all fields?')) {
+      document.getElementById('orderForm').reset();
+      dateInput.valueAsDate = new Date();
+      document.getElementById('orderId').value = '';
+      photoUploadSection.style.display = 'none';
+      photoInput.value = '';
+      photoPreview.style.display = 'none';
+      document.querySelectorAll('.other-input').forEach(el => el.classList.remove('visible'));
+      document.getElementById('deliverySection').classList.remove('visible');
+    }
+  });
+</script>
+
+</body>
+</html>
