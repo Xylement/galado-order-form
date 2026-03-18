@@ -291,7 +291,10 @@
       </div>
       <div class="field">
         <label for="handledBy">Handled By</label>
-        <input type="text" id="handledBy" placeholder="Staff name">
+        <select id="handledBy" required>
+          <option value="Amy" selected>Amy</option>
+          <option value="Akram">Akram</option>
+        </select>
       </div>
     </div>
 
@@ -300,8 +303,21 @@
       <div class="card-title">Product Details</div>
 
       <div class="field">
+        <label>Phone Brand</label>
+        <div class="radio-group" style="margin-bottom:10px;">
+          <div class="radio-option">
+            <input type="radio" name="phoneBrand" id="brandIphone" value="iPhone">
+            <label for="brandIphone">iPhone</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="phoneBrand" id="brandSamsung" value="Samsung">
+            <label for="brandSamsung">Samsung</label>
+          </div>
+        </div>
         <label for="phoneModel">Phone Model</label>
-        <input type="text" id="phoneModel" placeholder="e.g. iPhone 16 Pro Max" required>
+        <select id="phoneModel" required disabled>
+          <option value="">— Select brand first —</option>
+        </select>
       </div>
 
       <div class="field">
@@ -475,6 +491,40 @@
   const dateInput = document.getElementById('orderDate');
   dateInput.valueAsDate = new Date();
 
+  // Phone model data
+  const phoneModels = {
+    iPhone: [
+      'iPhone 13 mini', 'iPhone 13', 'iPhone 13 Pro', 'iPhone 13 Pro Max',
+      'iPhone 14', 'iPhone 14 Plus', 'iPhone 14 Pro', 'iPhone 14 Pro Max',
+      'iPhone 15', 'iPhone 15 Plus', 'iPhone 15 Pro', 'iPhone 15 Pro Max',
+      'iPhone 16', 'iPhone 16 Plus', 'iPhone 16 Pro', 'iPhone 16 Pro Max',
+      'iPhone 16e',
+      'iPhone 17', 'iPhone 17 Air', 'iPhone 17 Pro', 'iPhone 17 Pro Max',
+    ],
+    Samsung: [
+      'Galaxy S23', 'Galaxy S23+', 'Galaxy S23 Ultra', 'Galaxy S23 FE',
+      'Galaxy S24', 'Galaxy S24+', 'Galaxy S24 Ultra', 'Galaxy S24 FE',
+      'Galaxy S25', 'Galaxy S25+', 'Galaxy S25 Ultra', 'Galaxy S25 Edge',
+      'Galaxy S26', 'Galaxy S26+', 'Galaxy S26 Ultra',
+    ],
+  };
+
+  const phoneModelSelect = document.getElementById('phoneModel');
+
+  document.querySelectorAll('input[name="phoneBrand"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const brand = r.value;
+      phoneModelSelect.disabled = false;
+      phoneModelSelect.innerHTML = '<option value="">— Select model —</option>';
+      phoneModels[brand].forEach(model => {
+        const opt = document.createElement('option');
+        opt.value = model;
+        opt.textContent = model;
+        phoneModelSelect.appendChild(opt);
+      });
+    });
+  });
+
   // Photo upload handling for "Insert Photo" design option
   const photoUploadSection = document.getElementById('photoUploadSection');
   const photoInput = document.getElementById('photoUpload');
@@ -641,6 +691,8 @@
       photoUploadSection.style.display = 'none';
       photoInput.value = '';
       photoPreview.style.display = 'none';
+      phoneModelSelect.innerHTML = '<option value="">— Select brand first —</option>';
+      phoneModelSelect.disabled = true;
       document.querySelectorAll('.other-input').forEach(el => el.classList.remove('visible'));
       document.getElementById('deliverySection').classList.remove('visible');
     }, 500);
@@ -655,6 +707,8 @@
       photoUploadSection.style.display = 'none';
       photoInput.value = '';
       photoPreview.style.display = 'none';
+      phoneModelSelect.innerHTML = '<option value="">— Select brand first —</option>';
+      phoneModelSelect.disabled = true;
       document.querySelectorAll('.other-input').forEach(el => el.classList.remove('visible'));
       document.getElementById('deliverySection').classList.remove('visible');
     }
