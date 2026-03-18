@@ -862,13 +862,14 @@
       collection: getRadio('collection'),
       address: document.getElementById('address').value,
       email: document.getElementById('email').value,
+      photoBase64: photoThumb.src && photoPreview.style.display !== 'none' ? photoThumb.src : '',
     };
   }
 
   // ========================================================
   // GOOGLE SHEETS CONFIG
   // ========================================================
-  const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzaSLfQDuXFpbOn0r2p0bRGKFKZTsuQVtLNM82A9YhA055UXACr7hHpx-5ixpIwjtAP/exec';
+  const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwQ9w7XHxSXsYaEq1-wMm3RDNaRQTwHtqGsjW21lViS2oN_namb8vRQOeGUTw_9gmHn/exec';
 
   // Submit
   document.getElementById('orderForm').addEventListener('submit', async e => {
@@ -880,7 +881,8 @@
     // Prevent double-tap
     if (submitBtn.disabled) return;
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting...';
+    const hasPhoto = photoThumb.src && photoPreview.style.display !== 'none';
+    submitBtn.textContent = hasPhoto ? 'Uploading photo...' : 'Submitting...';
     submitBtn.style.opacity = '0.6';
 
     const data = { ...collectFormData(), submittedAt: new Date().toISOString() };
