@@ -755,8 +755,21 @@
       </div>
 
       <div class="field">
-        <label for="textPosition">Text Position (if any)</label>
-        <input type="text" id="textPosition" placeholder="e.g. Center, Bottom-right">
+        <label>Text Position</label>
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" name="textPosition" id="tp1" value="Center">
+            <label for="tp1">Center</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="textPosition" id="tp2" value="Bottom">
+            <label for="tp2">Bottom</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="textPosition" id="tp3" value="Right">
+            <label for="tp3">Right</label>
+          </div>
+        </div>
       </div>
 
       <div class="field">
@@ -1053,7 +1066,7 @@
       caseColor: getRadio('caseColor'),
       fontStyle: document.getElementById('selectedFontStyle').value,
       textInsert: document.getElementById('fontPreviewInput').value,
-      textPosition: document.getElementById('textPosition').value,
+      textPosition: getRadio('textPosition'),
       previewRequired: getRadio('preview'),
       remarks: document.getElementById('remarks').value,
       customerName: document.getElementById('customerName').value,
