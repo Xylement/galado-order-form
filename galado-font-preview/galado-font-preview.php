@@ -134,28 +134,57 @@ class Galado_Font_Preview {
         if ( ! $this->is_enabled( $product->get_id() ) ) return;
         ?>
         <div class="galado-font-preview-wrap">
-            <h4 class="galado-fp-title">Personalise Your Case</h4>
-            <p class="galado-fp-subtitle">Type your name below and select a font style</p>
+            <!-- Personalisation Checkbox -->
+            <label class="galado-fp-toggle" for="galado-fp-enable">
+                <input type="checkbox" id="galado-fp-enable" name="galado_personalise" value="yes">
+                <span class="galado-fp-toggle-box"></span>
+                <span class="galado-fp-toggle-label">
+                    <strong>Add Personalisation</strong>
+                    <small>Customise with your name and font style</small>
+                </span>
+            </label>
 
-            <div class="galado-fp-input-wrap">
-                <input type="text"
-                       id="galado-fp-text"
-                       name="galado_font_text"
-                       class="galado-fp-input"
-                       placeholder="Type your name here..."
-                       maxlength="30"
-                       required>
-            </div>
+            <!-- Personalisation Fields (hidden until checkbox ticked) -->
+            <div class="galado-fp-fields" id="galado-fp-fields" style="display:none;">
+                <div class="galado-fp-input-wrap">
+                    <label class="galado-fp-field-label" for="galado-fp-text">Your Text</label>
+                    <input type="text"
+                           id="galado-fp-text"
+                           name="galado_font_text"
+                           class="galado-fp-input"
+                           placeholder="Type your name or text here..."
+                           maxlength="30">
+                </div>
 
-            <div class="galado-fp-grid" id="galado-fp-grid">
-                <div class="galado-fp-placeholder">Type a name above to see font previews</div>
-            </div>
+                <div class="galado-fp-input-wrap">
+                    <label class="galado-fp-field-label">Font Colour</label>
+                    <div class="galado-fp-color-options">
+                        <label class="galado-fp-color-option">
+                            <input type="radio" name="galado_font_color" value="Black">
+                            <span class="galado-fp-color-swatch galado-fp-swatch-black"></span>
+                            <span>Black</span>
+                        </label>
+                        <label class="galado-fp-color-option">
+                            <input type="radio" name="galado_font_color" value="White">
+                            <span class="galado-fp-color-swatch galado-fp-swatch-white"></span>
+                            <span>White</span>
+                        </label>
+                    </div>
+                </div>
 
-            <input type="hidden" name="galado_font_name" id="galado-fp-selected" value="">
+                <div class="galado-fp-input-wrap">
+                    <label class="galado-fp-field-label">Select Font Style</label>
+                    <div class="galado-fp-grid" id="galado-fp-grid">
+                        <div class="galado-fp-placeholder">Type your text above to see font previews</div>
+                    </div>
+                </div>
 
-            <div class="galado-fp-badge" id="galado-fp-badge" style="display:none;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;color:#16a34a;"><polyline points="20 6 9 17 4 12"/></svg>
-                Selected: <strong id="galado-fp-badge-name"></strong>
+                <input type="hidden" name="galado_font_name" id="galado-fp-selected" value="">
+
+                <div class="galado-fp-badge" id="galado-fp-badge" style="display:none;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;color:#16a34a;"><polyline points="20 6 9 17 4 12"/></svg>
+                    Selected: <strong id="galado-fp-badge-name"></strong>
+                </div>
             </div>
         </div>
         <?php
@@ -167,8 +196,23 @@ class Galado_Font_Preview {
     public function validate_add_to_cart( $passed, $product_id, $quantity ) {
         if ( ! $this->is_enabled( $product_id ) ) return $passed;
 
-        if ( empty( $_POST['galado_font_name'] ) || empty( $_POST['galado_font_text'] ) ) {
-            wc_add_notice( 'Please type your name and select a font style before adding to cart.', 'error' );
+        // If personalisation not selected, allow through
+        if ( empty( $_POST['galado_personalise'] ) ) return $passed;
+
+        // Personalisation is selected — all fields required
+        $errors = array();
+        if ( empty( $_POST['galado_font_text'] ) ) {
+            $errors[] = 'your text';
+        }
+        if ( empty( $_POST['galado_font_color'] ) ) {
+            $errors[] = 'a font colour';
+        }
+        if ( empty( $_POST['galado_font_name'] ) ) {
+            $errors[] = 'a font style';
+        }
+
+        if ( ! empty( $errors ) ) {
+            wc_add_notice( 'Please enter ' . implode( ', ', $errors ) . ' to personalise your case.', 'error' );
             return false;
         }
         return $passed;
@@ -180,13 +224,19 @@ class Galado_Font_Preview {
     public function add_cart_item_data( $cart_item_data, $product_id ) {
         if ( ! $this->is_enabled( $product_id ) ) return $cart_item_data;
 
+        // Only save if personalisation is selected
+        if ( empty( $_POST['galado_personalise'] ) ) return $cart_item_data;
+
         if ( ! empty( $_POST['galado_font_name'] ) ) {
             $cart_item_data['galado_font_name'] = sanitize_text_field( $_POST['galado_font_name'] );
         }
         if ( ! empty( $_POST['galado_font_text'] ) ) {
             $cart_item_data['galado_font_text'] = sanitize_text_field( $_POST['galado_font_text'] );
         }
-        // Make cart item unique so same product with different fonts creates separate lines
+        if ( ! empty( $_POST['galado_font_color'] ) ) {
+            $cart_item_data['galado_font_color'] = sanitize_text_field( $_POST['galado_font_color'] );
+        }
+        // Make cart item unique
         $cart_item_data['unique_key'] = md5( microtime() . rand() );
         return $cart_item_data;
     }
@@ -207,6 +257,12 @@ class Galado_Font_Preview {
                 'value' => $cart_item['galado_font_name'],
             );
         }
+        if ( ! empty( $cart_item['galado_font_color'] ) ) {
+            $item_data[] = array(
+                'key'   => 'Font Colour',
+                'value' => $cart_item['galado_font_color'],
+            );
+        }
         return $item_data;
     }
 
@@ -219,6 +275,9 @@ class Galado_Font_Preview {
         }
         if ( ! empty( $values['galado_font_name'] ) ) {
             $item->add_meta_data( 'Font Style', $values['galado_font_name'], true );
+        }
+        if ( ! empty( $values['galado_font_color'] ) ) {
+            $item->add_meta_data( 'Font Colour', $values['galado_font_color'], true );
         }
     }
 

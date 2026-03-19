@@ -1,38 +1,124 @@
-/* ── GALADO Font Preview ── */
+/* ── GALADO Font Preview — Clean White Base ── */
 .galado-font-preview-wrap {
     margin: 24px 0;
-    padding: 24px;
-    background: #fafaf7;
-    border: 1px solid #e7e5e4;
-    border-radius: 14px;
+    padding: 0;
+    background: transparent;
+    border: none;
 }
 
-.galado-fp-title {
-    font-size: 18px;
+/* ── Personalisation Toggle ── */
+.galado-fp-toggle {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px;
+    background: #fff;
+    border: 1.5px solid #e5e5e5;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.galado-fp-toggle:hover {
+    border-color: #ccc;
+}
+
+.galado-fp-toggle input[type="checkbox"] {
+    display: none;
+}
+
+.galado-fp-toggle-box {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border: 2px solid #ccc;
+    border-radius: 6px;
+    background: #fff;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.galado-fp-toggle input:checked ~ .galado-fp-toggle-box {
+    background: #1a1a1a;
+    border-color: #1a1a1a;
+}
+
+.galado-fp-toggle input:checked ~ .galado-fp-toggle-box::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 6px;
+    width: 5px;
+    height: 10px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.galado-fp-toggle-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.galado-fp-toggle-label strong {
+    font-size: 15px;
     font-weight: 600;
-    color: #1c1917;
-    margin: 0 0 4px;
-    letter-spacing: 0.3px;
+    color: #1a1a1a;
+    letter-spacing: 0.2px;
 }
 
-.galado-fp-subtitle {
-    font-size: 14px;
-    color: #78716c;
-    margin: 0 0 16px;
+.galado-fp-toggle-label small {
+    font-size: 13px;
+    color: #888;
+    font-weight: 400;
 }
 
+/* ── Fields Container ── */
+.galado-fp-fields {
+    margin-top: 16px;
+    padding: 24px 20px;
+    background: #fff;
+    border: 1.5px solid #e5e5e5;
+    border-radius: 12px;
+    animation: galadoSlideDown 0.25s ease;
+}
+
+@keyframes galadoSlideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Field Labels ── */
+.galado-fp-field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+/* ── Input ── */
 .galado-fp-input-wrap {
-    margin-bottom: 16px;
+    margin-bottom: 20px;
+}
+
+.galado-fp-input-wrap:last-child {
+    margin-bottom: 0;
 }
 
 .galado-fp-input {
     width: 100%;
     padding: 13px 16px;
     font-size: 16px;
-    border: 1.5px solid #e7e5e4;
+    border: 1.5px solid #e5e5e5;
     border-radius: 10px;
-    background: #fff;
-    color: #1c1917;
+    background: #fafafa;
+    color: #1a1a1a;
     transition: border-color 0.2s, box-shadow 0.2s;
     -webkit-appearance: none;
     appearance: none;
@@ -40,37 +126,95 @@
 
 .galado-fp-input:focus {
     outline: none;
-    border-color: #a16207;
-    box-shadow: 0 0 0 3px rgba(161, 98, 7, 0.12);
+    border-color: #1a1a1a;
+    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.08);
+    background: #fff;
+}
+
+/* ── Font Colour Selector ── */
+.galado-fp-color-options {
+    display: flex;
+    gap: 12px;
+}
+
+.galado-fp-color-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    border: 1.5px solid #e5e5e5;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    -webkit-user-select: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: #555;
+    background: #fafafa;
+}
+
+.galado-fp-color-option:active {
+    transform: scale(0.97);
+}
+
+.galado-fp-color-option input[type="radio"] {
+    display: none;
+}
+
+.galado-fp-color-option input:checked ~ span {
+    color: #1a1a1a;
+}
+
+.galado-fp-color-option:has(input:checked) {
+    border-color: #1a1a1a;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.06);
+}
+
+.galado-fp-color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.galado-fp-swatch-black {
+    background: #1a1a1a;
+    border: 1.5px solid #1a1a1a;
+}
+
+.galado-fp-swatch-white {
+    background: #fff;
+    border: 1.5px solid #ccc;
 }
 
 /* ── Grid ── */
 .galado-fp-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 10px;
     max-height: 520px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 4px;
-    margin-bottom: 12px;
+    padding: 2px;
 }
 
 .galado-fp-placeholder {
     text-align: center;
     padding: 32px 16px;
-    color: #78716c;
+    color: #aaa;
     font-size: 14px;
 }
 
 /* ── Font Card ── */
 .galado-fp-card {
     padding: 16px 14px;
-    border: 2px solid #e7e5e4;
+    border: 1.5px solid #e5e5e5;
     border-radius: 10px;
-    background: #fff;
+    background: #fafafa;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.2s ease;
     text-align: center;
     user-select: none;
     -webkit-user-select: none;
@@ -87,27 +231,27 @@
 }
 
 .galado-fp-card.selected {
-    border-color: #a16207;
-    background: rgba(161, 98, 7, 0.08);
-    box-shadow: 0 0 0 3px rgba(161, 98, 7, 0.12), 0 2px 8px rgba(161, 98, 7, 0.1);
+    border-color: #1a1a1a;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.06);
 }
 
 .galado-fp-card .font-name {
     font-size: 11px;
     font-weight: 600;
-    color: #78716c;
+    color: #aaa;
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
 
 .galado-fp-card.selected .font-name {
-    color: #a16207;
+    color: #1a1a1a;
 }
 
 .galado-fp-card .font-sample {
     font-size: 32px;
     line-height: 1.4;
-    color: #1c1917;
+    color: #1a1a1a;
     word-break: break-word;
     max-width: 100%;
     padding: 4px 0;
@@ -116,36 +260,7 @@
 /* ── Badge ── */
 .galado-fp-badge {
     font-size: 14px;
-    color: #44403c;
-    margin-top: 8px;
-    letter-spacing: 0.3px;
-}
-
-/* ── Dark theme support (optional for dark WooCommerce themes) ── */
-@media (prefers-color-scheme: dark) {
-    .galado-font-preview-wrap {
-        background: #1c1917;
-        border-color: #2e2a27;
-    }
-
-    .galado-fp-title { color: #f5f3ef; }
-    .galado-fp-input {
-        background: #0c0a09;
-        border-color: #2e2a27;
-        color: #e7e5e4;
-    }
-    .galado-fp-input:focus {
-        border-color: #d4a843;
-        box-shadow: 0 0 0 3px rgba(212, 168, 67, 0.15);
-    }
-    .galado-fp-card {
-        background: #0c0a09;
-        border-color: #2e2a27;
-    }
-    .galado-fp-card.selected {
-        border-color: #d4a843;
-        background: rgba(212, 168, 67, 0.1);
-    }
-    .galado-fp-card .font-sample { color: #e7e5e4; }
-    .galado-fp-card.selected .font-name { color: #d4a843; }
+    color: #333;
+    margin-top: 12px;
+    letter-spacing: 0.2px;
 }
