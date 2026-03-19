@@ -755,11 +755,6 @@
       </div>
 
       <div class="field">
-        <label for="textInsert">Text to Insert</label>
-        <input type="text" id="textInsert" placeholder="e.g. Name, quote, etc.">
-      </div>
-
-      <div class="field">
         <label for="textPosition">Text Position (if any)</label>
         <input type="text" id="textPosition" placeholder="e.g. Center, Bottom-right">
       </div>
@@ -1057,7 +1052,7 @@
       design: getRadio('design'),
       caseColor: getRadio('caseColor'),
       fontStyle: document.getElementById('selectedFontStyle').value,
-      textInsert: document.getElementById('textInsert').value,
+      textInsert: document.getElementById('fontPreviewInput').value,
       textPosition: document.getElementById('textPosition').value,
       previewRequired: getRadio('preview'),
       remarks: document.getElementById('remarks').value,
