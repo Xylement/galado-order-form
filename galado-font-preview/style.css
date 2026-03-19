@@ -1,0 +1,151 @@
+/* ── GALADO Font Preview ── */
+.galado-font-preview-wrap {
+    margin: 24px 0;
+    padding: 24px;
+    background: #fafaf7;
+    border: 1px solid #e7e5e4;
+    border-radius: 14px;
+}
+
+.galado-fp-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1c1917;
+    margin: 0 0 4px;
+    letter-spacing: 0.3px;
+}
+
+.galado-fp-subtitle {
+    font-size: 14px;
+    color: #78716c;
+    margin: 0 0 16px;
+}
+
+.galado-fp-input-wrap {
+    margin-bottom: 16px;
+}
+
+.galado-fp-input {
+    width: 100%;
+    padding: 13px 16px;
+    font-size: 16px;
+    border: 1.5px solid #e7e5e4;
+    border-radius: 10px;
+    background: #fff;
+    color: #1c1917;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.galado-fp-input:focus {
+    outline: none;
+    border-color: #a16207;
+    box-shadow: 0 0 0 3px rgba(161, 98, 7, 0.12);
+}
+
+/* ── Grid ── */
+.galado-fp-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    max-height: 520px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px;
+    margin-bottom: 12px;
+}
+
+.galado-fp-placeholder {
+    text-align: center;
+    padding: 32px 16px;
+    color: #78716c;
+    font-size: 14px;
+}
+
+/* ── Font Card ── */
+.galado-fp-card {
+    padding: 16px 14px;
+    border: 2px solid #e7e5e4;
+    border-radius: 10px;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    text-align: center;
+    user-select: none;
+    -webkit-user-select: none;
+    min-height: 88px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.galado-fp-card:active {
+    transform: scale(0.97);
+}
+
+.galado-fp-card.selected {
+    border-color: #a16207;
+    background: rgba(161, 98, 7, 0.08);
+    box-shadow: 0 0 0 3px rgba(161, 98, 7, 0.12), 0 2px 8px rgba(161, 98, 7, 0.1);
+}
+
+.galado-fp-card .font-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: #78716c;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.galado-fp-card.selected .font-name {
+    color: #a16207;
+}
+
+.galado-fp-card .font-sample {
+    font-size: 32px;
+    line-height: 1.4;
+    color: #1c1917;
+    word-break: break-word;
+    max-width: 100%;
+    padding: 4px 0;
+}
+
+/* ── Badge ── */
+.galado-fp-badge {
+    font-size: 14px;
+    color: #44403c;
+    margin-top: 8px;
+    letter-spacing: 0.3px;
+}
+
+/* ── Dark theme support (optional for dark WooCommerce themes) ── */
+@media (prefers-color-scheme: dark) {
+    .galado-font-preview-wrap {
+        background: #1c1917;
+        border-color: #2e2a27;
+    }
+
+    .galado-fp-title { color: #f5f3ef; }
+    .galado-fp-input {
+        background: #0c0a09;
+        border-color: #2e2a27;
+        color: #e7e5e4;
+    }
+    .galado-fp-input:focus {
+        border-color: #d4a843;
+        box-shadow: 0 0 0 3px rgba(212, 168, 67, 0.15);
+    }
+    .galado-fp-card {
+        background: #0c0a09;
+        border-color: #2e2a27;
+    }
+    .galado-fp-card.selected {
+        border-color: #d4a843;
+        background: rgba(212, 168, 67, 0.1);
+    }
+    .galado-fp-card .font-sample { color: #e7e5e4; }
+    .galado-fp-card.selected .font-name { color: #d4a843; }
+}
