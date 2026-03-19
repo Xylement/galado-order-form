@@ -8,25 +8,26 @@
 
 /* ── Personalisation Toggle ── */
 .galado-fp-toggle {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 18px 20px;
-    background: #fff;
-    border: 1.5px solid #e5e5e5;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    display: flex !important;
+    align-items: center !important;
+    gap: 14px !important;
+    padding: 18px 20px !important;
+    background: #fff !important;
+    border: 1.5px solid #e5e5e5 !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
     user-select: none;
     -webkit-user-select: none;
+    margin: 0 !important;
 }
 
 .galado-fp-toggle:hover {
-    border-color: #ccc;
+    border-color: #ccc !important;
 }
 
 .galado-fp-toggle input[type="checkbox"] {
-    display: none;
+    display: none !important;
 }
 
 .galado-fp-toggle-box {
@@ -64,94 +65,84 @@
 }
 
 .galado-fp-toggle-label strong {
-    font-size: 15px;
-    font-weight: 600;
-    color: #1a1a1a;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #1a1a1a !important;
     letter-spacing: 0.2px;
 }
 
 .galado-fp-toggle-label small {
-    font-size: 13px;
-    color: #888;
-    font-weight: 400;
+    font-size: 13px !important;
+    color: #888 !important;
+    font-weight: 400 !important;
 }
 
 /* ── Fields Container ── */
 .galado-fp-fields {
-    margin-top: 16px;
-    padding: 24px 20px;
-    background: #fff;
-    border: 1.5px solid #e5e5e5;
-    border-radius: 12px;
-    animation: galadoSlideDown 0.25s ease;
-}
-
-@keyframes galadoSlideDown {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
+    margin-top: 16px !important;
+    padding: 24px 20px !important;
+    background: #fff !important;
+    border: 1.5px solid #e5e5e5 !important;
+    border-radius: 12px !important;
 }
 
 /* ── Field Labels ── */
 .galado-fp-field-label {
-    display: block;
-    font-size: 12px;
-    font-weight: 600;
-    color: #555;
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-    margin-bottom: 8px;
+    display: block !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #555 !important;
+    letter-spacing: 0.8px !important;
+    text-transform: uppercase !important;
+    margin-bottom: 8px !important;
 }
 
 /* ── Input ── */
 .galado-fp-input-wrap {
-    margin-bottom: 20px;
-}
-
-.galado-fp-input-wrap:last-child {
-    margin-bottom: 0;
+    margin-bottom: 20px !important;
 }
 
 .galado-fp-input {
-    width: 100%;
-    padding: 13px 16px;
-    font-size: 16px;
-    border: 1.5px solid #e5e5e5;
-    border-radius: 10px;
-    background: #fafafa;
-    color: #1a1a1a;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    -webkit-appearance: none;
-    appearance: none;
+    width: 100% !important;
+    padding: 13px 16px !important;
+    font-size: 16px !important;
+    border: 1.5px solid #e5e5e5 !important;
+    border-radius: 10px !important;
+    background: #fafafa !important;
+    color: #1a1a1a !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
 }
 
 .galado-fp-input:focus {
-    outline: none;
-    border-color: #1a1a1a;
-    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.08);
-    background: #fff;
+    outline: none !important;
+    border-color: #1a1a1a !important;
+    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.08) !important;
+    background: #fff !important;
 }
 
 /* ── Font Colour Selector ── */
 .galado-fp-color-options {
-    display: flex;
-    gap: 12px;
+    display: flex !important;
+    gap: 12px !important;
 }
 
 .galado-fp-color-option {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 20px;
-    border: 1.5px solid #e5e5e5;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 10px 20px !important;
+    border: 1.5px solid #e5e5e5 !important;
+    border-radius: 10px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
     user-select: none;
     -webkit-user-select: none;
-    font-size: 14px;
-    font-weight: 500;
-    color: #555;
-    background: #fafafa;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: #555 !important;
+    background: #fafafa !important;
 }
 
 .galado-fp-color-option:active {
@@ -159,17 +150,14 @@
 }
 
 .galado-fp-color-option input[type="radio"] {
-    display: none;
+    display: none !important;
 }
 
-.galado-fp-color-option input:checked ~ span {
-    color: #1a1a1a;
-}
-
-.galado-fp-color-option:has(input:checked) {
-    border-color: #1a1a1a;
-    background: #fff;
-    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.06);
+.galado-fp-color-option.active {
+    border-color: #1a1a1a !important;
+    background: #fff !important;
+    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.06) !important;
+    color: #1a1a1a !important;
 }
 
 .galado-fp-color-swatch {
@@ -191,39 +179,39 @@
 
 /* ── Grid ── */
 .galado-fp-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    max-height: 520px;
-    overflow-y: auto;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    max-height: 520px !important;
+    overflow-y: auto !important;
     -webkit-overflow-scrolling: touch;
-    padding: 2px;
+    padding: 2px !important;
 }
 
 .galado-fp-placeholder {
-    text-align: center;
-    padding: 32px 16px;
-    color: #aaa;
-    font-size: 14px;
+    text-align: center !important;
+    padding: 32px 16px !important;
+    color: #aaa !important;
+    font-size: 14px !important;
 }
 
 /* ── Font Card ── */
 .galado-fp-card {
-    padding: 16px 14px;
-    border: 1.5px solid #e5e5e5;
-    border-radius: 10px;
-    background: #fafafa;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: center;
+    padding: 16px 14px !important;
+    border: 1.5px solid #e5e5e5 !important;
+    border-radius: 10px !important;
+    background: #fafafa !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    text-align: center !important;
     user-select: none;
     -webkit-user-select: none;
-    min-height: 88px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
+    min-height: 88px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 8px !important;
 }
 
 .galado-fp-card:active {
@@ -231,36 +219,36 @@
 }
 
 .galado-fp-card.selected {
-    border-color: #1a1a1a;
-    background: #fff;
-    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.06);
+    border-color: #1a1a1a !important;
+    background: #fff !important;
+    box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.06) !important;
 }
 
 .galado-fp-card .font-name {
-    font-size: 11px;
-    font-weight: 600;
-    color: #aaa;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: #aaa !important;
+    letter-spacing: 0.5px !important;
+    text-transform: uppercase !important;
 }
 
 .galado-fp-card.selected .font-name {
-    color: #1a1a1a;
+    color: #1a1a1a !important;
 }
 
 .galado-fp-card .font-sample {
-    font-size: 32px;
-    line-height: 1.4;
-    color: #1a1a1a;
-    word-break: break-word;
-    max-width: 100%;
-    padding: 4px 0;
+    font-size: 32px !important;
+    line-height: 1.4 !important;
+    color: #1a1a1a !important;
+    word-break: break-word !important;
+    max-width: 100% !important;
+    padding: 4px 0 !important;
 }
 
 /* ── Badge ── */
 .galado-fp-badge {
-    font-size: 14px;
-    color: #333;
-    margin-top: 12px;
-    letter-spacing: 0.2px;
+    font-size: 14px !important;
+    color: #333 !important;
+    margin-top: 12px !important;
+    letter-spacing: 0.2px !important;
 }
