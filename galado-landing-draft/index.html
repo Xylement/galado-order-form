@@ -500,7 +500,7 @@
     }
 
     /* =========================================
-       HERO
+       HERO SLIDER
        ========================================= */
     .hero {
       position: relative;
@@ -511,13 +511,24 @@
       background-color: var(--color-bg-alt);
     }
 
-    .hero-bg {
+    .hero-slider {
       position: absolute;
       inset: 0;
       z-index: 0;
     }
 
-    .hero-bg img {
+    .hero-slide {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+    }
+
+    .hero-slide.active {
+      opacity: 1;
+    }
+
+    .hero-slide img {
       width: 100%;
       height: 100%;
       object-fit: cover;
@@ -589,6 +600,75 @@
 
     .hero-ctas .btn:hover {
       background-color: #F0F0F0;
+    }
+
+    /* Slider dots */
+    .hero-dots {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+      display: flex;
+      gap: 10px;
+    }
+
+    .hero-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.4);
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      transition: all 0.3s ease;
+    }
+
+    .hero-dot.active {
+      background: #FFFFFF;
+      transform: scale(1.2);
+    }
+
+    /* Slider arrows */
+    .hero-arrow {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 3;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s ease;
+    }
+
+    .hero-arrow:hover {
+      background: rgba(255,255,255,0.3);
+    }
+
+    .hero-arrow svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .hero-arrow-prev { left: 16px; }
+    .hero-arrow-next { right: 16px; }
+
+    @media (max-width: 640px) {
+      .hero-arrow { display: none; }
     }
 
     /* =========================================
@@ -1517,11 +1597,25 @@
   <main>
     <!-- ======= HERO ======= -->
     <section class="hero" aria-labelledby="hero-heading">
-      <div class="hero-bg">
-        <!-- TODO: Replace with real lifestyle hero image of someone holding a GALADO phone case -->
-        <img src="https://picsum.photos/1600/900?random=hero" alt="Person holding a custom GALADO phone case" loading="eager" width="1600" height="900">
+      <!-- Slider images -->
+      <div class="hero-slider">
+        <!-- TODO: Replace with real banner images -->
+        <div class="hero-slide active">
+          <img src="https://picsum.photos/1600/900?random=slide1" alt="Custom name phone cases by GALADO" loading="eager" width="1600" height="900">
+        </div>
+        <div class="hero-slide">
+          <img src="https://picsum.photos/1600/900?random=slide2" alt="GALADO artist collaboration collection" loading="lazy" width="1600" height="900">
+        </div>
+        <div class="hero-slide">
+          <img src="https://picsum.photos/1600/900?random=slide3" alt="Custom drawing phone cases" loading="lazy" width="1600" height="900">
+        </div>
+        <div class="hero-slide">
+          <img src="https://picsum.photos/1600/900?random=slide4" alt="GALADO phone charms and accessories" loading="lazy" width="1600" height="900">
+        </div>
       </div>
       <div class="hero-overlay"></div>
+
+      <!-- Text overlay -->
       <div class="container hero-content fade-in">
         <h1 id="hero-heading">Custom Phone Cases in Malaysia</h1>
         <p>Personalise with your name, drawing or photo — handcrafted in Penang since 2014</p>
@@ -1529,6 +1623,22 @@
           <a href="#" class="btn" role="button">Shop iPhone</a>
           <a href="#" class="btn" role="button">Shop Samsung</a>
         </div>
+      </div>
+
+      <!-- Arrows -->
+      <button class="hero-arrow hero-arrow-prev" aria-label="Previous slide">
+        <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <button class="hero-arrow hero-arrow-next" aria-label="Next slide">
+        <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18"/></svg>
+      </button>
+
+      <!-- Dots -->
+      <div class="hero-dots">
+        <button class="hero-dot active" aria-label="Slide 1"></button>
+        <button class="hero-dot" aria-label="Slide 2"></button>
+        <button class="hero-dot" aria-label="Slide 3"></button>
+        <button class="hero-dot" aria-label="Slide 4"></button>
       </div>
     </section>
 
@@ -2015,6 +2125,58 @@
         var current = document.documentElement.getAttribute('data-theme');
         setTheme(current === 'dark' ? 'light' : 'dark');
       });
+
+      // ---- Hero Slider ----
+      var slides = document.querySelectorAll('.hero-slide');
+      var dots = document.querySelectorAll('.hero-dot');
+      var prevBtn = document.querySelector('.hero-arrow-prev');
+      var nextBtn = document.querySelector('.hero-arrow-next');
+      var currentSlide = 0;
+      var slideCount = slides.length;
+      var autoPlayInterval;
+
+      function goToSlide(index) {
+        slides[currentSlide].classList.remove('active');
+        dots[currentSlide].classList.remove('active');
+        currentSlide = (index + slideCount) % slideCount;
+        slides[currentSlide].classList.add('active');
+        dots[currentSlide].classList.add('active');
+      }
+
+      function nextSlide() { goToSlide(currentSlide + 1); }
+      function prevSlide() { goToSlide(currentSlide - 1); }
+
+      function startAutoPlay() {
+        autoPlayInterval = setInterval(nextSlide, 5000);
+      }
+
+      function resetAutoPlay() {
+        clearInterval(autoPlayInterval);
+        startAutoPlay();
+      }
+
+      if (nextBtn) nextBtn.addEventListener('click', function() { nextSlide(); resetAutoPlay(); });
+      if (prevBtn) prevBtn.addEventListener('click', function() { prevSlide(); resetAutoPlay(); });
+
+      dots.forEach(function(dot, i) {
+        dot.addEventListener('click', function() { goToSlide(i); resetAutoPlay(); });
+      });
+
+      // Touch swipe support for mobile
+      var heroEl = document.querySelector('.hero');
+      var touchStartX = 0;
+      if (heroEl) {
+        heroEl.addEventListener('touchstart', function(e) { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
+        heroEl.addEventListener('touchend', function(e) {
+          var diff = touchStartX - e.changedTouches[0].screenX;
+          if (Math.abs(diff) > 50) {
+            if (diff > 0) nextSlide(); else prevSlide();
+            resetAutoPlay();
+          }
+        }, {passive: true});
+      }
+
+      startAutoPlay();
 
       // ---- Header scroll shadow ----
       var header = document.getElementById('header');
