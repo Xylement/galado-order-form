@@ -25,8 +25,8 @@ class Galado_Font_Preview {
     );
 
     public function __construct() {
-        // Admin: Add product setting
-        add_action( 'woocommerce_product_options_general_product_data', array( $this, 'add_product_option' ) );
+        // Admin: Add sidebar meta box on product edit page
+        add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
         add_action( 'woocommerce_process_product_meta', array( $this, 'save_product_option' ) );
 
         // Frontend: Display on product page
@@ -50,17 +50,38 @@ class Galado_Font_Preview {
     }
 
     /**
-     * ── ADMIN: Product Settings ──
+     * ── ADMIN: Sidebar Meta Box ──
      */
-    public function add_product_option() {
-        woocommerce_wp_checkbox( array(
-            'id'          => '_galado_font_preview_enabled',
-            'label'       => 'GALADO Font Preview',
-            'description' => 'Enable the font style preview selector on this product page.',
-        ) );
+    public function add_meta_box() {
+        add_meta_box(
+            'galado_font_preview_meta',
+            'GALADO Font Preview',
+            array( $this, 'render_meta_box' ),
+            'product',
+            'side',
+            'high'
+        );
+    }
+
+    public function render_meta_box( $post ) {
+        $enabled = get_post_meta( $post->ID, '_galado_font_preview_enabled', true );
+        wp_nonce_field( 'galado_font_preview_nonce', 'galado_font_preview_nonce_field' );
+        ?>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 0;">
+            <input type="checkbox" name="_galado_font_preview_enabled" value="yes" <?php checked( $enabled, 'yes' ); ?> style="width:18px;height:18px;">
+            <span style="font-size:13px;">Enable font style preview on this product</span>
+        </label>
+        <p style="margin:8px 0 0;color:#666;font-size:12px;">
+            When enabled, customers can type their name and select a font style before adding to cart.
+        </p>
+        <?php
     }
 
     public function save_product_option( $post_id ) {
+        if ( ! isset( $_POST['galado_font_preview_nonce_field'] ) ||
+             ! wp_verify_nonce( $_POST['galado_font_preview_nonce_field'], 'galado_font_preview_nonce' ) ) {
+            return;
+        }
         $enabled = isset( $_POST['_galado_font_preview_enabled'] ) ? 'yes' : 'no';
         update_post_meta( $post_id, '_galado_font_preview_enabled', $enabled );
     }
