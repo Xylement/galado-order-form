@@ -500,112 +500,95 @@
     }
 
     /* =========================================
-       HERO SLIDER
+       HERO TEXT
        ========================================= */
-    .hero {
-      position: relative;
-      min-height: 85vh;
-      display: flex;
-      align-items: center;
-      overflow: hidden;
-      background-color: var(--color-bg-alt);
+    .hero-text {
+      text-align: center;
+      padding: var(--spacing-2xl) 0 var(--spacing-xl);
+      background: var(--color-bg);
     }
 
-    .hero-slider {
-      position: absolute;
-      inset: 0;
-      z-index: 0;
-    }
-
-    .hero-slide {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      transition: opacity 0.8s ease;
-    }
-
-    .hero-slide.active {
-      opacity: 1;
-    }
-
-    .hero-slide img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .hero-overlay {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(
-        to right,
-        rgba(0, 0, 0, 0.55) 0%,
-        rgba(0, 0, 0, 0.2) 60%,
-        transparent 100%
-      );
-      z-index: 1;
-    }
-
-    [data-theme="dark"] .hero-overlay {
-      background: linear-gradient(
-        to right,
-        rgba(0, 0, 0, 0.75) 0%,
-        rgba(0, 0, 0, 0.4) 60%,
-        rgba(0, 0, 0, 0.15) 100%
-      );
-    }
-
-    .hero-content {
-      position: relative;
-      z-index: 2;
-      padding: var(--spacing-3xl) 0;
-      max-width: 520px;
-    }
-
-    .hero h1 {
+    .hero-text h1 {
       font-size: var(--font-size-3xl);
       font-weight: 700;
       line-height: 1.15;
       letter-spacing: -0.03em;
-      color: #FFFFFF;
-      margin-bottom: var(--spacing-md);
+      color: var(--color-text);
+      margin-bottom: var(--spacing-sm);
     }
 
     @media (min-width: 768px) {
-      .hero h1 {
+      .hero-text h1 {
         font-size: var(--font-size-4xl);
       }
     }
 
-    .hero p {
+    .hero-text p {
       font-size: var(--font-size-lg);
-      color: rgba(255, 255, 255, 0.85);
-      margin-bottom: var(--spacing-xl);
+      color: var(--color-text-secondary);
+      margin-bottom: var(--spacing-lg);
       line-height: 1.5;
     }
 
     .hero-ctas {
       display: flex;
       gap: var(--spacing-md);
+      justify-content: center;
       flex-wrap: wrap;
     }
 
     .hero-ctas .btn {
       padding: 14px 32px;
       font-size: var(--font-size-base);
-      background-color: #FFFFFF;
-      color: #111111;
-      border-radius: var(--radius-md);
     }
 
-    .hero-ctas .btn:hover {
-      background-color: #F0F0F0;
+    /* =========================================
+       BANNER SLIDER
+       ========================================= */
+    .banner-slider {
+      position: relative;
+      overflow: hidden;
+      background-color: var(--color-bg-alt);
+    }
+
+    .banner-slider-track {
+      position: relative;
+      aspect-ratio: 21/9;
+    }
+
+    @media (max-width: 640px) {
+      .banner-slider-track {
+        aspect-ratio: 16/9;
+      }
+    }
+
+    .banner-slide {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.8s ease;
+    }
+
+    .banner-slide.active {
+      opacity: 1;
+    }
+
+    .banner-slide a {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .banner-slide img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
     /* Slider dots */
     .hero-dots {
       position: absolute;
-      bottom: 24px;
+      bottom: 16px;
       left: 50%;
       transform: translateX(-50%);
       z-index: 3;
@@ -638,10 +621,10 @@
       width: 44px;
       height: 44px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.15);
+      background: rgba(0,0,0,0.25);
       backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
-      border: 1px solid rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.15);
       color: #fff;
       cursor: pointer;
       display: flex;
@@ -651,7 +634,7 @@
     }
 
     .hero-arrow:hover {
-      background: rgba(255,255,255,0.3);
+      background: rgba(0,0,0,0.45);
     }
 
     .hero-arrow svg {
@@ -1506,11 +1489,7 @@
         padding: 2em 0;
       }
 
-      .hero-overlay {
-        background: rgba(0,0,0,0.1);
-      }
-
-      .hero h1 {
+      .hero-text h1 {
         font-size: 24pt;
       }
 
@@ -1596,32 +1575,41 @@
 
   <main>
     <!-- ======= HERO ======= -->
-    <section class="hero" aria-labelledby="hero-heading">
-      <!-- Slider images -->
-      <div class="hero-slider">
-        <!-- TODO: Replace with real banner images -->
-        <div class="hero-slide active">
-          <img src="https://picsum.photos/1600/900?random=slide1" alt="Custom name phone cases by GALADO" loading="eager" width="1600" height="900">
-        </div>
-        <div class="hero-slide">
-          <img src="https://picsum.photos/1600/900?random=slide2" alt="GALADO artist collaboration collection" loading="lazy" width="1600" height="900">
-        </div>
-        <div class="hero-slide">
-          <img src="https://picsum.photos/1600/900?random=slide3" alt="Custom drawing phone cases" loading="lazy" width="1600" height="900">
-        </div>
-        <div class="hero-slide">
-          <img src="https://picsum.photos/1600/900?random=slide4" alt="GALADO phone charms and accessories" loading="lazy" width="1600" height="900">
-        </div>
-      </div>
-      <div class="hero-overlay"></div>
-
-      <!-- Text overlay -->
-      <div class="container hero-content fade-in">
+    <!-- H1 Section -->
+    <section class="hero-text fade-in" aria-labelledby="hero-heading">
+      <div class="container">
         <h1 id="hero-heading">Custom Phone Cases in Malaysia</h1>
         <p>Personalise with your name, drawing or photo — handcrafted in Penang since 2014</p>
         <div class="hero-ctas">
           <a href="#" class="btn" role="button">Shop iPhone</a>
           <a href="#" class="btn" role="button">Shop Samsung</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Banner Slider — each slide links to a product/collection page -->
+    <section class="banner-slider" aria-label="Promotions">
+      <div class="banner-slider-track">
+        <!-- TODO: Replace images and href links with real banners -->
+        <div class="banner-slide active">
+          <a href="#" aria-label="Shop Custom Name Cases">
+            <img src="https://picsum.photos/1600/686?random=slide1" alt="Custom Name Cases collection" loading="eager" width="1600" height="686">
+          </a>
+        </div>
+        <div class="banner-slide">
+          <a href="#" aria-label="Shop Pos Malaysia x GALADO collection">
+            <img src="https://picsum.photos/1600/686?random=slide2" alt="Pos Malaysia x GALADO limited edition" loading="lazy" width="1600" height="686">
+          </a>
+        </div>
+        <div class="banner-slide">
+          <a href="#" aria-label="Shop Artist Collaboration series">
+            <img src="https://picsum.photos/1600/686?random=slide3" alt="Artist collaboration phone cases" loading="lazy" width="1600" height="686">
+          </a>
+        </div>
+        <div class="banner-slide">
+          <a href="#" aria-label="Shop Phone Charms">
+            <img src="https://picsum.photos/1600/686?random=slide4" alt="Phone charms and accessories collection" loading="lazy" width="1600" height="686">
+          </a>
         </div>
       </div>
 
@@ -2127,7 +2115,7 @@
       });
 
       // ---- Hero Slider ----
-      var slides = document.querySelectorAll('.hero-slide');
+      var slides = document.querySelectorAll('.banner-slide');
       var dots = document.querySelectorAll('.hero-dot');
       var prevBtn = document.querySelector('.hero-arrow-prev');
       var nextBtn = document.querySelector('.hero-arrow-next');
@@ -2163,7 +2151,7 @@
       });
 
       // Touch swipe support for mobile
-      var heroEl = document.querySelector('.hero');
+      var heroEl = document.querySelector('.banner-slider');
       var touchStartX = 0;
       if (heroEl) {
         heroEl.addEventListener('touchstart', function(e) { touchStartX = e.changedTouches[0].screenX; }, {passive: true});
