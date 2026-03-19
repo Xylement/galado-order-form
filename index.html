@@ -462,9 +462,9 @@
 
     .font-preview-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 12px;
-      max-height: 420px;
+      max-height: 520px;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
       padding: 4px;
@@ -508,12 +508,12 @@
     }
 
     .font-preview-card .font-sample {
-      font-size: 26px;
-      line-height: 1.2;
+      font-size: 32px;
+      line-height: 1.4;
       color: var(--card-foreground);
       word-break: break-word;
-      overflow: hidden;
       max-width: 100%;
+      padding: 4px 0;
     }
 
     .font-preview-card.selected .font-name {
@@ -542,12 +542,6 @@
       color: var(--muted);
       font-size: 14px;
       letter-spacing: 0.3px;
-    }
-
-    @media (max-width: 500px) {
-      .font-preview-grid {
-        grid-template-columns: 1fr;
-      }
     }
 
     /* ── Reduced Motion ── */
