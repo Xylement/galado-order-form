@@ -564,21 +564,43 @@
           </div>
         </div>
         <div id="photoUploadSection" style="display:none;margin-top:12px;">
-          <label for="photoUpload">Upload or Snap Photo</label>
-          <input type="file" id="photoUpload" accept="image/*" capture="environment" style="display:none;">
-          <div style="display:flex;gap:10px;margin-top:6px;">
-            <button type="button" id="btnSnap" class="photo-btn">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-              Snap Photo
-            </button>
-            <button type="button" id="btnUpload" class="photo-btn">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              Choose from Library
-            </button>
+          <!-- Insert Photo -->
+          <div class="photo-upload-block">
+            <label>Insert Photo</label>
+            <input type="file" id="photoUpload" accept="image/*" capture="environment" style="display:none;">
+            <div style="display:flex;gap:10px;margin-top:6px;">
+              <button type="button" class="photo-btn" onclick="document.getElementById('photoUpload').setAttribute('capture','environment');document.getElementById('photoUpload').click();">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                Snap Photo
+              </button>
+              <button type="button" class="photo-btn" onclick="document.getElementById('photoUpload').removeAttribute('capture');document.getElementById('photoUpload').click();">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Choose from Library
+              </button>
+            </div>
+            <div id="photoPreview" style="margin-top:12px;display:none;">
+              <img id="photoThumb" style="max-width:100%;max-height:200px;border-radius:var(--radius-sm);border:1.5px solid var(--border);">
+              <button type="button" id="btnRemovePhoto" style="display:block;margin-top:8px;font-family:'Jost',sans-serif;font-size:13px;color:var(--destructive);background:none;border:none;cursor:pointer;font-weight:500;letter-spacing:0.3px;text-transform:uppercase;">Remove Photo</button>
+            </div>
           </div>
-          <div id="photoPreview" style="margin-top:12px;display:none;">
-            <img id="photoThumb" style="max-width:100%;max-height:200px;border-radius:var(--radius-sm);border:1.5px solid var(--border);">
-            <button type="button" id="btnRemovePhoto" style="display:block;margin-top:8px;font-family:'Jost',sans-serif;font-size:13px;color:var(--destructive);background:none;border:none;cursor:pointer;font-weight:500;letter-spacing:0.3px;text-transform:uppercase;">Remove Photo</button>
+          <!-- Customer Photo -->
+          <div class="photo-upload-block" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+            <label>Customer Photo</label>
+            <input type="file" id="customerPhotoUpload" accept="image/*" capture="environment" style="display:none;">
+            <div style="display:flex;gap:10px;margin-top:6px;">
+              <button type="button" class="photo-btn" onclick="document.getElementById('customerPhotoUpload').setAttribute('capture','environment');document.getElementById('customerPhotoUpload').click();">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                Snap Photo
+              </button>
+              <button type="button" class="photo-btn" onclick="document.getElementById('customerPhotoUpload').removeAttribute('capture');document.getElementById('customerPhotoUpload').click();">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                Choose from Library
+              </button>
+            </div>
+            <div id="customerPhotoPreview" style="margin-top:12px;display:none;">
+              <img id="customerPhotoThumb" style="max-width:100%;max-height:200px;border-radius:var(--radius-sm);border:1.5px solid var(--border);">
+              <button type="button" id="btnRemoveCustomerPhoto" style="display:block;margin-top:8px;font-family:'Jost',sans-serif;font-size:13px;color:var(--destructive);background:none;border:none;cursor:pointer;font-weight:500;letter-spacing:0.3px;text-transform:uppercase;">Remove Photo</button>
+            </div>
           </div>
         </div>
       </div>
@@ -618,8 +640,22 @@
       <div class="card-title">Customization</div>
 
       <div class="field">
-        <label for="fontStyle">Font Style (Refer / Attach Photo)</label>
-        <input type="text" id="fontStyle" placeholder="Describe font style or reference">
+        <label>Font Style (Upload Reference Photo)</label>
+        <input type="file" id="fontStyleUpload" accept="image/*" capture="environment" style="display:none;">
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <button type="button" class="photo-btn" onclick="document.getElementById('fontStyleUpload').setAttribute('capture','environment');document.getElementById('fontStyleUpload').click();">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            Snap Photo
+          </button>
+          <button type="button" class="photo-btn" onclick="document.getElementById('fontStyleUpload').removeAttribute('capture');document.getElementById('fontStyleUpload').click();">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px;vertical-align:-2px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            Choose from Library
+          </button>
+        </div>
+        <div id="fontStylePreview" style="margin-top:12px;display:none;">
+          <img id="fontStyleThumb" style="max-width:100%;max-height:200px;border-radius:var(--radius-sm);border:1.5px solid var(--border);">
+          <button type="button" id="btnRemoveFontStyle" style="display:block;margin-top:8px;font-family:'Jost',sans-serif;font-size:13px;color:var(--destructive);background:none;border:none;cursor:pointer;font-weight:500;letter-spacing:0.3px;text-transform:uppercase;">Remove Photo</button>
+        </div>
       </div>
 
       <div class="field">
@@ -756,48 +792,43 @@
     });
   });
 
-  // Photo upload handling for "Insert Photo" design option
-  const photoUploadSection = document.getElementById('photoUploadSection');
-  const photoInput = document.getElementById('photoUpload');
-  const photoPreview = document.getElementById('photoPreview');
-  const photoThumb = document.getElementById('photoThumb');
+  // Generic photo upload handler
+  function setupPhotoUpload(inputId, previewId, thumbId, removeBtnId) {
+    const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
+    const thumb = document.getElementById(thumbId);
+    const removeBtn = document.getElementById(removeBtnId);
 
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = e => { thumb.src = e.target.result; preview.style.display = 'block'; };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    removeBtn.addEventListener('click', () => { input.value = ''; preview.style.display = 'none'; });
+
+    return { input, preview, thumb };
+  }
+
+  // Setup all 3 photo uploads
+  const insertPhoto = setupPhotoUpload('photoUpload', 'photoPreview', 'photoThumb', 'btnRemovePhoto');
+  const customerPhoto = setupPhotoUpload('customerPhotoUpload', 'customerPhotoPreview', 'customerPhotoThumb', 'btnRemoveCustomerPhoto');
+  const fontStylePhoto = setupPhotoUpload('fontStyleUpload', 'fontStylePreview', 'fontStyleThumb', 'btnRemoveFontStyle');
+
+  // Toggle Insert Photo section on design radio change
+  const photoUploadSection = document.getElementById('photoUploadSection');
   document.querySelectorAll('input[name="design"]').forEach(r => {
     r.addEventListener('change', () => {
       const isPhoto = document.getElementById('d2').checked;
       photoUploadSection.style.display = isPhoto ? 'block' : 'none';
       if (!isPhoto) {
-        photoInput.value = '';
-        photoPreview.style.display = 'none';
+        insertPhoto.input.value = ''; insertPhoto.preview.style.display = 'none';
+        customerPhoto.input.value = ''; customerPhoto.preview.style.display = 'none';
       }
     });
-  });
-
-  document.getElementById('btnSnap').addEventListener('click', () => {
-    photoInput.setAttribute('capture', 'environment');
-    photoInput.click();
-  });
-
-  document.getElementById('btnUpload').addEventListener('click', () => {
-    photoInput.removeAttribute('capture');
-    photoInput.click();
-  });
-
-  photoInput.addEventListener('change', () => {
-    const file = photoInput.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = e => {
-        photoThumb.src = e.target.result;
-        photoPreview.style.display = 'block';
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-
-  document.getElementById('btnRemovePhoto').addEventListener('click', () => {
-    photoInput.value = '';
-    photoPreview.style.display = 'none';
   });
 
   // Toggle "Other" text inputs
@@ -883,7 +914,7 @@
       caseType: getRadio('caseType'),
       design: getRadio('design'),
       caseColor: getRadio('caseColor'),
-      fontStyle: document.getElementById('fontStyle').value,
+      fontStyle: '(photo upload)',
       textInsert: document.getElementById('textInsert').value,
       textPosition: document.getElementById('textPosition').value,
       previewRequired: getRadio('preview'),
@@ -911,26 +942,29 @@
     // Prevent double-tap
     if (submitBtn.disabled) return;
     submitBtn.disabled = true;
-    const hasPhoto = photoThumb.src && photoPreview.style.display !== 'none';
-    submitBtn.textContent = hasPhoto ? 'Uploading photo...' : 'Submitting...';
+    const hasInsertPhoto = insertPhoto.thumb.src && insertPhoto.preview.style.display !== 'none';
+    const hasCustomerPhoto = customerPhoto.thumb.src && customerPhoto.preview.style.display !== 'none';
+    const hasFontPhoto = fontStylePhoto.thumb.src && fontStylePhoto.preview.style.display !== 'none';
+    const hasAnyPhoto = hasInsertPhoto || hasCustomerPhoto || hasFontPhoto;
+    submitBtn.textContent = hasAnyPhoto ? 'Uploading photos...' : 'Submitting...';
     submitBtn.style.opacity = '0.6';
 
     const data = { ...collectFormData(), submittedAt: new Date().toISOString() };
 
-    // Compress photo if present
-    if (hasPhoto && photoThumb.src) {
-      submitBtn.textContent = 'Compressing photo...';
-      data.photoBase64 = await compressImage(photoThumb.src);
-      submitBtn.textContent = 'Uploading...';
-    } else {
-      data.photoBase64 = '';
-    }
+    // Compress all photos if present
+    submitBtn.textContent = 'Compressing photos...';
+    data.photoBase64 = hasInsertPhoto ? await compressImage(insertPhoto.thumb.src) : '';
+    data.customerPhotoBase64 = hasCustomerPhoto ? await compressImage(customerPhoto.thumb.src) : '';
+    data.fontStylePhotoBase64 = hasFontPhoto ? await compressImage(fontStylePhoto.thumb.src) : '';
+    if (hasAnyPhoto) submitBtn.textContent = 'Uploading...';
 
     console.log('Order submitted:', data);
 
     // Also keep a local backup in localStorage (without photo to save space)
     const localData = { ...data };
     delete localData.photoBase64;
+    delete localData.customerPhotoBase64;
+    delete localData.fontStylePhotoBase64;
     const orders = JSON.parse(localStorage.getItem('galado_orders') || '[]');
     orders.push(localData);
     localStorage.setItem('galado_orders', JSON.stringify(orders));
@@ -966,8 +1000,9 @@
       phoneModelSelect.innerHTML = '<option value="">— Select brand first —</option>';
       phoneModelSelect.disabled = true;
       photoUploadSection.style.display = 'none';
-      photoInput.value = '';
-      photoPreview.style.display = 'none';
+      insertPhoto.input.value = ''; insertPhoto.preview.style.display = 'none';
+      customerPhoto.input.value = ''; customerPhoto.preview.style.display = 'none';
+      fontStylePhoto.input.value = ''; fontStylePhoto.preview.style.display = 'none';
       document.querySelectorAll('.other-input').forEach(el => el.classList.remove('visible'));
       document.getElementById('deliverySection').classList.remove('visible');
     }, 500);
@@ -982,8 +1017,9 @@
       phoneModelSelect.innerHTML = '<option value="">— Select brand first —</option>';
       phoneModelSelect.disabled = true;
       photoUploadSection.style.display = 'none';
-      photoInput.value = '';
-      photoPreview.style.display = 'none';
+      insertPhoto.input.value = ''; insertPhoto.preview.style.display = 'none';
+      customerPhoto.input.value = ''; customerPhoto.preview.style.display = 'none';
+      fontStylePhoto.input.value = ''; fontStylePhoto.preview.style.display = 'none';
       document.querySelectorAll('.other-input').forEach(el => el.classList.remove('visible'));
       document.getElementById('deliverySection').classList.remove('visible');
     }
