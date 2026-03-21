@@ -17,20 +17,54 @@ class Galado_Crosssell_Engine {
     }
 
     public static function build_rules() {
-        // These map product categories to complementary categories
-        // e.g., if cart has a "phone case", suggest "screen protector", "charm", "strap"
-        self::$category_rules = apply_filters('galado_cs_category_rules', [
-            // Case categories -> suggest accessories
-            'phone-cases'       => ['screen-protectors', 'phone-charms', 'straps', 'grips'],
-            'iphone-cases'      => ['screen-protectors', 'phone-charms', 'straps', 'grips'],
-            'samsung-cases'     => ['screen-protectors', 'phone-charms', 'straps', 'grips'],
-            'custom-name-cases' => ['screen-protectors', 'phone-charms', 'straps', 'grips'],
-            'custom-cases'      => ['screen-protectors', 'phone-charms', 'straps', 'grips'],
-            // Accessories -> suggest cases or other accessories
-            'phone-charms'      => ['straps', 'grips', 'phone-cases'],
-            'straps'            => ['phone-charms', 'grips', 'phone-cases'],
-            'screen-protectors' => ['phone-charms', 'straps', 'phone-cases'],
-        ]);
+        // GALADO actual category slugs
+        // Cases (iPhone/Samsung) -> suggest ONLY accessories, never other cases
+        $accessory_cats = ['screen-protector', 'lens-protector', 'phone-charm', 'phone-strap', 'magnetic-ring-stand'];
+
+        $rules = [];
+
+        // All iPhone model categories -> suggest accessories
+        $iphone_cats = [
+            'iphone', 'iphone-17-pro-max', 'iphone-17-pro', 'iphone-air', 'iphone-17',
+            'iphone-16-pro-max', 'iphone-16-pro', 'iphone-16-plus', 'iphone-16',
+            'iphone-15-pro-max', 'iphone-15-pro', 'iphone-15',
+            'iphone-14-pro-max', 'iphone-14-pro', 'iphone-14-plus', 'iphone-14',
+            'iphone-13-pro-max', 'iphone-13-pro', 'iphone-13', 'iphone-13-mini',
+        ];
+
+        // All Samsung model categories -> suggest accessories
+        $samsung_cats = [
+            'samsung', 'galaxy-s26-ultra', 'galaxy-s26-plus', 'galaxy-s26',
+            'galaxy-s25-ultra', 'galaxy-s25-plus', 'galaxy-s25',
+            'galaxy-s24-ultra', 'galaxy-s24-samsung', 'galaxy-s24',
+        ];
+
+        // Parent categories for cases
+        $case_cats = array_merge(['apple'], $iphone_cats, $samsung_cats);
+
+        // Cases -> suggest accessories only (NEVER other cases)
+        foreach ($case_cats as $cat) {
+            $rules[$cat] = $accessory_cats;
+        }
+
+        // AirPods categories -> suggest phone charms, straps (not screen protectors)
+        $airpod_cats = ['airpods', 'airpods-4', 'airpods-3', 'airpods-pro-3', 'airpods-pro-2', 'airpods-pro'];
+        foreach ($airpod_cats as $cat) {
+            $rules[$cat] = ['phone-charm', 'phone-strap', 'magnetic-ring-stand'];
+        }
+
+        // MacBook categories -> suggest nothing specific (different product line)
+        // They won't match any accessory categories, so bestsellers fallback kicks in
+
+        // Accessories -> suggest other accessories (not cases)
+        $rules['phone-charm']        = ['phone-strap', 'magnetic-ring-stand', 'screen-protector'];
+        $rules['phone-strap']        = ['phone-charm', 'magnetic-ring-stand', 'screen-protector'];
+        $rules['magnetic-ring-stand'] = ['phone-charm', 'phone-strap', 'screen-protector'];
+        $rules['screen-protector']   = ['lens-protector', 'phone-charm', 'phone-strap', 'magnetic-ring-stand'];
+        $rules['lens-protector']     = ['screen-protector', 'phone-charm', 'phone-strap', 'magnetic-ring-stand'];
+        $rules['accessories']        = ['phone-charm', 'phone-strap', 'magnetic-ring-stand', 'screen-protector'];
+
+        self::$category_rules = apply_filters('galado_cs_category_rules', $rules);
     }
 
     /**

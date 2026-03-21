@@ -120,7 +120,7 @@ function galado_cs_settings_page() {
             <h2 class="title">Category Mapping</h2>
             <p>The plugin automatically maps these category relationships for smart matching. To customise, set manual cross-sells on individual products via the WooCommerce product editor (Product Data → Linked Products → Cross-sells).</p>
 
-            <table class="widefat striped" style="max-width:600px;">
+            <table class="widefat striped" style="max-width:700px;">
                 <thead>
                     <tr>
                         <th>If cart contains...</th>
@@ -128,13 +128,17 @@ function galado_cs_settings_page() {
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td>Phone Cases</td><td>Screen Protectors, Phone Charms, Straps, Grips</td></tr>
-                    <tr><td>Phone Charms</td><td>Straps, Grips, Phone Cases</td></tr>
-                    <tr><td>Straps</td><td>Phone Charms, Grips, Phone Cases</td></tr>
-                    <tr><td>Screen Protectors</td><td>Phone Charms, Straps, Phone Cases</td></tr>
+                    <tr><td><strong>iPhone Cases</strong> (all models)</td><td>Screen Protector, Lens Protector, Phone Charm, Phone Strap, MagSafe Grip</td></tr>
+                    <tr><td><strong>Samsung Cases</strong> (all models)</td><td>Screen Protector, Lens Protector, Phone Charm, Phone Strap, MagSafe Grip</td></tr>
+                    <tr><td><strong>AirPods Cases</strong></td><td>Phone Charm, Phone Strap, MagSafe Grip</td></tr>
+                    <tr><td><strong>Phone Charm</strong></td><td>Phone Strap, MagSafe Grip, Screen Protector</td></tr>
+                    <tr><td><strong>Phone Strap</strong></td><td>Phone Charm, MagSafe Grip, Screen Protector</td></tr>
+                    <tr><td><strong>MagSafe Grip</strong></td><td>Phone Charm, Phone Strap, Screen Protector</td></tr>
+                    <tr><td><strong>Screen Protector</strong></td><td>Lens Protector, Phone Charm, Phone Strap, MagSafe Grip</td></tr>
+                    <tr><td><strong>Lens Protector</strong></td><td>Screen Protector, Phone Charm, Phone Strap, MagSafe Grip</td></tr>
                 </tbody>
             </table>
-            <p class="description" style="margin-top:8px;">Category slugs must match your WooCommerce product categories. Edit category rules via the <code>galado_cs_category_rules</code> filter.</p>
+            <p class="description" style="margin-top:8px;"><strong>Key rule:</strong> Cases NEVER suggest other cases — only accessories. Customise via the <code>galado_cs_category_rules</code> filter.</p>
 
             <?php submit_button('Save Settings'); ?>
         </form>
