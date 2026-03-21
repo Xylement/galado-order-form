@@ -34,6 +34,26 @@
                     $btn.find('.btn-loading').hide();
                     $btn.find('.btn-done').show();
 
+                    // Fade out and remove the card so it can't be added again
+                    var $card = $btn.closest('.galado-cs-card, .galado-cs-compact-card');
+                    setTimeout(function() {
+                        $card.css({
+                            'transition': 'opacity 0.3s, transform 0.3s',
+                            'opacity': '0',
+                            'transform': 'scale(0.95)'
+                        });
+                        setTimeout(function() {
+                            $card.remove();
+
+                            // If no more cross-sell cards, hide the whole section
+                            $('.galado-cs-grid, .galado-cs-compact-list').each(function() {
+                                if ($(this).children().length === 0) {
+                                    $(this).closest('.galado-cs-section').fadeOut(200);
+                                }
+                            });
+                        }, 300);
+                    }, 800);
+
                     // Update cart fragments
                     if (response.data.fragments) {
                         $.each(response.data.fragments, function(key, value) {
@@ -45,12 +65,10 @@
                     $(document.body).trigger('added_to_cart', [response.data.fragments, response.data.cart_hash]);
                     $(document.body).trigger('wc_fragment_refresh');
 
-                    // If on cart page, refresh after short delay
+                    // If on cart page, refresh cart totals
                     if ($('body').hasClass('woocommerce-cart')) {
                         setTimeout(function() {
                             $(document.body).trigger('wc_update_cart');
-
-                            // If WC doesn't auto-refresh, do a soft reload
                             if ($('[name="update_cart"]').length) {
                                 $('[name="update_cart"]').prop('disabled', false).trigger('click');
                             }
@@ -61,13 +79,6 @@
                     if ($('body').hasClass('woocommerce-checkout')) {
                         $(document.body).trigger('update_checkout');
                     }
-
-                    // Reset button after 3 seconds
-                    setTimeout(function() {
-                        $btn.removeClass('added');
-                        $btn.find('.btn-done').hide();
-                        $btn.find('.btn-text').show();
-                    }, 3000);
 
                 } else {
                     // Error

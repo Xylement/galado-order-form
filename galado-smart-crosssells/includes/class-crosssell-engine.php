@@ -153,19 +153,66 @@ class Galado_Crosssell_Engine {
         $addon_keyword_map = [
             'tempered glass'       => 'screen-protector',
             'screen protector'     => 'screen-protector',
+            'tempered'             => 'screen-protector',
             'camera lens'          => 'lens-protector',
             'lens protector'       => 'lens-protector',
             'phone charm'          => 'phone-charm',
             'charm'                => 'phone-charm',
             'wrist strap'          => 'phone-strap',
             'crossbody strap'      => 'phone-strap',
+            'crossbody'            => 'phone-strap',
             'strap'                => 'phone-strap',
             'magsafe grip'         => 'magnetic-ring-stand',
             'magsafe'              => 'magnetic-ring-stand',
             'grip'                 => 'magnetic-ring-stand',
         ];
 
-        // Check WooCommerce Product Add-Ons (official)
+        // ============================================
+        // PRIORITY: Acowebs WCPA (WooCommerce Custom Product Addons)
+        // Stores data in $item['wcpa_data'] as array of objects with 'label', 'value', 'price' etc.
+        // ============================================
+        if (!empty($item['wcpa_data'])) {
+            $wcpa_data = $item['wcpa_data'];
+            if (is_string($wcpa_data)) {
+                $wcpa_data = json_decode($wcpa_data, true);
+            }
+            if (is_array($wcpa_data)) {
+                foreach ($wcpa_data as $field) {
+                    // Each field can have: label, value, price, type, etc.
+                    $label = strtolower($field['label'] ?? $field['name'] ?? '');
+                    $value = '';
+                    if (isset($field['value'])) {
+                        $value = strtolower(is_array($field['value']) ? implode(' ', $field['value']) : (string)$field['value']);
+                    }
+                    // Also check 'option_label' for checkbox/select types
+                    $option_label = strtolower($field['option_label'] ?? $field['option'] ?? '');
+
+                    $all_text = $label . ' ' . $value . ' ' . $option_label;
+
+                    foreach ($addon_keyword_map as $keyword => $cat) {
+                        if (strpos($all_text, $keyword) !== false) {
+                            $addon_cats[] = $cat;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also check wcpa_ prefixed keys (some versions use these)
+        foreach ($item as $key => $value) {
+            if (strpos($key, 'wcpa_') === 0 && $key !== 'wcpa_data') {
+                $val = strtolower(is_array($value) ? json_encode($value) : (string)$value);
+                foreach ($addon_keyword_map as $keyword => $cat) {
+                    if (strpos($val, $keyword) !== false) {
+                        $addon_cats[] = $cat;
+                    }
+                }
+            }
+        }
+
+        // ============================================
+        // WooCommerce Product Add-Ons (official)
+        // ============================================
         if (!empty($item['addons'])) {
             foreach ($item['addons'] as $addon) {
                 $name = strtolower($addon['name'] ?? '');
@@ -178,48 +225,14 @@ class Galado_Crosssell_Engine {
             }
         }
 
-        // Check PPOM (Product Personalisation Options Manager)
-        if (!empty($item['ppom'])) {
-            foreach ($item['ppom'] as $field) {
-                $val = strtolower(is_array($field) ? implode(' ', $field) : (string)$field);
-                foreach ($addon_keyword_map as $keyword => $cat) {
-                    if (strpos($val, $keyword) !== false) {
-                        $addon_cats[] = $cat;
-                    }
-                }
-            }
-        }
-
-        // Check generic cart item meta for add-on patterns
-        // Many add-on plugins store data in cart item meta with various keys
-        $meta_keys_to_check = ['wc_pao_addon_', 'ywapo_', 'ppom_', 'tmcp_', '_addon_'];
-        foreach ($item as $key => $value) {
-            $key_lower = strtolower($key);
-            foreach ($meta_keys_to_check as $prefix) {
-                if (strpos($key_lower, $prefix) !== false) {
-                    $val = strtolower(is_array($value) ? implode(' ', $value) : (string)$value);
-                    foreach ($addon_keyword_map as $keyword => $cat) {
-                        if (strpos($val, $keyword) !== false || strpos($key_lower, $keyword) !== false) {
-                            $addon_cats[] = $cat;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Also check if cart item has checkbox-style add-ons (common in GALADO's setup)
-        // These often appear as extra cart item data
-        if (!empty($item['_add_on_items']) || !empty($item['add-on']) || !empty($item['product_extras'])) {
-            $extras = $item['_add_on_items'] ?? $item['add-on'] ?? $item['product_extras'] ?? [];
-            if (is_array($extras)) {
-                foreach ($extras as $extra) {
-                    $name = strtolower(is_array($extra) ? ($extra['name'] ?? $extra['label'] ?? '') : (string)$extra);
-                    foreach ($addon_keyword_map as $keyword => $cat) {
-                        if (strpos($name, $keyword) !== false) {
-                            $addon_cats[] = $cat;
-                        }
-                    }
-                }
+        // ============================================
+        // Brute-force: scan ALL cart item data for keyword matches
+        // This catches any add-on plugin we haven't explicitly handled
+        // ============================================
+        $item_json = strtolower(json_encode($item));
+        foreach ($addon_keyword_map as $keyword => $cat) {
+            if (strpos($item_json, $keyword) !== false) {
+                $addon_cats[] = $cat;
             }
         }
 
