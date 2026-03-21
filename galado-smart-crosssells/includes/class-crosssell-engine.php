@@ -81,6 +81,7 @@ class Galado_Crosssell_Engine {
         // Get cart product IDs and their categories
         $cart_product_ids = [];
         $cart_categories = [];
+        $cart_category_slugs_in_cart = []; // track which accessory categories are already in cart
 
         if (WC()->cart) {
             foreach (WC()->cart->get_cart() as $item) {
@@ -96,10 +97,17 @@ class Galado_Crosssell_Engine {
                 // Get categories
                 $terms = wp_get_post_terms($product_id, 'product_cat', ['fields' => 'slugs']);
                 $cart_categories = array_merge($cart_categories, $terms);
+                $cart_category_slugs_in_cart = array_merge($cart_category_slugs_in_cart, $terms);
+
+                // Detect product add-ons (WooCommerce Product Add-Ons / PPOM / YITH)
+                // Check cart item meta for add-on selections
+                $addon_names = self::detect_addons_in_cart_item($item);
+                $cart_category_slugs_in_cart = array_merge($cart_category_slugs_in_cart, $addon_names);
             }
         }
 
         $cart_categories = array_unique($cart_categories);
+        $cart_category_slugs_in_cart = array_unique($cart_category_slugs_in_cart);
         $exclude_ids = array_unique($exclude_ids);
         $recommendations = [];
 
@@ -109,13 +117,13 @@ class Galado_Crosssell_Engine {
 
         // Strategy 2: Smart category matching
         if ($smart && count($recommendations) < $max) {
-            $category_recs = self::get_category_recommendations($cart_categories, $exclude_ids, $max - count($recommendations));
+            $category_recs = self::get_category_recommendations($cart_categories, $exclude_ids, $max - count($recommendations), $cart_category_slugs_in_cart);
             $recommendations = array_merge($recommendations, $category_recs);
         }
 
-        // Strategy 3: Best sellers fallback
+        // Strategy 3: Best sellers fallback (randomised, not always same products)
         if (count($recommendations) < $max) {
-            $bestsellers = self::get_bestsellers($exclude_ids, $max - count($recommendations));
+            $bestsellers = self::get_bestsellers($exclude_ids, $max - count($recommendations), $cart_category_slugs_in_cart);
             $recommendations = array_merge($recommendations, $bestsellers);
         }
 
@@ -132,6 +140,90 @@ class Galado_Crosssell_Engine {
         }
 
         return $unique;
+    }
+
+    /**
+     * Detect add-on products selected via product add-on plugins
+     * Returns category-like slugs for items detected as add-ons
+     */
+    private static function detect_addons_in_cart_item($item) {
+        $addon_cats = [];
+
+        // Map common add-on product names to category slugs
+        $addon_keyword_map = [
+            'tempered glass'       => 'screen-protector',
+            'screen protector'     => 'screen-protector',
+            'camera lens'          => 'lens-protector',
+            'lens protector'       => 'lens-protector',
+            'phone charm'          => 'phone-charm',
+            'charm'                => 'phone-charm',
+            'wrist strap'          => 'phone-strap',
+            'crossbody strap'      => 'phone-strap',
+            'strap'                => 'phone-strap',
+            'magsafe grip'         => 'magnetic-ring-stand',
+            'magsafe'              => 'magnetic-ring-stand',
+            'grip'                 => 'magnetic-ring-stand',
+        ];
+
+        // Check WooCommerce Product Add-Ons (official)
+        if (!empty($item['addons'])) {
+            foreach ($item['addons'] as $addon) {
+                $name = strtolower($addon['name'] ?? '');
+                $value = strtolower($addon['value'] ?? '');
+                foreach ($addon_keyword_map as $keyword => $cat) {
+                    if (strpos($name, $keyword) !== false || strpos($value, $keyword) !== false) {
+                        $addon_cats[] = $cat;
+                    }
+                }
+            }
+        }
+
+        // Check PPOM (Product Personalisation Options Manager)
+        if (!empty($item['ppom'])) {
+            foreach ($item['ppom'] as $field) {
+                $val = strtolower(is_array($field) ? implode(' ', $field) : (string)$field);
+                foreach ($addon_keyword_map as $keyword => $cat) {
+                    if (strpos($val, $keyword) !== false) {
+                        $addon_cats[] = $cat;
+                    }
+                }
+            }
+        }
+
+        // Check generic cart item meta for add-on patterns
+        // Many add-on plugins store data in cart item meta with various keys
+        $meta_keys_to_check = ['wc_pao_addon_', 'ywapo_', 'ppom_', 'tmcp_', '_addon_'];
+        foreach ($item as $key => $value) {
+            $key_lower = strtolower($key);
+            foreach ($meta_keys_to_check as $prefix) {
+                if (strpos($key_lower, $prefix) !== false) {
+                    $val = strtolower(is_array($value) ? implode(' ', $value) : (string)$value);
+                    foreach ($addon_keyword_map as $keyword => $cat) {
+                        if (strpos($val, $keyword) !== false || strpos($key_lower, $keyword) !== false) {
+                            $addon_cats[] = $cat;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also check if cart item has checkbox-style add-ons (common in GALADO's setup)
+        // These often appear as extra cart item data
+        if (!empty($item['_add_on_items']) || !empty($item['add-on']) || !empty($item['product_extras'])) {
+            $extras = $item['_add_on_items'] ?? $item['add-on'] ?? $item['product_extras'] ?? [];
+            if (is_array($extras)) {
+                foreach ($extras as $extra) {
+                    $name = strtolower(is_array($extra) ? ($extra['name'] ?? $extra['label'] ?? '') : (string)$extra);
+                    foreach ($addon_keyword_map as $keyword => $cat) {
+                        if (strpos($name, $keyword) !== false) {
+                            $addon_cats[] = $cat;
+                        }
+                    }
+                }
+            }
+        }
+
+        return array_unique($addon_cats);
     }
 
     /**
@@ -161,8 +253,9 @@ class Galado_Crosssell_Engine {
 
     /**
      * Get recommendations based on category relationships
+     * Excludes categories already covered by cart items or add-ons
      */
-    private static function get_category_recommendations($cart_categories, $exclude_ids, $limit) {
+    private static function get_category_recommendations($cart_categories, $exclude_ids, $limit, $covered_categories = []) {
         $target_categories = [];
 
         foreach ($cart_categories as $cat) {
@@ -171,14 +264,18 @@ class Galado_Crosssell_Engine {
             }
         }
 
-        $target_categories = array_unique(array_diff($target_categories, $cart_categories));
+        // Remove categories already in cart OR covered by add-ons
+        $target_categories = array_unique(array_diff($target_categories, $cart_categories, $covered_categories));
 
         if (empty($target_categories)) return [];
+
+        // Fetch more than needed so we can randomise
+        $fetch_count = max($limit * 3, 12);
 
         $args = [
             'post_type' => 'product',
             'post_status' => 'publish',
-            'posts_per_page' => $limit,
+            'posts_per_page' => $fetch_count,
             'post__not_in' => $exclude_ids,
             'orderby' => 'meta_value_num',
             'meta_key' => 'total_sales',
@@ -209,17 +306,30 @@ class Galado_Crosssell_Engine {
         }
 
         wp_reset_postdata();
-        return $products;
+
+        // Randomise from the pool — mix of top sellers with variety
+        if (count($products) > $limit) {
+            // Keep top 2 sellers, randomise the rest
+            $top = array_slice($products, 0, 2);
+            $rest = array_slice($products, 2);
+            shuffle($rest);
+            $products = array_merge($top, $rest);
+        }
+
+        return array_slice($products, 0, $limit);
     }
 
     /**
-     * Get best-selling products as fallback
+     * Get best-selling products as fallback (with randomisation)
+     * Excludes categories already covered by cart or add-ons
      */
-    private static function get_bestsellers($exclude_ids, $limit) {
+    private static function get_bestsellers($exclude_ids, $limit, $covered_categories = []) {
+        $fetch_count = max($limit * 3, 12);
+
         $args = [
             'post_type' => 'product',
             'post_status' => 'publish',
-            'posts_per_page' => $limit,
+            'posts_per_page' => $fetch_count,
             'post__not_in' => $exclude_ids,
             'orderby' => 'meta_value_num',
             'meta_key' => 'total_sales',
@@ -232,6 +342,18 @@ class Galado_Crosssell_Engine {
             ]
         ];
 
+        // If we have covered categories, exclude products from those categories
+        if (!empty($covered_categories)) {
+            $args['tax_query'] = [
+                [
+                    'taxonomy' => 'product_cat',
+                    'field' => 'slug',
+                    'terms' => $covered_categories,
+                    'operator' => 'NOT IN',
+                ]
+            ];
+        }
+
         $query = new WP_Query($args);
         $products = [];
 
@@ -243,7 +365,16 @@ class Galado_Crosssell_Engine {
         }
 
         wp_reset_postdata();
-        return $products;
+
+        // Randomise — keep top 1, shuffle rest
+        if (count($products) > $limit) {
+            $top = array_slice($products, 0, 1);
+            $rest = array_slice($products, 1);
+            shuffle($rest);
+            $products = array_merge($top, $rest);
+        }
+
+        return array_slice($products, 0, $limit);
     }
 
     /**
