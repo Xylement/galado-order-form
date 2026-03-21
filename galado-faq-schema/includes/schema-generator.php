@@ -38,10 +38,15 @@ function gfaq_output_schema() {
     // 2. Auto-detect from content
     $auto_detect = isset($settings['auto_detect']) ? $settings['auto_detect'] : 1;
     if ($auto_detect) {
-        $content = get_the_content(null, false, $post_id);
-        $content = apply_filters('the_content', $content);
-        $detected = gfaq_detect_faqs($content);
-        $faqs = array_merge($faqs, $detected);
+        $post_obj = get_post($post_id);
+        $content = $post_obj ? $post_obj->post_content : '';
+        if ($content) {
+            // Apply shortcode processing but NOT the_content filters (avoids infinite loops)
+            $content = do_shortcode($content);
+            $content = wpautop($content);
+            $detected = gfaq_detect_faqs($content);
+            $faqs = array_merge($faqs, $detected);
+        }
     }
 
     // Deduplicate by question text
@@ -91,7 +96,11 @@ function gfaq_detect_faqs($html) {
     // Suppress HTML parsing errors
     libxml_use_internal_errors(true);
     $doc = new DOMDocument();
-    $doc->loadHTML('<?xml encoding="UTF-8"><div>' . $html . '</div>', LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFIX);
+    $flags = LIBXML_HTML_NOIMPLIED;
+    if (defined('LIBXML_HTML_NODEFIX')) {
+        $flags |= LIBXML_HTML_NODEFIX;
+    }
+    $doc->loadHTML('<?xml encoding="UTF-8"><div>' . $html . '</div>', $flags);
     libxml_clear_errors();
 
     $xpath = new DOMXPath($doc);
