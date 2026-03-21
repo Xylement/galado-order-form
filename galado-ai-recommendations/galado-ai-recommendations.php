@@ -143,7 +143,7 @@ register_activation_hook(__FILE__, function() {
             'enabled'        => 1,
             'provider'       => 'anthropic',
             'anthropic_key'  => '',
-            'anthropic_model'=> 'claude-sonnet-4-20250514',
+            'anthropic_model'=> 'claude-haiku-4-5-20251001',
             'openai_key'     => '',
             'openai_model'   => 'gpt-4o-mini',
             'max_products'   => 4,

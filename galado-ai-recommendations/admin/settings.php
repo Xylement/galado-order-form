@@ -206,8 +206,8 @@ function gair_settings_page() {
                         <th>Model</th>
                         <td>
                             <select name="gair_anthropic_model">
-                                <option value="claude-sonnet-4-20250514" <?php selected($s['anthropic_model'] ?? '', 'claude-sonnet-4-20250514'); ?>>Claude Sonnet 4 (recommended)</option>
-                                <option value="claude-haiku-4-20250514" <?php selected($s['anthropic_model'] ?? '', 'claude-haiku-4-20250514'); ?>>Claude Haiku 4 (faster, cheaper)</option>
+                                <option value="claude-haiku-4-5-20251001" <?php selected($s['anthropic_model'] ?? '', 'claude-haiku-4-5-20251001'); ?>>Claude Haiku 4.5 (recommended — fast &amp; cheap)</option>
+                                <option value="claude-sonnet-4-20250514" <?php selected($s['anthropic_model'] ?? '', 'claude-sonnet-4-20250514'); ?>>Claude Sonnet 4 (smarter, costs more)</option>
                             </select>
                         </td>
                     </tr>

@@ -169,7 +169,7 @@ class GAIR_AI_Engine {
             return new WP_Error('no_key', 'Anthropic API key not configured');
         }
 
-        $model = $settings['anthropic_model'] ?? 'claude-sonnet-4-20250514';
+        $model = $settings['anthropic_model'] ?? 'claude-haiku-4-5-20251001';
 
         $response = wp_remote_post('https://api.anthropic.com/v1/messages', [
             'timeout' => 30,
