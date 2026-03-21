@@ -1,0 +1,204 @@
+/* GALADO AI Crawler Manager - Admin Styles */
+
+.gaic-wrap {
+    max-width: 900px;
+}
+
+.gaic-subtitle {
+    font-size: 14px;
+    color: #646970;
+    margin-top: -8px;
+}
+
+.gaic-info-box {
+    background: #f0f6fc;
+    border: 1px solid #c3c4c7;
+    border-left: 4px solid #2271b1;
+    padding: 12px 16px;
+    border-radius: 2px;
+    margin: 16px 0;
+}
+
+.gaic-info-box p {
+    margin: 6px 0 0;
+}
+
+/* Preset buttons */
+.gaic-presets {
+    display: flex;
+    gap: 8px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+}
+
+.gaic-preset-btn {
+    padding: 6px 16px !important;
+}
+
+.gaic-preset-recommended {
+    background: #2271b1 !important;
+    color: #fff !important;
+    border-color: #2271b1 !important;
+}
+
+.gaic-preset-recommended:hover {
+    background: #135e96 !important;
+}
+
+/* Crawler grid */
+.gaic-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Card */
+.gaic-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    transition: border-color 0.15s;
+}
+
+.gaic-card--allowed {
+    border-left: 3px solid #00a32a;
+}
+
+.gaic-card--blocked {
+    border-left: 3px solid #d63638;
+    background: #fafafa;
+}
+
+/* Icon */
+.gaic-card-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* Info */
+.gaic-card-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.gaic-card-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #1d2327;
+}
+
+.gaic-card-owner {
+    font-weight: 400;
+    color: #646970;
+    margin-left: 6px;
+    font-size: 13px;
+}
+
+.gaic-card-desc {
+    font-size: 12px;
+    color: #787c82;
+    margin-top: 2px;
+}
+
+/* Toggle area */
+.gaic-card-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+/* Status label */
+.gaic-status {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+.gaic-status--on {
+    background: #e6f4ea;
+    color: #137333;
+}
+
+.gaic-status--off {
+    background: #fce8e6;
+    color: #c5221f;
+}
+
+/* iOS-style toggle switch */
+.gaic-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.gaic-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.gaic-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    border-radius: 24px;
+    transition: 0.2s;
+}
+
+.gaic-slider::before {
+    content: "";
+    position: absolute;
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.gaic-switch input:checked + .gaic-slider {
+    background-color: #00a32a;
+}
+
+.gaic-switch input:checked + .gaic-slider::before {
+    transform: translateX(20px);
+}
+
+.gaic-switch input:focus-visible + .gaic-slider {
+    box-shadow: 0 0 0 2px #2271b1;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .gaic-card {
+        flex-wrap: wrap;
+    }
+    .gaic-card-toggle {
+        width: 100%;
+        justify-content: flex-end;
+        margin-top: 4px;
+    }
+}

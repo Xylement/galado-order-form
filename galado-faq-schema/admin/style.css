@@ -1,0 +1,91 @@
+/* GALADO FAQ Schema - Admin Styles */
+
+.gfaq-wrap {
+    max-width: 800px;
+}
+
+.gfaq-subtitle {
+    font-size: 14px;
+    color: #646970;
+    margin-top: -8px;
+}
+
+.gfaq-info-box {
+    background: #f0f6fc;
+    border: 1px solid #c3c4c7;
+    border-left: 4px solid #2271b1;
+    padding: 12px 16px;
+    border-radius: 2px;
+    margin: 16px 0;
+}
+
+.gfaq-info-box ol {
+    margin: 8px 0 0 20px;
+}
+
+.gfaq-info-box li {
+    margin-bottom: 4px;
+}
+
+/* Meta box styles */
+.gfaq-metabox {
+    padding: 4px 0;
+}
+
+.gfaq-toggle-row {
+    margin-bottom: 4px;
+}
+
+.gfaq-faq-row {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.gfaq-faq-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.gfaq-faq-num {
+    font-weight: 600;
+    font-size: 12px;
+    color: #2271b1;
+    text-transform: uppercase;
+}
+
+.gfaq-remove-faq {
+    color: #b32d2e !important;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    text-decoration: none !important;
+    padding: 0 4px;
+}
+
+.gfaq-remove-faq:hover {
+    color: #a00 !important;
+}
+
+.gfaq-faq-row label {
+    display: block;
+    font-weight: 500;
+    font-size: 12px;
+    color: #50575e;
+    margin: 8px 0 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.gfaq-faq-row label:first-of-type {
+    margin-top: 0;
+}
+
+.gfaq-faq-row input,
+.gfaq-faq-row textarea {
+    width: 100%;
+}
