@@ -32,7 +32,7 @@ class Galado_Admin_Hub {
 
     private function __construct() {
         add_action('admin_menu', [$this, 'register_menu'], 5);
-        add_action('admin_menu', [$this, 'relocate_submenus'], 999);
+        add_action('admin_menu', [$this, 'add_extra_links'], 999);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_styles']);
 
         // Register known GALADO plugins
@@ -65,55 +65,30 @@ class Galado_Admin_Hub {
     }
 
     /**
-     * Relocate other GALADO plugin menus under our hub
+     * Add extra links (Git Sync relocation + external links)
+     * GALADO plugins register themselves directly under galado-hub
      */
-    public function relocate_submenus() {
-        global $submenu, $menu;
+    public function add_extra_links() {
+        global $submenu;
 
-        // Map of plugin slugs to find and relocate
-        $relocations = [
-            // [original_parent, slug, new_title, capability, callback_or_slug]
-            ['options-general.php', 'galado-faq-schema', 'FAQ Schema', 'manage_options'],
-            ['options-general.php', 'galado-ai-crawler', 'AI Crawler Manager', 'manage_options'],
-            ['woocommerce', 'galado-crosssells', 'Smart Cross-Sells', 'manage_woocommerce'],
-            ['tools.php', 'flavor-git-sync', 'Git Sync', 'manage_options'],
-        ];
-
-        foreach ($relocations as $reloc) {
-            list($parent, $slug, $title, $cap) = $reloc;
-
-            // Check if the submenu exists under its original parent
-            if (isset($submenu[$parent])) {
-                foreach ($submenu[$parent] as $key => $item) {
-                    if ($item[2] === $slug) {
-                        // Add under GALADO menu
-                        add_submenu_page(
-                            'galado-hub',
-                            $item[0],
-                            $title,
-                            $cap,
-                            $slug
-                        );
-                        // Remove from original location
-                        unset($submenu[$parent][$key]);
-                        break;
-                    }
+        // Relocate Git Sync from Tools to GALADO hub
+        if (isset($submenu['tools.php'])) {
+            foreach ($submenu['tools.php'] as $key => $item) {
+                if ($item[2] === 'flavor-git-sync') {
+                    add_submenu_page(
+                        'galado-hub',
+                        $item[0],
+                        'Git Sync',
+                        'manage_options',
+                        'flavor-git-sync'
+                    );
+                    unset($submenu['tools.php'][$key]);
+                    break;
                 }
             }
         }
 
-        // Check for Font Preview in WooCommerce product settings
-        // (it's a product meta box, not a separate page — add a link to products)
-        add_submenu_page(
-            'galado-hub',
-            'Font Preview',
-            'Font Preview',
-            'manage_woocommerce',
-            'edit.php?post_type=product',
-            ''
-        );
-
-        // Add external useful links
+        // External links
         add_submenu_page(
             'galado-hub',
             'Order Form',

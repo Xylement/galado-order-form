@@ -112,16 +112,18 @@ add_action('admin_enqueue_scripts', function($hook) {
     wp_enqueue_style('gaic-admin', GAIC_URL . 'admin/style.css', [], GAIC_VERSION);
 });
 
-// Add settings page
+// Add settings page — under GALADO hub if available, otherwise under Settings
 add_action('admin_menu', function() {
-    add_options_page(
+    $parent = class_exists('Galado_Admin_Hub') ? 'galado-hub' : 'options-general.php';
+    add_submenu_page(
+        $parent,
         __('AI Crawler Manager', 'galado-ai-crawler'),
         __('AI Crawlers', 'galado-ai-crawler'),
         'manage_options',
         'galado-ai-crawler',
         'gaic_settings_page'
     );
-});
+}, 20);
 
 // Hook into robots.txt
 add_filter('robots_txt', 'gaic_modify_robots_txt', 100, 2);

@@ -5,10 +5,11 @@
 
 if (!defined('ABSPATH')) exit;
 
-// Add settings page under WooCommerce menu
+// Add settings page — under GALADO hub if available, otherwise under WooCommerce
 add_action('admin_menu', function() {
+    $parent = class_exists('Galado_Admin_Hub') ? 'galado-hub' : 'woocommerce';
     add_submenu_page(
-        'woocommerce',
+        $parent,
         'Smart Cross-Sells',
         'Smart Cross-Sells',
         'manage_woocommerce',

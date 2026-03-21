@@ -34,16 +34,18 @@ add_action('wp_head', 'gfaq_output_schema');
 // Register settings
 add_action('admin_init', 'gfaq_register_settings');
 
-// Add settings page
+// Add settings page — under GALADO hub if available, otherwise under Settings
 add_action('admin_menu', function() {
-    add_options_page(
+    $parent = class_exists('Galado_Admin_Hub') ? 'galado-hub' : 'options-general.php';
+    add_submenu_page(
+        $parent,
         __('FAQ Schema Generator', 'galado-faq-schema'),
         __('FAQ Schema', 'galado-faq-schema'),
         'manage_options',
         'galado-faq-schema',
         'gfaq_settings_page'
     );
-});
+}, 20);
 
 // Add meta box
 add_action('add_meta_boxes', 'gfaq_add_meta_box');
