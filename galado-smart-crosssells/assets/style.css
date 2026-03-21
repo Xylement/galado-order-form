@@ -1,0 +1,306 @@
+/* GALADO Smart Cross-Sells - Frontend Styles */
+
+/* Section wrapper */
+.galado-cs-section {
+    margin: 32px 0;
+    padding: 24px 0;
+    border-top: 1px solid #e5e5e5;
+}
+
+.galado-cs-title {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 4px;
+    color: #1a1a1a;
+}
+
+.galado-cs-title--small {
+    font-size: 17px;
+    margin: 0 0 12px;
+}
+
+.galado-cs-subtitle {
+    font-size: 14px;
+    color: #666;
+    margin: 0 0 20px;
+}
+
+/* Product grid (cart + thank you) */
+.galado-cs-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 768px) {
+    .galado-cs-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .galado-cs-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+}
+
+/* Product card */
+.galado-cs-card {
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.galado-cs-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+}
+
+.galado-cs-card__image {
+    display: block;
+    position: relative;
+    background: #f9f9f9;
+}
+
+.galado-cs-card__image img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.galado-cs-card__badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: #e53935;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.galado-cs-card__info {
+    padding: 12px;
+}
+
+.galado-cs-card__name {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1a1a1a;
+    text-decoration: none;
+    line-height: 1.4;
+    margin-bottom: 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.galado-cs-card__name:hover {
+    color: #000;
+    text-decoration: underline;
+}
+
+.galado-cs-card__rating {
+    margin-bottom: 4px;
+}
+
+.galado-cs-card__rating .star {
+    color: #ddd;
+    font-size: 12px;
+}
+
+.galado-cs-card__rating .star.filled {
+    color: #f5a623;
+}
+
+.galado-cs-card__rating .count {
+    font-size: 11px;
+    color: #999;
+}
+
+.galado-cs-card__price {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 10px;
+}
+
+.galado-cs-card__price del {
+    color: #999;
+    font-weight: 400;
+    font-size: 12px;
+}
+
+.galado-cs-card__price ins {
+    text-decoration: none;
+    color: #e53935;
+}
+
+/* Add button */
+.galado-cs-add-btn {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    color: #1a1a1a;
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    -webkit-appearance: none;
+    text-decoration: none;
+    line-height: 1.4;
+}
+
+.galado-cs-add-btn:hover {
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #1a1a1a;
+}
+
+.galado-cs-add-btn.adding {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.galado-cs-add-btn.added {
+    background: #4caf50;
+    color: #fff;
+    border-color: #4caf50;
+}
+
+.galado-cs-select-btn {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    color: #666;
+    background: transparent;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.galado-cs-select-btn:hover {
+    color: #1a1a1a;
+    border-color: #1a1a1a;
+}
+
+/* Compact cards (checkout) */
+.galado-cs-compact-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.galado-cs-compact-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 10px;
+    transition: border-color 0.2s;
+}
+
+.galado-cs-compact-card:hover {
+    border-color: #ccc;
+}
+
+.galado-cs-compact-card__image {
+    flex-shrink: 0;
+    width: 50px;
+    height: 50px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.galado-cs-compact-card__image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.galado-cs-compact-card__info {
+    flex: 1;
+    min-width: 0;
+}
+
+.galado-cs-compact-card__name {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1a1a1a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.galado-cs-compact-card__price {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-top: 2px;
+}
+
+.galado-cs-add-btn--compact {
+    flex-shrink: 0;
+    width: auto;
+    padding: 6px 14px;
+    font-size: 12px;
+}
+
+.galado-cs-add-btn--link {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+}
+
+/* Checkout section spacing */
+.galado-cs-checkout {
+    margin: 0 0 24px;
+    padding: 16px;
+    background: #fafafa;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    border-top: none;
+}
+
+/* Thank you section */
+.galado-cs-thankyou {
+    margin-top: 40px;
+}
+
+/* Animation */
+@keyframes galadoFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.galado-cs-card {
+    animation: galadoFadeIn 0.3s ease forwards;
+}
+
+.galado-cs-card:nth-child(2) { animation-delay: 0.05s; }
+.galado-cs-card:nth-child(3) { animation-delay: 0.1s; }
+.galado-cs-card:nth-child(4) { animation-delay: 0.15s; }
