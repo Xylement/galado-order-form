@@ -1,0 +1,168 @@
+/* GALADO AI Recommendations - Frontend Styles */
+
+.gair-section {
+    margin: 40px 0;
+    padding: 0;
+}
+
+.gair-section__header {
+    margin-bottom: 20px;
+}
+
+.gair-section__title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 0 0 4px;
+}
+
+.gair-section__subtitle {
+    font-size: 14px;
+    color: #888;
+    margin: 0;
+}
+
+/* Product grid */
+.gair-products-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 768px) {
+    .gair-products-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+}
+
+/* Product card */
+.gair-product-card {
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    overflow: hidden;
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.gair-product-card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    transform: translateY(-2px);
+}
+
+.gair-product-card__image {
+    display: block;
+    position: relative;
+    background: #f9f9f9;
+}
+
+.gair-product-card__image img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.gair-product-card__badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: #e53935;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.gair-product-card__info {
+    padding: 12px;
+}
+
+.gair-product-card__name {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1a1a1a;
+    text-decoration: none;
+    line-height: 1.4;
+    margin-bottom: 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.gair-product-card__name:hover {
+    text-decoration: underline;
+}
+
+.gair-product-card__rating .star {
+    color: #ddd;
+    font-size: 12px;
+}
+
+.gair-product-card__rating .star.filled {
+    color: #f5a623;
+}
+
+.gair-product-card__price {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-top: 4px;
+}
+
+.gair-product-card__price del {
+    color: #999;
+    font-weight: 400;
+    font-size: 12px;
+}
+
+.gair-product-card__price ins {
+    text-decoration: none;
+    color: #e53935;
+}
+
+/* Skeleton loading */
+.gair-skeleton-card {
+    padding: 16px;
+}
+
+.gair-skeleton {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: gairShimmer 1.5s infinite;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.gair-skeleton--image {
+    width: 100%;
+    padding-top: 100%;
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+
+.gair-skeleton--text {
+    height: 14px;
+}
+
+@keyframes gairShimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Fade in animation */
+.gair-product-card {
+    animation: gairFadeIn 0.3s ease forwards;
+}
+
+.gair-product-card:nth-child(2) { animation-delay: 0.05s; }
+.gair-product-card:nth-child(3) { animation-delay: 0.1s; }
+.gair-product-card:nth-child(4) { animation-delay: 0.15s; }
+
+@keyframes gairFadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
