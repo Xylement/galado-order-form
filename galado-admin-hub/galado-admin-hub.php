@@ -33,10 +33,10 @@ class Galado_Admin_Hub {
     private function __construct() {
         add_action('admin_menu', [$this, 'register_menu'], 5);
         add_action('admin_menu', [$this, 'add_extra_links'], 999);
+        // Discover plugins AFTER all admin menus are registered so we can find settings URLs
+        add_action('admin_menu', [$this, 'discover_plugins'], 9999);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_styles']);
-
-        // Register known GALADO plugins
-        $this->register_plugins();
+        add_action('admin_init', [$this, 'handle_save_links']);
     }
 
     /**
@@ -100,9 +100,36 @@ class Galado_Admin_Hub {
     }
 
     /**
-     * Auto-discover all GALADO plugins + manually registered ones
+     * Handle saving quick links
      */
-    private function register_plugins() {
+    public function handle_save_links() {
+        if (!isset($_POST['galado_hub_links_nonce'])) return;
+        if (!wp_verify_nonce($_POST['galado_hub_links_nonce'], 'galado_hub_save_links')) return;
+        if (!current_user_can('manage_options')) return;
+
+        $links = [];
+        if (isset($_POST['galado_links']) && is_array($_POST['galado_links'])) {
+            foreach ($_POST['galado_links'] as $link) {
+                $icon = sanitize_text_field($link['icon'] ?? '');
+                $label = sanitize_text_field($link['label'] ?? '');
+                $url = esc_url_raw($link['url'] ?? '');
+                if ($label || $url) {
+                    $links[] = ['icon' => $icon, 'label' => $label, 'url' => $url];
+                }
+            }
+        }
+        update_option('galado_hub_quick_links', $links);
+
+        // Redirect back to avoid form resubmission
+        wp_redirect(admin_url('admin.php?page=galado-hub&links-saved=1'));
+        exit;
+    }
+
+    /**
+     * Auto-discover all GALADO plugins + manually registered ones
+     * Runs at admin_menu priority 9999 so all menus are registered
+     */
+    public function discover_plugins() {
         // Auto-discover: scan all installed plugins for "GALADO" in Author or Name
         if (!function_exists('get_plugins')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -127,29 +154,47 @@ class Galado_Admin_Hub {
             $folder = dirname($file);
             $settings_url = admin_url('plugins.php'); // fallback
 
-            // Check if plugin registered an admin page with a matching slug
-            $possible_slugs = [
-                'galado-' . str_replace(['galado-', '-'], ['', '-'], $folder),
-                $folder,
-                str_replace('galado-', '', $folder),
-            ];
-
-            // Search global menu/submenu for this plugin's admin page
-            global $submenu, $menu;
+            // Resolve settings URL using known mappings first, then folder-based guessing
+            $folder_clean = str_replace('galado-', '', $folder);
             $found_slug = '';
-            if (is_array($submenu)) {
-                foreach ($submenu as $parent => $items) {
-                    foreach ($items as $item) {
-                        if (stripos($item[2], 'galado') !== false && stripos($item[2], 'hub') === false) {
-                            // Check if this menu item relates to this plugin
-                            $item_slug = $item[2];
-                            if (stripos($item_slug, str_replace('galado-', '', $folder)) !== false) {
-                                $found_slug = $item_slug;
-                                $settings_url = admin_url('admin.php?page=' . $item_slug);
-                                break 2;
+
+            // Check known settings map
+            if (isset(self::$known_settings[$folder])) {
+                $mapped = self::$known_settings[$folder];
+                if (strpos($mapped, '.php') !== false) {
+                    // Direct URL like edit.php?post_type=product
+                    $settings_url = admin_url($mapped);
+                } else {
+                    $found_slug = $mapped;
+                    $settings_url = admin_url('admin.php?page=' . $mapped);
+                }
+            } else {
+                // Try common slug patterns
+                $slug_attempts = [
+                    'galado-' . $folder_clean,
+                    $folder,
+                    $folder_clean,
+                ];
+
+                foreach ($slug_attempts as $try_slug) {
+                    // Check if this page exists in registered submenus
+                    global $submenu;
+                    if (is_array($submenu)) {
+                        foreach ($submenu as $parent => $items) {
+                            foreach ($items as $sub_item) {
+                                if ($sub_item[2] === $try_slug) {
+                                    $found_slug = $try_slug;
+                                    $settings_url = admin_url('admin.php?page=' . $try_slug);
+                                    break 3;
+                                }
                             }
                         }
                     }
+                }
+
+                // If still not found, default to the plugin's admin page slug
+                if (!$found_slug) {
+                    $settings_url = admin_url('admin.php?page=galado-' . $folder_clean);
                 }
             }
 
@@ -289,26 +334,96 @@ class Galado_Admin_Hub {
                 <?php endforeach; ?>
             </div>
 
+            <?php
+            // Quick links - configurable via Settings
+            $quick_links = get_option('galado_hub_quick_links', [
+                ['icon' => '📝', 'label' => 'Walk-In Order Form', 'url' => 'https://xylement.github.io/galado-order-form/'],
+                ['icon' => '📦', 'label' => 'GitHub Repository', 'url' => 'https://github.com/Xylement/galado-order-form'],
+                ['icon' => '📊', 'label' => 'Order Submissions (Google Sheets)', 'url' => ''],
+            ]);
+            $has_links = false;
+            foreach ($quick_links as $link) { if (!empty($link['url'])) $has_links = true; }
+            ?>
+
             <div class="galado-hub-links">
-                <h2>Quick Links</h2>
-                <div class="galado-hub-links-grid">
-                    <a href="https://xylement.github.io/galado-order-form/" target="_blank" class="galado-hub-link">
-                        <span class="link-icon">📝</span>
-                        <span class="link-text">Walk-In Order Form</span>
-                        <span class="link-arrow">↗</span>
-                    </a>
-                    <a href="https://github.com/Xylement/galado-order-form" target="_blank" class="galado-hub-link">
-                        <span class="link-icon">📦</span>
-                        <span class="link-text">GitHub Repository</span>
-                        <span class="link-arrow">↗</span>
-                    </a>
-                    <a href="https://docs.google.com/spreadsheets/" target="_blank" class="galado-hub-link">
-                        <span class="link-icon">📊</span>
-                        <span class="link-text">Order Submissions (Google Sheets)</span>
-                        <span class="link-arrow">↗</span>
-                    </a>
+                <h2>Quick Links
+                    <a href="#" id="galado-hub-edit-links" style="font-size:13px;font-weight:400;margin-left:12px;text-decoration:none;">Edit Links</a>
+                </h2>
+
+                <!-- Display mode -->
+                <div class="galado-hub-links-grid" id="galado-hub-links-display">
+                    <?php foreach ($quick_links as $link): ?>
+                        <?php if (!empty($link['url'])): ?>
+                        <a href="<?php echo esc_url($link['url']); ?>" target="_blank" class="galado-hub-link">
+                            <span class="link-icon"><?php echo esc_html($link['icon']); ?></span>
+                            <span class="link-text"><?php echo esc_html($link['label']); ?></span>
+                            <span class="link-arrow">↗</span>
+                        </a>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                    <?php if (!$has_links): ?>
+                        <p style="color:#78716c;">No quick links configured yet. Click "Edit Links" to add some.</p>
+                    <?php endif; ?>
                 </div>
+
+                <!-- Edit mode (hidden by default) -->
+                <form method="post" action="" id="galado-hub-links-form" style="display:none;">
+                    <?php wp_nonce_field('galado_hub_save_links', 'galado_hub_links_nonce'); ?>
+                    <div id="galado-hub-links-editor">
+                        <?php foreach ($quick_links as $i => $link): ?>
+                        <div class="galado-hub-link-row" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+                            <input type="text" name="galado_links[<?php echo $i; ?>][icon]" value="<?php echo esc_attr($link['icon']); ?>" style="width:50px;text-align:center;" placeholder="📝">
+                            <input type="text" name="galado_links[<?php echo $i; ?>][label]" value="<?php echo esc_attr($link['label']); ?>" style="flex:1;" placeholder="Link name">
+                            <input type="url" name="galado_links[<?php echo $i; ?>][url]" value="<?php echo esc_attr($link['url']); ?>" style="flex:2;" placeholder="https://...">
+                            <button type="button" class="button galado-hub-remove-link" title="Remove">&times;</button>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <div style="margin-top:10px;display:flex;gap:8px;">
+                        <button type="button" id="galado-hub-add-link" class="button">+ Add Link</button>
+                        <button type="submit" class="button button-primary">Save Links</button>
+                        <button type="button" id="galado-hub-cancel-links" class="button">Cancel</button>
+                    </div>
+                </form>
             </div>
+
+            <script>
+            (function() {
+                var editBtn = document.getElementById('galado-hub-edit-links');
+                var display = document.getElementById('galado-hub-links-display');
+                var form = document.getElementById('galado-hub-links-form');
+                var editor = document.getElementById('galado-hub-links-editor');
+                var cancelBtn = document.getElementById('galado-hub-cancel-links');
+                var addBtn = document.getElementById('galado-hub-add-link');
+                var idx = editor.querySelectorAll('.galado-hub-link-row').length;
+
+                editBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    display.style.display = 'none';
+                    form.style.display = 'block';
+                });
+                cancelBtn.addEventListener('click', function() {
+                    form.style.display = 'none';
+                    display.style.display = 'flex';
+                });
+                addBtn.addEventListener('click', function() {
+                    var row = document.createElement('div');
+                    row.className = 'galado-hub-link-row';
+                    row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center;';
+                    row.innerHTML = '<input type="text" name="galado_links[' + idx + '][icon]" style="width:50px;text-align:center;" placeholder="📝">' +
+                        '<input type="text" name="galado_links[' + idx + '][label]" style="flex:1;" placeholder="Link name">' +
+                        '<input type="url" name="galado_links[' + idx + '][url]" style="flex:2;" placeholder="https://...">' +
+                        '<button type="button" class="button galado-hub-remove-link" title="Remove">&times;</button>';
+                    editor.appendChild(row);
+                    idx++;
+                });
+                editor.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('galado-hub-remove-link')) {
+                        e.target.closest('.galado-hub-link-row').remove();
+                    }
+                });
+            })();
+            </script>
         </div>
         <?php
     }
