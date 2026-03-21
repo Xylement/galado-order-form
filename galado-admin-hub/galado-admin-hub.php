@@ -125,57 +125,130 @@ class Galado_Admin_Hub {
     }
 
     /**
-     * Register known GALADO plugins for the dashboard
+     * Auto-discover all GALADO plugins + manually registered ones
      */
     private function register_plugins() {
-        self::$plugins = [
-            [
-                'name' => 'FAQ Schema Generator',
-                'slug' => 'galado-faq-schema',
-                'description' => 'Auto-generates FAQPage JSON-LD structured data for Google rich results.',
-                'settings_url' => admin_url('admin.php?page=galado-faq-schema'),
-                'file' => 'galado-faq-schema/galado-faq-schema.php',
-                'icon' => '📋',
-                'category' => 'SEO',
-            ],
-            [
-                'name' => 'AI Crawler Manager',
-                'slug' => 'galado-ai-crawler',
-                'description' => 'Control which AI search engines can crawl and cite your website.',
-                'settings_url' => admin_url('admin.php?page=galado-ai-crawler'),
-                'file' => 'galado-ai-crawler-manager/galado-ai-crawler-manager.php',
-                'icon' => '🤖',
-                'category' => 'SEO',
-            ],
-            [
-                'name' => 'Smart Cross-Sells',
-                'slug' => 'galado-crosssells',
-                'description' => 'Boost AOV with intelligent cross-sell recommendations on cart, checkout, and thank you pages.',
-                'settings_url' => admin_url('admin.php?page=galado-crosssells'),
-                'file' => 'galado-smart-crosssells/galado-smart-crosssells.php',
-                'icon' => '🛒',
-                'category' => 'Sales',
-            ],
-            [
-                'name' => 'Font Preview',
-                'slug' => 'galado-font-preview',
-                'description' => 'Live font preview for custom name cases on WooCommerce product pages.',
-                'settings_url' => admin_url('edit.php?post_type=product'),
-                'file' => 'galado-font-preview/galado-font-preview.php',
-                'icon' => '🔤',
-                'category' => 'Products',
-            ],
-            [
+        // Auto-discover: scan all installed plugins for "GALADO" in Author or Name
+        if (!function_exists('get_plugins')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
+
+        $all_plugins = get_plugins();
+        self::$plugins = [];
+
+        foreach ($all_plugins as $file => $data) {
+            // Skip this hub plugin itself
+            if (strpos($file, 'galado-admin-hub') !== false) continue;
+
+            // Check if Author or Plugin Name contains "GALADO" (case-insensitive)
+            $is_galado = (
+                stripos($data['Author'] ?? '', 'GALADO') !== false ||
+                stripos($data['Name'] ?? '', 'GALADO') !== false
+            );
+
+            if (!$is_galado) continue;
+
+            // Try to find the settings page slug from known patterns
+            $folder = dirname($file);
+            $settings_url = admin_url('plugins.php'); // fallback
+
+            // Check if plugin registered an admin page with a matching slug
+            $possible_slugs = [
+                'galado-' . str_replace(['galado-', '-'], ['', '-'], $folder),
+                $folder,
+                str_replace('galado-', '', $folder),
+            ];
+
+            // Search global menu/submenu for this plugin's admin page
+            global $submenu, $menu;
+            $found_slug = '';
+            if (is_array($submenu)) {
+                foreach ($submenu as $parent => $items) {
+                    foreach ($items as $item) {
+                        if (stripos($item[2], 'galado') !== false && stripos($item[2], 'hub') === false) {
+                            // Check if this menu item relates to this plugin
+                            $item_slug = $item[2];
+                            if (stripos($item_slug, str_replace('galado-', '', $folder)) !== false) {
+                                $found_slug = $item_slug;
+                                $settings_url = admin_url('admin.php?page=' . $item_slug);
+                                break 2;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Auto-detect category from description keywords
+            $desc = strtolower($data['Description'] ?? '');
+            $category = 'General';
+            if (preg_match('/seo|schema|crawler|sitemap|robot/i', $desc)) $category = 'SEO';
+            elseif (preg_match('/cross.?sell|upsell|aov|cart|checkout|sales/i', $desc)) $category = 'Sales';
+            elseif (preg_match('/product|woocommerce|font|preview|custom/i', $desc)) $category = 'Products';
+            elseif (preg_match('/sync|git|deploy|tool/i', $desc)) $category = 'Tools';
+            elseif (preg_match('/ai|personali|recommend|intelligence/i', $desc)) $category = 'AI';
+
+            self::$plugins[] = [
+                'name' => str_replace('GALADO ', '', $data['Name']),
+                'slug' => $found_slug ?: $folder,
+                'description' => $data['Description'] ?? '',
+                'settings_url' => $settings_url,
+                'file' => $file,
+                'icon' => self::get_auto_icon($category),
+                'category' => $category,
+                'version' => $data['Version'] ?? '',
+            ];
+        }
+
+        // Also include Git Sync if installed (not authored by GALADO but we want it grouped)
+        if (isset($all_plugins['flavor-git-sync/flavor-git-sync.php'])) {
+            $gs = $all_plugins['flavor-git-sync/flavor-git-sync.php'];
+            self::$plugins[] = [
                 'name' => 'Git Sync',
                 'slug' => 'flavor-git-sync',
-                'description' => 'Sync plugins directly from GitHub repositories.',
+                'description' => $gs['Description'] ?? 'Sync plugins from GitHub repositories.',
                 'settings_url' => admin_url('tools.php?page=flavor-git-sync'),
                 'file' => 'flavor-git-sync/flavor-git-sync.php',
                 'icon' => '🔄',
                 'category' => 'Tools',
-            ],
-        ];
+                'version' => $gs['Version'] ?? '',
+            ];
+        }
+
+        // Sort: active first, then by category
+        $active_plugins = get_option('active_plugins', []);
+        usort(self::$plugins, function($a, $b) use ($active_plugins) {
+            $a_active = in_array($a['file'], $active_plugins) ? 0 : 1;
+            $b_active = in_array($b['file'], $active_plugins) ? 0 : 1;
+            if ($a_active !== $b_active) return $a_active - $b_active;
+            return strcmp($a['category'], $b['category']);
+        });
+
+        // Allow manual additions via filter
+        self::$plugins = apply_filters('galado_hub_plugins', self::$plugins);
     }
+
+    /**
+     * Auto-assign icon based on category
+     */
+    private static function get_auto_icon($category) {
+        $icons = [
+            'SEO' => '🔍',
+            'Sales' => '🛒',
+            'Products' => '📦',
+            'Tools' => '🔧',
+            'AI' => '🤖',
+            'General' => '⚡',
+        ];
+        return $icons[$category] ?? '⚡';
+    }
+
+    // Known settings page slugs for URL resolution fallback
+    private static $known_settings = [
+        'galado-faq-schema' => 'galado-faq-schema',
+        'galado-ai-crawler-manager' => 'galado-ai-crawler',
+        'galado-smart-crosssells' => 'galado-crosssells',
+        'galado-font-preview' => 'edit.php?post_type=product',
+    ];
 
     /**
      * Render the dashboard page
