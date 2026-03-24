@@ -755,6 +755,20 @@
       </div>
 
       <div class="field">
+        <label>Font Colour</label>
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" name="fontColour" id="fc1" value="Black">
+            <label for="fc1" style="background:#1C1917;color:#fff;border-color:#1C1917;">Black</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="fontColour" id="fc2" value="White">
+            <label for="fc2" style="background:#fff;color:#1C1917;border-color:#d2d2d7;">White</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
         <label>Text Position</label>
         <div class="radio-group">
           <div class="radio-option">
@@ -768,6 +782,22 @@
           <div class="radio-option">
             <input type="radio" name="textPosition" id="tp3" value="Right">
             <label for="tp3">Right</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="textPosition" id="tp4" value="Other">
+            <label for="tp4">Other</label>
+          </div>
+        </div>
+        <div id="textPositionOtherSection" style="display:none;margin-top:12px;">
+          <label for="textPositionPhoto">Upload or Snap Reference Photo</label>
+          <input type="file" id="textPositionPhoto" accept="image/*" capture="environment" style="display:none;">
+          <div style="display:flex;gap:10px;margin-top:6px;">
+            <button type="button" class="photo-btn" onclick="document.getElementById('textPositionPhoto').setAttribute('capture','environment');document.getElementById('textPositionPhoto').click();">Snap Photo</button>
+            <button type="button" class="photo-btn" onclick="document.getElementById('textPositionPhoto').removeAttribute('capture');document.getElementById('textPositionPhoto').click();">Choose from Library</button>
+          </div>
+          <div id="textPositionPreview" style="margin-top:10px;display:none;">
+            <img id="textPositionThumb" style="max-width:100%;max-height:200px;border-radius:10px;border:1.5px solid var(--border);">
+            <button type="button" id="btnRemoveTextPositionPhoto" style="display:block;margin-top:8px;font-size:14px;color:#ff3b30;background:none;border:none;cursor:pointer;font-weight:500;">Remove Photo</button>
           </div>
         </div>
       </div>
@@ -996,6 +1026,40 @@
     });
   });
 
+  // Toggle Text Position "Other" photo upload
+  const textPosOtherSection = document.getElementById('textPositionOtherSection');
+  const textPosPhotoInput = document.getElementById('textPositionPhoto');
+  const textPosPreview = document.getElementById('textPositionPreview');
+  const textPosThumb = document.getElementById('textPositionThumb');
+
+  document.querySelectorAll('input[name="textPosition"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const isOther = document.getElementById('tp4').checked;
+      textPosOtherSection.style.display = isOther ? 'block' : 'none';
+      if (!isOther) {
+        textPosPhotoInput.value = '';
+        textPosPreview.style.display = 'none';
+      }
+    });
+  });
+
+  textPosPhotoInput.addEventListener('change', () => {
+    const file = textPosPhotoInput.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        textPosThumb.src = e.target.result;
+        textPosPreview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  document.getElementById('btnRemoveTextPositionPhoto').addEventListener('click', () => {
+    textPosPhotoInput.value = '';
+    textPosPreview.style.display = 'none';
+  });
+
   // Toggle delivery section
   document.querySelectorAll('input[name="collection"]').forEach(r => {
     r.addEventListener('change', () => {
@@ -1065,6 +1129,7 @@
       design: getRadio('design'),
       caseColor: getRadio('caseColor'),
       fontStyle: document.getElementById('selectedFontStyle').value,
+      fontColour: getRadio('fontColour'),
       textInsert: document.getElementById('fontPreviewInput').value,
       textPosition: getRadio('textPosition'),
       previewRequired: getRadio('preview'),
@@ -1094,7 +1159,8 @@
     submitBtn.disabled = true;
     const hasInsertPhoto = insertPhoto.thumb.src && insertPhoto.preview.style.display !== 'none';
     const hasCustomerPhoto = customerPhoto.thumb.src && customerPhoto.preview.style.display !== 'none';
-    const hasAnyPhoto = hasInsertPhoto || hasCustomerPhoto;
+    const hasTextPosPhoto = textPosThumb.src && textPosPreview.style.display !== 'none';
+    const hasAnyPhoto = hasInsertPhoto || hasCustomerPhoto || hasTextPosPhoto;
     submitBtn.textContent = hasAnyPhoto ? 'Uploading photos...' : 'Submitting...';
     submitBtn.style.opacity = '0.6';
 
@@ -1105,6 +1171,7 @@
     data.photoBase64 = hasInsertPhoto ? await compressImage(insertPhoto.thumb.src) : '';
     data.customerPhotoBase64 = hasCustomerPhoto ? await compressImage(customerPhoto.thumb.src) : '';
     data.fontStylePhotoBase64 = '';
+    data.textPositionPhotoBase64 = hasTextPosPhoto ? await compressImage(textPosThumb.src) : '';
     if (hasAnyPhoto) submitBtn.textContent = 'Uploading...';
 
     console.log('Order submitted:', data);
@@ -1113,6 +1180,7 @@
     const localData = { ...data };
     delete localData.photoBase64;
     delete localData.customerPhotoBase64;
+    delete localData.textPositionPhotoBase64;
     const orders = JSON.parse(localStorage.getItem('galado_orders') || '[]');
     orders.push(localData);
     localStorage.setItem('galado_orders', JSON.stringify(orders));
@@ -1154,6 +1222,8 @@
       fontSelectedBadge.classList.remove('visible');
       fontPreviewInput.value = '';
       fontPreviewGrid.innerHTML = '<div class="font-preview-placeholder">Type a name above to see font previews</div>';
+      textPosOtherSection.style.display = 'none';
+      textPosPhotoInput.value = ''; textPosPreview.style.display = 'none';
       document.querySelectorAll('.other-input').forEach(el => el.classList.remove('visible'));
       document.getElementById('deliverySection').classList.remove('visible');
     }, 500);
@@ -1174,6 +1244,8 @@
       fontSelectedBadge.classList.remove('visible');
       fontPreviewInput.value = '';
       fontPreviewGrid.innerHTML = '<div class="font-preview-placeholder">Type a name above to see font previews</div>';
+      textPosOtherSection.style.display = 'none';
+      textPosPhotoInput.value = ''; textPosPreview.style.display = 'none';
       document.querySelectorAll('.other-input').forEach(el => el.classList.remove('visible'));
       document.getElementById('deliverySection').classList.remove('visible');
     }
