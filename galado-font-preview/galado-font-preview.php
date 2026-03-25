@@ -22,6 +22,7 @@ class Galado_Font_Preview {
         'LadylikeBB'        => 'LadylikeBB.otf',
         'Kiss Me or Not'    => 'Kiss Me or Not - OTF.otf',
         'Shorelines Script' => 'Shorelines Script Bold.otf',
+        'Gotcha'            => 'gotcha-regular.ttf',
     );
 
     public function __construct() {
