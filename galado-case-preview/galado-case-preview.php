@@ -395,8 +395,9 @@ class GALADO_Case_Preview {
         wp_enqueue_style('galado-case-preview-fonts');
         wp_add_inline_style('galado-case-preview-fonts', $css);
 
-        wp_enqueue_style('galado-case-preview',  plugin_dir_url(__FILE__) . 'assets/style.css',  array(), '1.1.0');
-        wp_enqueue_script('galado-case-preview', plugin_dir_url(__FILE__) . 'assets/script.js', array('jquery'), '1.1.0', true);
+        $dir = plugin_dir_path(__FILE__) . 'assets/';
+        wp_enqueue_style('galado-case-preview',  plugin_dir_url(__FILE__) . 'assets/style.css',  array(), filemtime($dir . 'style.css'));
+        wp_enqueue_script('galado-case-preview', plugin_dir_url(__FILE__) . 'assets/script.js', array('jquery'), filemtime($dir . 'script.js'), true);
 
         $x      = get_post_meta($post->ID, '_galado_case_preview_x',      true);
         $y      = get_post_meta($post->ID, '_galado_case_preview_y',      true);
