@@ -7,19 +7,15 @@
 
     if (typeof gcpConfig === 'undefined' || !gcpConfig.enabled) return;
 
-    var overlay    = null;
-    var imageWrap  = null; // .gcp-img-wrap span we inject around the <img>
+    var overlay      = null;
+    var gallery      = null;
     var currentFont  = '';
     var currentText  = '';
     var currentColor = 'black';
     var baseFontSize = parseInt(gcpConfig.fontSize) || 28;
     var maxWidthPct  = parseInt(gcpConfig.maxWidth)  || 60;
 
-    /**
-     * Initialize once DOM is ready
-     */
     $(document).ready(function() {
-        // Wait a tick for WooCommerce gallery to initialize
         setTimeout(init, 500);
     });
 
@@ -27,56 +23,46 @@
         overlay = document.getElementById('gcp-overlay-text');
         if (!overlay) return;
 
-        // Find the active/first gallery slide
-        var slide = document.querySelector('.woocommerce-product-gallery__image.flex-active-slide') ||
-                    document.querySelector('.woocommerce-product-gallery__image:first-child');
-        if (!slide) return;
+        gallery = document.querySelector('.woocommerce-product-gallery');
+        if (!gallery) return;
 
-        attachOverlayToSlide(slide);
-        positionOverlay();
+        // Append overlay to the outer gallery container — never inside the slider
+        gallery.style.position = 'relative';
+        gallery.appendChild(overlay);
+
+        repositionOverlay();
         bindTextInput();
         bindFontCards();
         bindColourSelector();
         observeGalleryChanges();
+
+        // Reposition when the window is resized (e.g. orientation change on iPad)
+        window.addEventListener('resize', debounce(repositionOverlay, 150));
     }
 
     /**
-     * Wrap only the <img> inside the slide in a positioned span, then
-     * append the overlay inside that span.
-     * This avoids touching the FlexSlider/Flatsome gallery structure.
+     * Position the overlay over the active slide's image using pixel offsets
+     * relative to the gallery container. We never wrap or modify the slider DOM.
      */
-    function attachOverlayToSlide(slide) {
-        var img = slide.querySelector('img');
+    function repositionOverlay() {
+        if (!overlay || !gallery) return;
+
+        var slide = gallery.querySelector('.woocommerce-product-gallery__image.flex-active-slide') ||
+                    gallery.querySelector('.woocommerce-product-gallery__image:first-child');
+        var img = slide ? slide.querySelector('img') : null;
         if (!img) return;
 
-        // Already wrapped — just (re)append overlay
-        if (img.parentNode.classList && img.parentNode.classList.contains('gcp-img-wrap')) {
-            img.parentNode.appendChild(overlay);
-            imageWrap = img.parentNode;
-            return;
-        }
+        var gr = gallery.getBoundingClientRect();
+        var ir = img.getBoundingClientRect();
 
-        var wrap = document.createElement('span');
-        wrap.className = 'gcp-img-wrap';
-        img.parentNode.insertBefore(wrap, img);
-        wrap.appendChild(img);
-        wrap.appendChild(overlay);
-        imageWrap = wrap;
-    }
-
-    /**
-     * Position overlay based on admin config (percentages within the image)
-     */
-    function positionOverlay() {
-        if (!overlay) return;
-        overlay.style.left      = gcpConfig.x + '%';
-        overlay.style.top       = gcpConfig.y + '%';
+        overlay.style.left      = (ir.left - gr.left + ir.width  * gcpConfig.x / 100) + 'px';
+        overlay.style.top       = (ir.top  - gr.top  + ir.height * gcpConfig.y / 100) + 'px';
         overlay.style.transform = 'translate(-50%, -50%) rotate(' + (gcpConfig.rotate || 0) + 'deg)';
-        overlay.style.maxWidth  = maxWidthPct + '%';
+        overlay.style.maxWidth  = (ir.width * maxWidthPct / 100) + 'px';
     }
 
     /**
-     * Bind to the personalisation text input (from galado-font-preview or WooCommerce custom fields)
+     * Bind to the personalisation text input
      */
     function bindTextInput() {
         var input = document.getElementById('galado-fp-text');
@@ -96,7 +82,7 @@
     }
 
     /**
-     * Bind to font card clicks (from galado-font-preview plugin)
+     * Bind to font card clicks
      */
     function bindFontCards() {
         $(document).on('click', '.galado-fp-card', function() {
@@ -134,7 +120,7 @@
     }
 
     /**
-     * Update the overlay text, font, colour, and size
+     * Update overlay text, font, colour, and size
      */
     function updateOverlay() {
         if (!overlay) return;
@@ -158,7 +144,6 @@
             overlay.style.color = '#1a1a1a';
         }
 
-        // Auto-size: shrink font for longer names
         var fontSize = baseFontSize;
         if (currentText.length > 12) {
             fontSize = Math.max(14, baseFontSize * (12 / currentText.length));
@@ -168,33 +153,19 @@
         overlay.style.display = 'block';
         overlay.offsetHeight; // force reflow for transition
         overlay.classList.add('visible');
+
+        repositionOverlay();
     }
 
     /**
-     * Watch for gallery image changes (thumbnail clicks, Flatsome slider, etc.)
+     * Watch for gallery slide changes and reposition the overlay
      */
     function observeGalleryChanges() {
-        var gallery = document.querySelector('.woocommerce-product-gallery');
         if (!gallery) return;
 
-        var observer = new MutationObserver(function() {
-            var newSlide = gallery.querySelector('.woocommerce-product-gallery__image.flex-active-slide') ||
-                           gallery.querySelector('.woocommerce-product-gallery__image:first-child');
-            if (!newSlide) return;
-
-            var newImg = newSlide.querySelector('img');
-            if (!newImg) return;
-
-            // Already attached to this image's wrap
-            if (imageWrap && imageWrap.contains(newImg)) return;
-
-            // Detach overlay from its current parent before re-attaching
-            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-
-            attachOverlayToSlide(newSlide);
-            positionOverlay();
-            updateOverlay();
-        });
+        var observer = new MutationObserver(debounce(function() {
+            repositionOverlay();
+        }, 80));
 
         observer.observe(gallery, {
             childList: true,
@@ -204,9 +175,11 @@
         });
     }
 
-    /**
-     * Sanitize font name to slug
-     */
+    function debounce(fn, ms) {
+        var t;
+        return function() { clearTimeout(t); t = setTimeout(fn, ms); };
+    }
+
     function sanitizeSlug(name) {
         return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     }

@@ -20,13 +20,8 @@
     opacity: 1;
 }
 
-/* Wrapper span inserted around the main product <img> — provides positioning context
-   without touching the gallery slider/lightbox structure */
-.gcp-img-wrap {
-    position: relative;
-    display: block;
-    line-height: 0;
-}
+/* The overlay is appended to .woocommerce-product-gallery (set to position:relative via JS).
+   No gallery DOM modifications — position is calculated in JS using getBoundingClientRect(). */
 
 /* Font selector integration — highlight active font in existing font preview */
 .galado-fp-card.gcp-active {
