@@ -1,6 +1,7 @@
 /**
  * GALADO Live Case Preview — Frontend Script
- * Overlays customer's typed name on the product image in real-time
+ * Shows a dedicated mockup image with the customer's name overlaid in real-time.
+ * Completely independent of the WooCommerce product gallery.
  */
 (function($) {
     'use strict';
@@ -8,7 +9,6 @@
     if (typeof gcpConfig === 'undefined' || !gcpConfig.enabled) return;
 
     var overlay      = null;
-    var gallery      = null;
     var currentFont  = '';
     var currentText  = '';
     var currentColor = 'black';
@@ -16,50 +16,19 @@
     var maxWidthPct  = parseInt(gcpConfig.maxWidth)  || 60;
 
     $(document).ready(function() {
-        setTimeout(init, 500);
-    });
-
-    function init() {
         overlay = document.getElementById('gcp-overlay-text');
         if (!overlay) return;
 
-        gallery = document.querySelector('.woocommerce-product-gallery');
-        if (!gallery) return;
+        // Position overlay within the preview widget (simple % positioning)
+        overlay.style.left      = gcpConfig.x + '%';
+        overlay.style.top       = gcpConfig.y + '%';
+        overlay.style.transform = 'translate(-50%, -50%) rotate(' + (gcpConfig.rotate || 0) + 'deg)';
+        overlay.style.maxWidth  = maxWidthPct + '%';
 
-        // Append overlay to the outer gallery container — never inside the slider
-        gallery.style.position = 'relative';
-        gallery.appendChild(overlay);
-
-        repositionOverlay();
         bindTextInput();
         bindFontCards();
         bindColourSelector();
-        observeGalleryChanges();
-
-        // Reposition when the window is resized (e.g. orientation change on iPad)
-        window.addEventListener('resize', debounce(repositionOverlay, 150));
-    }
-
-    /**
-     * Position the overlay over the active slide's image using pixel offsets
-     * relative to the gallery container. We never wrap or modify the slider DOM.
-     */
-    function repositionOverlay() {
-        if (!overlay || !gallery) return;
-
-        var slide = gallery.querySelector('.woocommerce-product-gallery__image.flex-active-slide') ||
-                    gallery.querySelector('.woocommerce-product-gallery__image:first-child');
-        var img = slide ? slide.querySelector('img') : null;
-        if (!img) return;
-
-        var gr = gallery.getBoundingClientRect();
-        var ir = img.getBoundingClientRect();
-
-        overlay.style.left      = (ir.left - gr.left + ir.width  * gcpConfig.x / 100) + 'px';
-        overlay.style.top       = (ir.top  - gr.top  + ir.height * gcpConfig.y / 100) + 'px';
-        overlay.style.transform = 'translate(-50%, -50%) rotate(' + (gcpConfig.rotate || 0) + 'deg)';
-        overlay.style.maxWidth  = (ir.width * maxWidthPct / 100) + 'px';
-    }
+    });
 
     /**
      * Bind to the personalisation text input
@@ -105,7 +74,7 @@
     }
 
     /**
-     * Bind to text colour selector
+     * Bind to colour selector
      */
     function bindColourSelector() {
         $(document).on('click', '.galado-fp-color-btn, [data-text-color]', function() {
@@ -138,11 +107,8 @@
         }
 
         overlay.setAttribute('data-color', currentColor);
-        if (currentColor === 'white' || currentColor === '#ffffff' || currentColor === '#fff') {
-            overlay.style.color = '#ffffff';
-        } else {
-            overlay.style.color = '#1a1a1a';
-        }
+        overlay.style.color = (currentColor === 'white' || currentColor === '#ffffff' || currentColor === '#fff')
+            ? '#ffffff' : '#1a1a1a';
 
         var fontSize = baseFontSize;
         if (currentText.length > 12) {
@@ -151,33 +117,8 @@
         overlay.style.fontSize = fontSize + 'px';
 
         overlay.style.display = 'block';
-        overlay.offsetHeight; // force reflow for transition
+        overlay.offsetHeight; // force reflow for CSS transition
         overlay.classList.add('visible');
-
-        repositionOverlay();
-    }
-
-    /**
-     * Watch for gallery slide changes and reposition the overlay
-     */
-    function observeGalleryChanges() {
-        if (!gallery) return;
-
-        var observer = new MutationObserver(debounce(function() {
-            repositionOverlay();
-        }, 80));
-
-        observer.observe(gallery, {
-            childList: true,
-            subtree: true,
-            attributes: true,
-            attributeFilter: ['class']
-        });
-    }
-
-    function debounce(fn, ms) {
-        var t;
-        return function() { clearTimeout(t); t = setTimeout(fn, ms); };
     }
 
     function sanitizeSlug(name) {

@@ -2,7 +2,34 @@
  * GALADO Live Case Preview — Frontend Styles
  */
 
-/* Overlay text on product image */
+/* ── Preview widget ─────────────────────────────────────────────────────── */
+.gcp-preview-widget {
+    margin: 0 0 20px;
+}
+
+.gcp-preview-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #444;
+    margin: 0 0 8px;
+}
+
+.gcp-preview-inner {
+    position: relative;
+    display: block;
+    line-height: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #f5f5f5;
+}
+
+.gcp-preview-inner img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* ── Overlay text ───────────────────────────────────────────────────────── */
 .gcp-overlay-text {
     position: absolute;
     z-index: 10;
@@ -20,16 +47,7 @@
     opacity: 1;
 }
 
-/* The overlay is appended to .woocommerce-product-gallery (set to position:relative via JS).
-   No gallery DOM modifications — position is calculated in JS using getBoundingClientRect(). */
-
-/* Font selector integration — highlight active font in existing font preview */
-.galado-fp-card.gcp-active {
-    outline: 3px solid #0071e3 !important;
-    outline-offset: -3px;
-}
-
-/* Colour indicator on the overlay */
+/* ── Colour variants ────────────────────────────────────────────────────── */
 .gcp-overlay-text[data-color="white"] {
     color: #ffffff;
     text-shadow: 0 1px 6px rgba(0,0,0,0.3);
@@ -38,4 +56,10 @@
 .gcp-overlay-text[data-color="black"] {
     color: #1a1a1a;
     text-shadow: 0 1px 4px rgba(255,255,255,0.2);
+}
+
+/* ── Font selector active state ─────────────────────────────────────────── */
+.galado-fp-card.gcp-active {
+    outline: 3px solid #0071e3 !important;
+    outline-offset: -3px;
 }
