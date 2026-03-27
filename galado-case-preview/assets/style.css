@@ -1,0 +1,51 @@
+/**
+ * GALADO Live Case Preview — Frontend Styles
+ */
+
+/* Overlay text on product image */
+.gcp-overlay-text {
+    position: absolute;
+    z-index: 10;
+    pointer-events: none;
+    white-space: nowrap;
+    text-align: center;
+    line-height: 1.2;
+    letter-spacing: 0.02em;
+    transition: font-family 0.3s ease, color 0.3s ease, opacity 0.3s ease, font-size 0.2s ease;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    opacity: 0;
+}
+
+.gcp-overlay-text.visible {
+    opacity: 1;
+}
+
+/* Make the gallery container relative for overlay positioning */
+.woocommerce-product-gallery {
+    position: relative !important;
+}
+
+.woocommerce-product-gallery .woocommerce-product-gallery__wrapper {
+    position: relative;
+}
+
+.woocommerce-product-gallery__image {
+    position: relative;
+}
+
+/* Font selector integration — highlight active font in existing font preview */
+.galado-fp-card.gcp-active {
+    outline: 3px solid #0071e3 !important;
+    outline-offset: -3px;
+}
+
+/* Colour indicator on the overlay */
+.gcp-overlay-text[data-color="white"] {
+    color: #ffffff;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.3);
+}
+
+.gcp-overlay-text[data-color="black"] {
+    color: #1a1a1a;
+    text-shadow: 0 1px 4px rgba(255,255,255,0.2);
+}
