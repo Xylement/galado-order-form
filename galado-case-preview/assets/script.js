@@ -1,7 +1,5 @@
 /**
  * GALADO Live Case Preview — Frontend Script
- * Shows a dedicated mockup image with the customer's name overlaid in real-time.
- * Completely independent of the WooCommerce product gallery.
  */
 (function($) {
     'use strict';
@@ -19,24 +17,45 @@
         overlay = document.getElementById('gcp-overlay-text');
         if (!overlay) return;
 
-        // Position overlay within the preview widget (simple % positioning)
+        // Position overlay within the preview widget (% positioning within .gcp-preview-inner)
         overlay.style.left      = gcpConfig.x + '%';
         overlay.style.top       = gcpConfig.y + '%';
         overlay.style.transform = 'translate(-50%, -50%) rotate(' + (gcpConfig.rotate || 0) + 'deg)';
         overlay.style.maxWidth  = maxWidthPct + '%';
+
+        // Widget starts hidden — only shown when personalisation is ticked
+        var $widget = $('#gcp-preview-widget');
+        $widget.hide();
+
+        // When "Add Personalisation" checkbox changes, show/hide and position the widget
+        var $enable = $('#galado-fp-enable');
+        $enable.on('change', function() {
+            if (this.checked) {
+                // Move widget inside #galado-fp-fields, between colour and font grid
+                var $fontGridWrap = $('#galado-fp-grid').closest('.galado-fp-input-wrap');
+                if ($fontGridWrap.length) {
+                    $fontGridWrap.before($widget);
+                } else {
+                    $('#galado-fp-fields').prepend($widget);
+                }
+                $widget.show();
+            } else {
+                $widget.hide();
+                // Clear overlay when personalisation is deselected
+                currentText = '';
+                currentFont = '';
+                currentColor = 'black';
+                updateOverlay();
+            }
+        });
 
         bindTextInput();
         bindFontCards();
         bindColourSelector();
     });
 
-    /**
-     * Bind to the personalisation text input
-     */
     function bindTextInput() {
         var input = document.getElementById('galado-fp-text');
-        if (!input) input = document.querySelector('.wc-pao-addon-field[type="text"]');
-        if (!input) input = document.querySelector('input[name*="custom_text"], input[name*="personalise"], input[name*="personalize"], input[name*="name"]');
         if (!input) return;
 
         input.addEventListener('input', function() {
@@ -50,47 +69,45 @@
         }
     }
 
-    /**
-     * Bind to font card clicks
-     */
     function bindFontCards() {
-        $(document).on('click', '.galado-fp-card', function() {
-            var fontSlug = $(this).data('font-slug') || $(this).data('font');
-            $('.galado-fp-card').removeClass('gcp-active');
-            $(this).addClass('gcp-active');
-            if (fontSlug) {
-                currentFont = fontSlug;
-                updateOverlay();
-            }
+        // galado-font-preview uses touchend + e.preventDefault() on font cards,
+        // which blocks the click event on mobile. Bind both touchend and click
+        // at document level; use lastFont guard to prevent double-firing.
+        var lastFont = '';
+
+        function handleFontSelect(el) {
+            var fontName = $(el).data('font') || $(el).data('font-slug');
+            if (!fontName || fontName === lastFont) return;
+            lastFont = fontName;
+            currentFont = fontName;
+            updateOverlay();
+            // Reset guard after a tick (allows same font to be re-selected later)
+            setTimeout(function() { lastFont = ''; }, 300);
+        }
+
+        $(document).on('touchend', '.galado-fp-card', function() {
+            handleFontSelect(this);
         });
 
-        $(document).on('change', 'input[name="galado_font_style"]', function() {
-            var fontSlug = $(this).data('font-slug') || $(this).val();
-            if (fontSlug) {
-                currentFont = sanitizeSlug(fontSlug);
-                updateOverlay();
-            }
+        $(document).on('click', '.galado-fp-card', function() {
+            handleFontSelect(this);
         });
     }
 
-    /**
-     * Bind to colour selector
-     */
     function bindColourSelector() {
+        // galado-font-preview uses input[name="galado_font_color"] with values Black/White
+        $(document).on('change', 'input[name="galado_font_color"]', function() {
+            currentColor = $(this).val().toLowerCase();
+            updateOverlay();
+        });
+
+        // Also catch any other colour selectors for flexibility
         $(document).on('click', '.galado-fp-color-btn, [data-text-color]', function() {
             currentColor = $(this).data('text-color') || $(this).data('color') || 'black';
             updateOverlay();
         });
-
-        $(document).on('change', 'input[name*="text_color"], select[name*="text_color"], input[name*="font_color"], select[name*="font_color"]', function() {
-            currentColor = $(this).val().toLowerCase();
-            updateOverlay();
-        });
     }
 
-    /**
-     * Update overlay text, font, colour, and size
-     */
     function updateOverlay() {
         if (!overlay) return;
 
@@ -103,6 +120,7 @@
         overlay.textContent = currentText;
 
         if (currentFont) {
+            // galado-font-preview registers fonts using their full name (e.g. 'Rustling Sound')
             overlay.style.fontFamily = "'" + currentFont + "', cursive";
         }
 
@@ -119,10 +137,6 @@
         overlay.style.display = 'block';
         overlay.offsetHeight; // force reflow for CSS transition
         overlay.classList.add('visible');
-    }
-
-    function sanitizeSlug(name) {
-        return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     }
 
 })(jQuery);

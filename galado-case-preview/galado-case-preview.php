@@ -53,9 +53,9 @@ class GALADO_Case_Preview {
         add_action('save_post_product',    array($this, 'save_meta_box'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin'));
 
-        // Frontend — widget injected before Add to Cart (near font selector)
-        add_action('wp_enqueue_scripts',             array($this, 'enqueue_frontend'));
-        add_action('woocommerce_before_add_to_cart_button', array($this, 'inject_preview_widget'), 5);
+        // Frontend — widget injected after galado-font-preview (priority 20 > fp's 10)
+        add_action('wp_enqueue_scripts',                    array($this, 'enqueue_frontend'));
+        add_action('woocommerce_before_add_to_cart_button', array($this, 'inject_preview_widget'), 20);
 
         // GALADO Admin Hub integration
         add_filter('galado_admin_hub_plugins', array($this, 'register_with_hub'));
@@ -384,12 +384,12 @@ class GALADO_Case_Preview {
         $image_id = get_post_meta($post->ID, '_galado_case_preview_image_id', true);
         if (!$image_id) return; // no mockup image uploaded — nothing to show
 
-        // Register custom fonts
+        // Register custom fonts using full names — must match galado-font-preview's
+        // registration so that data-font card values map correctly to font-family.
         $font_url = $this->get_font_directory_url();
         $css = '';
         foreach ($this->fonts as $name => $file) {
-            $slug = sanitize_title($name);
-            $css .= "@font-face { font-family: '{$slug}'; src: url('{$font_url}{$file}') format('" . $this->get_font_format($file) . "'); font-display: swap; }\n";
+            $css .= "@font-face { font-family: '{$name}'; src: url('{$font_url}{$file}') format('" . $this->get_font_format($file) . "'); font-display: swap; }\n";
         }
         wp_register_style('galado-case-preview-fonts', false);
         wp_enqueue_style('galado-case-preview-fonts');
@@ -435,7 +435,7 @@ class GALADO_Case_Preview {
         $image_url = wp_get_attachment_image_url($image_id, 'medium');
         if (!$image_url) return;
         ?>
-        <div class="gcp-preview-widget">
+        <div class="gcp-preview-widget" id="gcp-preview-widget">
             <p class="gcp-preview-label">Preview your personalisation</p>
             <div class="gcp-preview-inner">
                 <img src="<?php echo esc_url($image_url); ?>" alt="Case preview" loading="lazy">
