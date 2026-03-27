@@ -53,9 +53,9 @@ class GALADO_Case_Preview {
         add_action('save_post_product',    array($this, 'save_meta_box'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin'));
 
-        // Frontend — widget injected after galado-font-preview (priority 20 > fp's 10)
-        add_action('wp_enqueue_scripts',                    array($this, 'enqueue_frontend'));
-        add_action('woocommerce_before_add_to_cart_button', array($this, 'inject_preview_widget'), 20);
+        // Frontend — widget injected via galado-fp's action hook (between colour and font grid)
+        add_action('wp_enqueue_scripts',  array($this, 'enqueue_frontend'));
+        add_action('galado_fp_after_colour', array($this, 'inject_preview_widget'));
 
         // GALADO Admin Hub integration
         add_filter('galado_admin_hub_plugins', array($this, 'register_with_hub'));

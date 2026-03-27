@@ -173,6 +173,8 @@ class Galado_Font_Preview {
                     </div>
                 </div>
 
+                <?php do_action('galado_fp_after_colour'); ?>
+
                 <div class="galado-fp-input-wrap">
                     <label class="galado-fp-field-label">Select Font Style</label>
                     <div class="galado-fp-grid" id="galado-fp-grid">
