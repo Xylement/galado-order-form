@@ -34,13 +34,16 @@
     position: absolute;
     z-index: 10;
     pointer-events: none;
-    white-space: nowrap;
+    /* Allow wrapping so wide/script fonts stay inside the case image */
+    white-space: normal;
+    word-break: break-word;
     text-align: center;
     line-height: 1.2;
     letter-spacing: 0.02em;
     transition: font-family 0.3s ease, color 0.3s ease, opacity 0.3s ease, font-size 0.2s ease;
     text-shadow: 0 1px 4px rgba(0,0,0,0.15);
     opacity: 0;
+    /* transform (translate + rotate) is set by script.js */
 }
 
 .gcp-overlay-text.visible {

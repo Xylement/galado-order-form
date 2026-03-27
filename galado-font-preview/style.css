@@ -178,13 +178,12 @@
 }
 
 /* ── Grid ── */
+/* No max-height / overflow — cards flow naturally with the page so mobile
+   users are never trapped scrolling inside a nested scroll container. */
 .galado-fp-grid {
     display: grid !important;
     grid-template-columns: 1fr !important;
     gap: 10px !important;
-    max-height: 520px !important;
-    overflow-y: auto !important;
-    -webkit-overflow-scrolling: touch;
     padding: 2px !important;
 }
 
