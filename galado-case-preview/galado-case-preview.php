@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Live Case Preview
  * Plugin URI: https://galado.com.my
  * Description: Live text overlay on a dedicated mockup image. Customers see their name on the actual case as they type and select fonts — right next to the font selector, no gallery involvement.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * Requires at least: 6.0
@@ -31,44 +31,34 @@ class GALADO_Case_Preview {
         'Gotcha'            => 'gotcha-regular.ttf',
     );
 
-    // Preset positions (used as quick-start shortcuts in admin)
+    // Preset rectangles: x/y = top-left corner %, w/h = size %
     private $presets = array(
-        'center'        => array('label' => 'Center',        'x' => 50, 'y' => 50, 'rotate' => 0),
-        'bottom-center' => array('label' => 'Bottom Center', 'x' => 50, 'y' => 72, 'rotate' => 0),
-        'top-center'    => array('label' => 'Top Center',    'x' => 50, 'y' => 30, 'rotate' => 0),
-        'angled-center' => array('label' => 'Angled',        'x' => 50, 'y' => 50, 'rotate' => -15),
-        'lower-third'   => array('label' => 'Lower Third',   'x' => 50, 'y' => 65, 'rotate' => 0),
+        'center'  => array('label' => 'Center',       'x' => 20, 'y' => 35, 'w' => 60, 'h' => 30, 'rotate' => 0),
+        'bottom'  => array('label' => 'Bottom',       'x' => 15, 'y' => 62, 'w' => 70, 'h' => 25, 'rotate' => 0),
+        'top'     => array('label' => 'Top',          'x' => 20, 'y' => 10, 'w' => 60, 'h' => 25, 'rotate' => 0),
+        'angled'  => array('label' => 'Angled',       'x' => 20, 'y' => 35, 'w' => 60, 'h' => 30, 'rotate' => -15),
+        'wide'    => array('label' => 'Wide Band',    'x' => 8,  'y' => 45, 'w' => 84, 'h' => 18, 'rotate' => 0),
     );
 
     public static function instance() {
-        if (is_null(self::$instance)) {
-            self::$instance = new self();
-        }
+        if (is_null(self::$instance)) self::$instance = new self();
         return self::$instance;
     }
 
     public function __construct() {
-        // Admin
-        add_action('add_meta_boxes',       array($this, 'add_meta_box'));
-        add_action('save_post_product',    array($this, 'save_meta_box'));
+        add_action('add_meta_boxes',        array($this, 'add_meta_box'));
+        add_action('save_post_product',     array($this, 'save_meta_box'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin'));
-
-        // Frontend — widget injected via galado-fp's action hook (between colour and font grid)
-        add_action('wp_enqueue_scripts',  array($this, 'enqueue_frontend'));
-        add_action('galado_fp_after_colour', array($this, 'inject_preview_widget'));
-
-        // GALADO Admin Hub integration
+        add_action('wp_enqueue_scripts',    array($this, 'enqueue_frontend'));
+        add_action('galado_fp_after_colour',array($this, 'inject_preview_widget'));
         add_filter('galado_admin_hub_plugins', array($this, 'register_with_hub'));
     }
 
-    /**
-     * Register with GALADO Admin Hub
-     */
     public function register_with_hub($plugins) {
         $plugins['galado-case-preview'] = array(
             'name'    => 'Live Case Preview',
             'icon'    => '👁️',
-            'version' => '1.1.0',
+            'version' => '1.2.0',
         );
         return $plugins;
     }
@@ -77,9 +67,6 @@ class GALADO_Case_Preview {
     // ADMIN
     // =========================================================================
 
-    /**
-     * Enqueue WordPress media uploader on product edit pages
-     */
     public function enqueue_admin($hook) {
         if (!in_array($hook, array('post.php', 'post-new.php'))) return;
         global $post;
@@ -92,82 +79,67 @@ class GALADO_Case_Preview {
             'galado_case_preview_settings',
             'GALADO Live Case Preview',
             array($this, 'render_meta_box'),
-            'product',
-            'side',
-            'default'
+            'product', 'side', 'default'
         );
     }
 
     public function render_meta_box($post) {
         wp_nonce_field('galado_case_preview_save', 'galado_case_preview_nonce');
 
-        $enabled    = get_post_meta($post->ID, '_galado_case_preview_enabled',  true);
-        $image_id   = get_post_meta($post->ID, '_galado_case_preview_image_id', true);
-        $x          = get_post_meta($post->ID, '_galado_case_preview_x',        true);
-        $y          = get_post_meta($post->ID, '_galado_case_preview_y',        true);
-        $rotate     = get_post_meta($post->ID, '_galado_case_preview_rotate',   true);
-        $max_width  = get_post_meta($post->ID, '_galado_case_preview_max_width', true) ?: 60;
-        $font_size  = get_post_meta($post->ID, '_galado_case_preview_font_size', true) ?: 28;
+        $enabled  = get_post_meta($post->ID, '_galado_case_preview_enabled',   true);
+        $image_id = get_post_meta($post->ID, '_galado_case_preview_image_id',  true);
+        $rect_x   = get_post_meta($post->ID, '_galado_case_preview_rect_x',    true);
+        $rect_y   = get_post_meta($post->ID, '_galado_case_preview_rect_y',    true);
+        $rect_w   = get_post_meta($post->ID, '_galado_case_preview_rect_w',    true);
+        $rect_h   = get_post_meta($post->ID, '_galado_case_preview_rect_h',    true);
+        $rotate   = get_post_meta($post->ID, '_galado_case_preview_rotate',    true);
+        $font_size= get_post_meta($post->ID, '_galado_case_preview_font_size', true);
 
-        if ($x === '')      $x      = 50;
-        if ($y === '')      $y      = 50;
-        if ($rotate === '') $rotate = 0;
+        // Defaults
+        if ($rect_x   === '') $rect_x   = 20;
+        if ($rect_y   === '') $rect_y   = 35;
+        if ($rect_w   === '') $rect_w   = 60;
+        if ($rect_h   === '') $rect_h   = 30;
+        if ($rotate   === '') $rotate   = 0;
+        if ($font_size === '') $font_size = 40;
 
-        // Use the uploaded mockup image for the drag box, fall back to product thumbnail
         $preview_url = $image_id
             ? wp_get_attachment_image_url($image_id, 'medium')
             : get_the_post_thumbnail_url($post->ID, 'medium');
         ?>
         <style>
-            .gcp-meta label { display: block; margin: 8px 0 4px; font-weight: 600; font-size: 12px; }
-            .gcp-meta input[type=number] { width: 100%; }
-            .gcp-meta .description { font-size: 11px; color: #666; margin-top: 2px; }
+        .gcp-meta label{display:block;margin:8px 0 3px;font-weight:600;font-size:12px}
+        .gcp-meta input[type=number]{width:100%}
+        .gcp-meta .description{font-size:11px;color:#666;margin-top:2px}
+        .gcp-image-wrap{margin:6px 0 8px}
+        .gcp-image-wrap img{display:block;width:100%;border-radius:6px;margin-bottom:6px}
+        .gcp-image-btns{display:flex;gap:6px}
+        .gcp-image-btns .button{flex:1;font-size:11px;padding:3px 8px}
 
-            /* Mockup image picker */
-            .gcp-image-wrap { margin: 6px 0 8px; }
-            .gcp-image-wrap img { display: block; width: 100%; border-radius: 6px; margin-bottom: 6px; }
-            .gcp-image-btns { display: flex; gap: 6px; }
-            .gcp-image-btns .button { flex: 1; font-size: 11px; padding: 3px 8px; }
+        /* Drag box */
+        .gcp-drag-box{position:relative;width:100%;padding-bottom:100%;background:#d8d8d8;border-radius:8px;overflow:hidden;margin:8px 0;border:2px solid #ccc;user-select:none;-webkit-user-select:none}
+        .gcp-drag-box img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;pointer-events:none;display:block}
+        .gcp-drag-placeholder{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:11px;color:#999;pointer-events:none}
 
-            /* Drag box */
-            .gcp-drag-box {
-                position: relative; width: 100%; padding-bottom: 100%;
-                background: #e0e0e0; border-radius: 8px; overflow: hidden;
-                cursor: crosshair; margin: 8px 0; border: 2px solid #ccc;
-                user-select: none; -webkit-user-select: none;
-            }
-            .gcp-drag-box img {
-                position: absolute; top: 0; left: 0;
-                width: 100%; height: 100%; object-fit: cover;
-                pointer-events: none; display: block;
-            }
-            .gcp-drag-placeholder {
-                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                display: flex; align-items: center; justify-content: center;
-                font-size: 11px; color: #999; pointer-events: none;
-            }
-            .gcp-drag-dot {
-                position: absolute; width: 16px; height: 16px;
-                background: #0071e3; border-radius: 50%;
-                transform: translate(-50%, -50%);
-                box-shadow: 0 0 0 4px rgba(0,113,227,0.3), 0 2px 8px rgba(0,0,0,0.25);
-                cursor: grab; z-index: 3;
-            }
-            .gcp-drag-dot:active { cursor: grabbing; }
-            .gcp-drag-tag {
-                position: absolute; font-size: 10px; color: #0071e3;
-                font-weight: 700; white-space: nowrap; pointer-events: none;
-                transform: translate(-50%, 8px); z-index: 4;
-                text-shadow: 0 1px 2px #fff;
-            }
-            .gcp-coords { font-size: 11px; color: #555; margin-bottom: 6px; }
-            .gcp-presets { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
-            .gcp-preset-btn {
-                flex: 1 1 45%; padding: 4px 6px; font-size: 11px;
-                background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px;
-                cursor: pointer; text-align: center; line-height: 1.4;
-            }
-            .gcp-preset-btn:hover { background: #ddd; }
+        /* Rectangle */
+        #gcp-rect{position:absolute;border:2px solid #0071e3;background:rgba(0,113,227,0.10);box-sizing:border-box;cursor:move;display:flex;align-items:center;justify-content:center}
+        #gcp-rect-label{font-size:10px;color:#0071e3;font-weight:700;pointer-events:none;text-shadow:0 1px 2px rgba(255,255,255,0.9);text-align:center;padding:2px;line-height:1.2}
+
+        /* Resize handles */
+        .gcp-h{position:absolute;width:10px;height:10px;background:#0071e3;border:2px solid #fff;border-radius:2px;box-sizing:border-box;z-index:5}
+        .gcp-h-n {top:-5px;left:50%;transform:translateX(-50%);cursor:n-resize}
+        .gcp-h-s {bottom:-5px;left:50%;transform:translateX(-50%);cursor:s-resize}
+        .gcp-h-e {top:50%;right:-5px;transform:translateY(-50%);cursor:e-resize}
+        .gcp-h-w {top:50%;left:-5px;transform:translateY(-50%);cursor:w-resize}
+        .gcp-h-ne{top:-5px;right:-5px;cursor:ne-resize}
+        .gcp-h-nw{top:-5px;left:-5px;cursor:nw-resize}
+        .gcp-h-se{bottom:-5px;right:-5px;cursor:se-resize}
+        .gcp-h-sw{bottom:-5px;left:-5px;cursor:sw-resize}
+
+        .gcp-coords{font-size:11px;color:#555;margin-bottom:6px}
+        .gcp-presets{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+        .gcp-preset-btn{flex:1 1 45%;padding:4px 6px;font-size:11px;background:#f0f0f0;border:1px solid #ccc;border-radius:4px;cursor:pointer;text-align:center;line-height:1.4}
+        .gcp-preset-btn:hover{background:#ddd}
         </style>
 
         <div class="gcp-meta">
@@ -181,7 +153,7 @@ class GALADO_Case_Preview {
                 <?php if ($preview_url): ?>
                     <img src="<?php echo esc_url($preview_url); ?>" id="gcp-image-thumb" alt="">
                 <?php else: ?>
-                    <p style="font-size:11px;color:#999;margin:0 0 6px;">No image selected — upload a flat-lay or mockup of the case.</p>
+                    <p style="font-size:11px;color:#999;margin:0 0 6px;">No image — upload a flat-lay or mockup of the case.</p>
                 <?php endif; ?>
                 <div class="gcp-image-btns">
                     <button type="button" class="button" id="gcp-upload-btn">
@@ -194,87 +166,208 @@ class GALADO_Case_Preview {
             </div>
             <input type="hidden" name="gcp_image_id" id="gcp_image_id" value="<?php echo esc_attr($image_id); ?>">
 
-            <label>Text Position — drag the dot or click to place</label>
+            <label>Text Zone — drag to move · handles to resize</label>
             <div class="gcp-drag-box" id="gcp-drag-box">
                 <?php if ($preview_url): ?>
                     <img src="<?php echo esc_url($preview_url); ?>" id="gcp-drag-img" alt="">
                 <?php else: ?>
                     <div class="gcp-drag-placeholder">Upload a mockup image first</div>
                 <?php endif; ?>
-                <div class="gcp-drag-dot" id="gcp-drag-dot"></div>
-                <div class="gcp-drag-tag"  id="gcp-drag-tag">Name</div>
+                <div id="gcp-rect">
+                    <div class="gcp-h gcp-h-n"  data-dir="n"></div>
+                    <div class="gcp-h gcp-h-ne" data-dir="ne"></div>
+                    <div class="gcp-h gcp-h-e"  data-dir="e"></div>
+                    <div class="gcp-h gcp-h-se" data-dir="se"></div>
+                    <div class="gcp-h gcp-h-s"  data-dir="s"></div>
+                    <div class="gcp-h gcp-h-sw" data-dir="sw"></div>
+                    <div class="gcp-h gcp-h-w"  data-dir="w"></div>
+                    <div class="gcp-h gcp-h-nw" data-dir="nw"></div>
+                    <div id="gcp-rect-label">Name</div>
+                </div>
             </div>
-            <div class="gcp-coords" id="gcp-coords">
-                X: <?php echo esc_html($x); ?>% &nbsp; Y: <?php echo esc_html($y); ?>%
-            </div>
+            <div class="gcp-coords" id="gcp-coords"></div>
 
             <div class="gcp-presets">
                 <?php foreach ($this->presets as $p): ?>
                     <button type="button" class="gcp-preset-btn"
                         data-x="<?php echo esc_attr($p['x']); ?>"
                         data-y="<?php echo esc_attr($p['y']); ?>"
+                        data-w="<?php echo esc_attr($p['w']); ?>"
+                        data-h="<?php echo esc_attr($p['h']); ?>"
                         data-rotate="<?php echo esc_attr($p['rotate']); ?>">
                         <?php echo esc_html($p['label']); ?>
                     </button>
                 <?php endforeach; ?>
             </div>
 
-            <input type="hidden" name="gcp_x" id="gcp_x" value="<?php echo esc_attr($x); ?>">
-            <input type="hidden" name="gcp_y" id="gcp_y" value="<?php echo esc_attr($y); ?>">
+            <input type="hidden" name="gcp_rect_x" id="gcp_rect_x" value="<?php echo esc_attr($rect_x); ?>">
+            <input type="hidden" name="gcp_rect_y" id="gcp_rect_y" value="<?php echo esc_attr($rect_y); ?>">
+            <input type="hidden" name="gcp_rect_w" id="gcp_rect_w" value="<?php echo esc_attr($rect_w); ?>">
+            <input type="hidden" name="gcp_rect_h" id="gcp_rect_h" value="<?php echo esc_attr($rect_h); ?>">
 
             <label for="gcp_rotate">Rotation (degrees)</label>
             <input type="number" name="gcp_rotate" id="gcp_rotate" value="<?php echo esc_attr($rotate); ?>" min="-45" max="45" step="5">
-            <p class="description">0 = straight, negative = lean left.</p>
+            <p class="description">0 = straight · negative = lean left</p>
 
-            <label for="gcp_max_width">Max Text Width (%)</label>
-            <input type="number" name="gcp_max_width" id="gcp_max_width" value="<?php echo esc_attr($max_width); ?>" min="20" max="90" step="5">
-            <p class="description">How wide the text can be relative to the image.</p>
-
-            <label for="gcp_font_size">Base Font Size (px)</label>
-            <input type="number" name="gcp_font_size" id="gcp_font_size" value="<?php echo esc_attr($font_size); ?>" min="12" max="60" step="2">
-            <p class="description">Auto-shrinks for longer names.</p>
+            <label for="gcp_font_size">Max Font Size (px)</label>
+            <input type="number" name="gcp_font_size" id="gcp_font_size" value="<?php echo esc_attr($font_size); ?>" min="12" max="80" step="2">
+            <p class="description">Font auto-shrinks to fit the zone. This is the largest it will ever be.</p>
         </div>
 
         <script>
-        jQuery(function($) {
-            // ── Media uploader ──────────────────────────────────────────────
-            var mediaFrame;
+        (function() {
+            var box    = document.getElementById('gcp-drag-box');
+            var rect   = document.getElementById('gcp-rect');
+            var coords = document.getElementById('gcp-coords');
+            var iX = document.getElementById('gcp_rect_x');
+            var iY = document.getElementById('gcp_rect_y');
+            var iW = document.getElementById('gcp_rect_w');
+            var iH = document.getElementById('gcp_rect_h');
+            var iR = document.getElementById('gcp_rotate');
 
-            $('#gcp-upload-btn').on('click', function(e) {
-                e.preventDefault();
-                if (mediaFrame) { mediaFrame.open(); return; }
-                mediaFrame = wp.media({
-                    title: 'Select Mockup Image',
-                    button: { text: 'Use this image' },
-                    multiple: false
+            var MIN_W = 10, MIN_H = 8;
+
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+            function applyRect(x, y, w, h) {
+                w = clamp(w, MIN_W, 100);
+                h = clamp(h, MIN_H, 100);
+                x = clamp(x, 0, 100 - w);
+                y = clamp(y, 0, 100 - h);
+                rect.style.left   = x + '%';
+                rect.style.top    = y + '%';
+                rect.style.width  = w + '%';
+                rect.style.height = h + '%';
+                iX.value = Math.round(x);
+                iY.value = Math.round(y);
+                iW.value = Math.round(w);
+                iH.value = Math.round(h);
+                coords.textContent = 'X:' + Math.round(x) + '% Y:' + Math.round(y) + '% W:' + Math.round(w) + '% H:' + Math.round(h) + '%';
+            }
+
+            // Set initial rect
+            applyRect(
+                parseFloat(iX.value) || 20,
+                parseFloat(iY.value) || 35,
+                parseFloat(iW.value) || 60,
+                parseFloat(iH.value) || 30
+            );
+
+            // ── Drag / resize state ──────────────────────────────────────────
+            var state = null;
+
+            function pct(px, total) { return (px / total) * 100; }
+
+            function getState(e, dir) {
+                var br = box.getBoundingClientRect();
+                var cx = e.clientX || e.touches[0].clientX;
+                var cy = e.clientY || e.touches[0].clientY;
+                return {
+                    dir:   dir,
+                    sx:    cx, sy: cy,
+                    ox:    parseFloat(iX.value),
+                    oy:    parseFloat(iY.value),
+                    ow:    parseFloat(iW.value),
+                    oh:    parseFloat(iH.value),
+                    bw:    br.width,
+                    bh:    br.height
+                };
+            }
+
+            function onMove(cx, cy) {
+                if (!state) return;
+                var dx = pct(cx - state.sx, state.bw);
+                var dy = pct(cy - state.sy, state.bh);
+                var x = state.ox, y = state.oy, w = state.ow, h = state.oh;
+                switch (state.dir) {
+                    case 'move': x += dx; y += dy; break;
+                    case 'n':   y += dy; h -= dy; break;
+                    case 's':   h += dy; break;
+                    case 'e':   w += dx; break;
+                    case 'w':   x += dx; w -= dx; break;
+                    case 'ne':  y += dy; h -= dy; w += dx; break;
+                    case 'nw':  y += dy; h -= dy; x += dx; w -= dx; break;
+                    case 'se':  h += dy; w += dx; break;
+                    case 'sw':  h += dy; x += dx; w -= dx; break;
+                }
+                applyRect(x, y, w, h);
+            }
+
+            // Mouse
+            rect.addEventListener('mousedown', function(e) {
+                if (e.target.classList.contains('gcp-h')) return;
+                e.preventDefault(); state = getState(e, 'move');
+            });
+            document.querySelectorAll('.gcp-h').forEach(function(h) {
+                h.addEventListener('mousedown', function(e) {
+                    e.preventDefault(); e.stopPropagation();
+                    state = getState(e, h.dataset.dir);
                 });
-                mediaFrame.on('select', function() {
-                    var att = mediaFrame.state().get('selection').first().toJSON();
-                    $('#gcp_image_id').val(att.id);
-                    // Update thumb display
-                    if ($('#gcp-image-thumb').length) {
-                        $('#gcp-image-thumb').attr('src', att.url);
-                    } else {
-                        $('#gcp-image-wrap').prepend('<img src="' + att.url + '" id="gcp-image-thumb" alt="">');
-                        $('p', '#gcp-image-wrap').remove();
-                    }
-                    $('#gcp-upload-btn').text('Change Image');
-                    // Update drag box background
-                    if ($('#gcp-drag-img').length) {
-                        $('#gcp-drag-img').attr('src', att.url);
-                    } else {
-                        $('.gcp-drag-placeholder').replaceWith('<img src="' + att.url + '" id="gcp-drag-img" alt="">');
-                    }
-                    // Show remove button if not already there
-                    if (!$('#gcp-remove-btn').length) {
-                        $('#gcp-upload-btn').after('<button type="button" class="button" id="gcp-remove-btn">Remove</button>');
-                        bindRemove();
-                    }
+            });
+            document.addEventListener('mousemove', function(e) {
+                if (!state) return;
+                onMove(e.clientX, e.clientY);
+            });
+            document.addEventListener('mouseup', function() { state = null; });
+
+            // Touch
+            rect.addEventListener('touchstart', function(e) {
+                if (e.target.classList.contains('gcp-h')) return;
+                e.preventDefault(); state = getState(e, 'move');
+            }, { passive: false });
+            document.querySelectorAll('.gcp-h').forEach(function(h) {
+                h.addEventListener('touchstart', function(e) {
+                    e.preventDefault(); e.stopPropagation();
+                    state = getState(e, h.dataset.dir);
+                }, { passive: false });
+            });
+            document.addEventListener('touchmove', function(e) {
+                if (!state) return;
+                onMove(e.touches[0].clientX, e.touches[0].clientY);
+            }, { passive: true });
+            document.addEventListener('touchend', function() { state = null; });
+
+            // Presets
+            document.querySelectorAll('.gcp-preset-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    applyRect(
+                        parseFloat(this.dataset.x),
+                        parseFloat(this.dataset.y),
+                        parseFloat(this.dataset.w),
+                        parseFloat(this.dataset.h)
+                    );
+                    iR.value = parseFloat(this.dataset.rotate) || 0;
                 });
-                mediaFrame.open();
             });
 
-            function bindRemove() {
+            // Media uploader
+            jQuery(function($) {
+                var mediaFrame;
+                $('#gcp-upload-btn').on('click', function(e) {
+                    e.preventDefault();
+                    if (mediaFrame) { mediaFrame.open(); return; }
+                    mediaFrame = wp.media({ title: 'Select Mockup Image', button: { text: 'Use this image' }, multiple: false });
+                    mediaFrame.on('select', function() {
+                        var att = mediaFrame.state().get('selection').first().toJSON();
+                        $('#gcp_image_id').val(att.id);
+                        if ($('#gcp-image-thumb').length) {
+                            $('#gcp-image-thumb').attr('src', att.url);
+                        } else {
+                            $('#gcp-image-wrap').prepend('<img src="' + att.url + '" id="gcp-image-thumb" alt="">');
+                            $('p', '#gcp-image-wrap').remove();
+                        }
+                        $('#gcp-upload-btn').text('Change Image');
+                        if ($('#gcp-drag-img').length) {
+                            $('#gcp-drag-img').attr('src', att.url);
+                        } else {
+                            $('.gcp-drag-placeholder').replaceWith('<img src="' + att.url + '" id="gcp-drag-img" alt="">');
+                        }
+                        if (!$('#gcp-remove-btn').length) {
+                            $('#gcp-upload-btn').after('<button type="button" class="button" id="gcp-remove-btn">Remove</button>');
+                        }
+                    });
+                    mediaFrame.open();
+                });
                 $(document).on('click', '#gcp-remove-btn', function() {
                     $('#gcp_image_id').val('');
                     $('#gcp-image-thumb').remove();
@@ -283,91 +376,26 @@ class GALADO_Case_Preview {
                     $(this).remove();
                     $('#gcp-drag-img').replaceWith('<div class="gcp-drag-placeholder">Upload a mockup image first</div>');
                 });
-            }
-            bindRemove();
-
-            // ── Drag dot ────────────────────────────────────────────────────
-            var box      = document.getElementById('gcp-drag-box');
-            var dot      = document.getElementById('gcp-drag-dot');
-            var tag      = document.getElementById('gcp-drag-tag');
-            var coords   = document.getElementById('gcp-coords');
-            var inputX   = document.getElementById('gcp_x');
-            var inputY   = document.getElementById('gcp_y');
-            var inputRot = document.getElementById('gcp_rotate');
-            var dragging = false;
-
-            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-            function moveDot(x, y) {
-                x = clamp(x, 0, 100);
-                y = clamp(y, 0, 100);
-                dot.style.left = x + '%';
-                dot.style.top  = y + '%';
-                tag.style.left = x + '%';
-                tag.style.top  = y + '%';
-                var rx = Math.round(x), ry = Math.round(y);
-                inputX.value = rx;
-                inputY.value = ry;
-                coords.innerHTML = 'X: ' + rx + '% &nbsp; Y: ' + ry + '%';
-            }
-
-            function pctFromEvent(e) {
-                var rect = box.getBoundingClientRect();
-                return {
-                    x: ((e.clientX - rect.left) / rect.width)  * 100,
-                    y: ((e.clientY - rect.top)  / rect.height) * 100
-                };
-            }
-
-            moveDot(parseFloat(inputX.value) || 50, parseFloat(inputY.value) || 50);
-
-            box.addEventListener('click', function(e) {
-                if (dragging) return;
-                var p = pctFromEvent(e);
-                moveDot(p.x, p.y);
             });
-
-            dot.addEventListener('mousedown', function(e) { dragging = true; e.preventDefault(); e.stopPropagation(); });
-            document.addEventListener('mousemove', function(e) {
-                if (!dragging) return;
-                moveDot(pctFromEvent(e).x, pctFromEvent(e).y);
-            });
-            document.addEventListener('mouseup', function() { dragging = false; });
-
-            dot.addEventListener('touchstart', function(e) { dragging = true; e.preventDefault(); }, { passive: false });
-            document.addEventListener('touchmove', function(e) {
-                if (!dragging) return;
-                var t = e.touches[0], rect = box.getBoundingClientRect();
-                moveDot(((t.clientX - rect.left) / rect.width) * 100, ((t.clientY - rect.top) / rect.height) * 100);
-            }, { passive: true });
-            document.addEventListener('touchend', function() { dragging = false; });
-
-            document.querySelectorAll('.gcp-preset-btn').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    moveDot(parseFloat(this.dataset.x), parseFloat(this.dataset.y));
-                    inputRot.value = parseFloat(this.dataset.rotate) || 0;
-                });
-            });
-        });
+        })();
         </script>
         <?php
     }
 
     public function save_meta_box($post_id) {
         if (!isset($_POST['galado_case_preview_nonce']) ||
-            !wp_verify_nonce($_POST['galado_case_preview_nonce'], 'galado_case_preview_save')) {
-            return;
-        }
+            !wp_verify_nonce($_POST['galado_case_preview_nonce'], 'galado_case_preview_save')) return;
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
         update_post_meta($post_id, '_galado_case_preview_enabled',   isset($_POST['gcp_enabled']) ? '1' : '0');
         update_post_meta($post_id, '_galado_case_preview_image_id',  absint($_POST['gcp_image_id']  ?? 0));
-        update_post_meta($post_id, '_galado_case_preview_x',         absint($_POST['gcp_x']         ?? 50));
-        update_post_meta($post_id, '_galado_case_preview_y',         absint($_POST['gcp_y']         ?? 50));
+        update_post_meta($post_id, '_galado_case_preview_rect_x',    absint($_POST['gcp_rect_x']    ?? 20));
+        update_post_meta($post_id, '_galado_case_preview_rect_y',    absint($_POST['gcp_rect_y']    ?? 35));
+        update_post_meta($post_id, '_galado_case_preview_rect_w',    absint($_POST['gcp_rect_w']    ?? 60));
+        update_post_meta($post_id, '_galado_case_preview_rect_h',    absint($_POST['gcp_rect_h']    ?? 30));
         update_post_meta($post_id, '_galado_case_preview_rotate',    intval($_POST['gcp_rotate']    ?? 0));
-        update_post_meta($post_id, '_galado_case_preview_max_width', absint($_POST['gcp_max_width'] ?? 60));
-        update_post_meta($post_id, '_galado_case_preview_font_size', absint($_POST['gcp_font_size'] ?? 28));
+        update_post_meta($post_id, '_galado_case_preview_font_size', absint($_POST['gcp_font_size'] ?? 40));
     }
 
     // =========================================================================
@@ -376,20 +404,17 @@ class GALADO_Case_Preview {
 
     public function enqueue_frontend() {
         if (!is_product()) return;
-
         global $post;
         $enabled = get_post_meta($post->ID, '_galado_case_preview_enabled', true);
         if ($enabled !== '1') return;
-
         $image_id = get_post_meta($post->ID, '_galado_case_preview_image_id', true);
-        if (!$image_id) return; // no mockup image uploaded — nothing to show
+        if (!$image_id) return;
 
-        // Register custom fonts using full names — must match galado-font-preview's
-        // registration so that data-font card values map correctly to font-family.
+        // Register fonts
         $font_url = $this->get_font_directory_url();
         $css = '';
         foreach ($this->fonts as $name => $file) {
-            $css .= "@font-face { font-family: '{$name}'; src: url('{$font_url}{$file}') format('" . $this->get_font_format($file) . "'); font-display: swap; }\n";
+            $css .= "@font-face{font-family:'{$name}';src:url('{$font_url}{$file}') format('" . $this->get_font_format($file) . "');font-display:swap}\n";
         }
         wp_register_style('galado-case-preview-fonts', false);
         wp_enqueue_style('galado-case-preview-fonts');
@@ -399,46 +424,45 @@ class GALADO_Case_Preview {
         wp_enqueue_style('galado-case-preview',  plugin_dir_url(__FILE__) . 'assets/style.css',  array(), filemtime($dir . 'style.css'));
         wp_enqueue_script('galado-case-preview', plugin_dir_url(__FILE__) . 'assets/script.js', array('jquery'), filemtime($dir . 'script.js'), true);
 
-        $x      = get_post_meta($post->ID, '_galado_case_preview_x',      true);
-        $y      = get_post_meta($post->ID, '_galado_case_preview_y',      true);
+        $rect_x = get_post_meta($post->ID, '_galado_case_preview_rect_x', true);
+        $rect_y = get_post_meta($post->ID, '_galado_case_preview_rect_y', true);
+        $rect_w = get_post_meta($post->ID, '_galado_case_preview_rect_w', true);
+        $rect_h = get_post_meta($post->ID, '_galado_case_preview_rect_h', true);
         $rotate = get_post_meta($post->ID, '_galado_case_preview_rotate', true);
 
-        if ($x === '') {
-            $preset_key = get_post_meta($post->ID, '_galado_case_preview_preset', true) ?: 'center';
-            $preset = $this->presets[$preset_key] ?? $this->presets['center'];
-            $x = $preset['x']; $y = $preset['y']; $rotate = $preset['rotate'];
+        // Backward compat: if rect not set, fall back to old x/y dot system
+        if ($rect_x === '') {
+            $old_x  = get_post_meta($post->ID, '_galado_case_preview_x', true) ?: 50;
+            $old_y  = get_post_meta($post->ID, '_galado_case_preview_y', true) ?: 50;
+            $rect_w = get_post_meta($post->ID, '_galado_case_preview_max_width', true) ?: 60;
+            $rect_h = 30;
+            $rect_x = max(0, $old_x - $rect_w / 2);
+            $rect_y = max(0, $old_y - $rect_h / 2);
         }
 
         wp_localize_script('galado-case-preview', 'gcpConfig', array(
             'enabled'  => true,
-            'x'        => $x        ?: 50,
-            'y'        => $y        ?: 50,
-            'rotate'   => $rotate !== '' ? $rotate : 0,
-            'maxWidth' => get_post_meta($post->ID, '_galado_case_preview_max_width', true) ?: 60,
-            'fontSize' => get_post_meta($post->ID, '_galado_case_preview_font_size', true) ?: 28,
-            'fonts'    => $this->get_font_slugs(),
+            'rectX'    => floatval($rect_x ?: 20),
+            'rectY'    => floatval($rect_y ?: 35),
+            'rectW'    => floatval($rect_w ?: 60),
+            'rectH'    => floatval($rect_h ?: 30),
+            'rotate'   => intval($rotate !== '' ? $rotate : 0),
+            'fontSize' => intval(get_post_meta($post->ID, '_galado_case_preview_font_size', true) ?: 40),
         ));
     }
 
-    /**
-     * Inject the preview widget (mockup image + overlay) before Add to Cart,
-     * right next to the font/personalisation selector.
-     */
     public function inject_preview_widget() {
         if (!is_product()) return;
-
         global $post;
         $enabled  = get_post_meta($post->ID, '_galado_case_preview_enabled',  true);
         $image_id = get_post_meta($post->ID, '_galado_case_preview_image_id', true);
-
         if ($enabled !== '1' || !$image_id) return;
-
         $image_url = wp_get_attachment_image_url($image_id, 'medium');
         if (!$image_url) return;
         ?>
         <div class="gcp-preview-widget" id="gcp-preview-widget">
             <p class="gcp-preview-label">Preview your personalisation</p>
-            <div class="gcp-preview-inner">
+            <div class="gcp-preview-inner" id="gcp-preview-inner">
                 <img src="<?php echo esc_url($image_url); ?>" alt="Case preview" loading="lazy">
                 <div id="gcp-overlay-text" class="gcp-overlay-text" style="display:none;" aria-hidden="true"></div>
             </div>
@@ -451,17 +475,13 @@ class GALADO_Case_Preview {
     // =========================================================================
 
     private function get_font_directory_url() {
-        $font_preview_dir = WP_PLUGIN_DIR . '/galado-font-preview/fonts/';
-        if (is_dir($font_preview_dir)) {
-            return plugins_url('galado-font-preview/fonts/');
-        }
-        return plugin_dir_url(__FILE__) . 'fonts/';
+        $path = WP_PLUGIN_DIR . '/galado-font-preview/fonts/';
+        return is_dir($path) ? plugins_url('galado-font-preview/fonts/') : plugin_dir_url(__FILE__) . 'fonts/';
     }
 
-    private function get_font_format($filename) {
-        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
-        $formats = array('ttf' => 'truetype', 'otf' => 'opentype', 'woff' => 'woff', 'woff2' => 'woff2');
-        return $formats[$ext] ?? 'truetype';
+    private function get_font_format($file) {
+        $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        return array('ttf' => 'truetype', 'otf' => 'opentype', 'woff' => 'woff', 'woff2' => 'woff2')[$ext] ?? 'truetype';
     }
 
     private function get_font_slugs() {
@@ -473,5 +493,4 @@ class GALADO_Case_Preview {
     }
 }
 
-// Initialize
 GALADO_Case_Preview::instance();

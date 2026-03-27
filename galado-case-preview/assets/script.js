@@ -7,24 +7,29 @@
     if (typeof gcpConfig === 'undefined' || !gcpConfig.enabled) return;
 
     var overlay      = null;
+    var inner        = null;  // .gcp-preview-inner — the positioned image container
     var currentFont  = '';
     var currentText  = '';
     var currentColor = 'black';
-    var baseFontSize = parseInt(gcpConfig.fontSize) || 28;
-    var maxWidthPct  = parseInt(gcpConfig.maxWidth)  || 60;
+    var maxFontSize  = parseInt(gcpConfig.fontSize) || 40;
+
+    // Rectangle config (percentages of the mockup image)
+    var rectX = parseFloat(gcpConfig.rectX) || 20;  // left edge
+    var rectY = parseFloat(gcpConfig.rectY) || 35;  // top edge
+    var rectW = parseFloat(gcpConfig.rectW) || 60;  // width
+    var rectH = parseFloat(gcpConfig.rectH) || 30;  // height
+    var rotate = parseInt(gcpConfig.rotate) || 0;
 
     $(document).ready(function() {
         overlay = document.getElementById('gcp-overlay-text');
-        if (!overlay) return;
+        inner   = document.getElementById('gcp-preview-inner');
+        if (!overlay || !inner) return;
 
-        // The widget lives inside #galado-fp-fields which galado-fp shows/hides
-        // with the personalisation checkbox — no extra JS needed for visibility.
-
-        // Position overlay within .gcp-preview-inner (% within the mockup image)
-        overlay.style.left      = gcpConfig.x + '%';
-        overlay.style.top       = gcpConfig.y + '%';
-        overlay.style.transform = 'translate(-50%, -50%) rotate(' + (gcpConfig.rotate || 0) + 'deg)';
-        overlay.style.maxWidth  = maxWidthPct + '%';
+        // Position overlay at the centre of the rectangle
+        overlay.style.left     = (rectX + rectW / 2) + '%';
+        overlay.style.top      = (rectY + rectH / 2) + '%';
+        overlay.style.width    = rectW + '%';
+        overlay.style.transform = 'translate(-50%, -50%) rotate(' + rotate + 'deg)';
 
         bindTextInput();
         bindFontCards();
@@ -34,7 +39,6 @@
     function bindTextInput() {
         var input = document.getElementById('galado-fp-text');
         if (!input) return;
-
         input.addEventListener('input', function() {
             currentText = this.value.trim();
             updateOverlay();
@@ -42,50 +46,35 @@
     }
 
     /**
-     * Two-layer approach for maximum cross-device reliability:
-     *
-     * 1. Capture-phase listener on #galado-fp-grid — fires BEFORE galado-fp's
-     *    own direct handlers and before e.preventDefault() suppresses the click
-     *    on iOS Safari. Works on desktop and all mobile browsers.
-     *
-     * 2. MutationObserver as a fallback — catches the pre-selected card when
-     *    galado-fp re-renders the grid on every keystroke, so the overlay font
-     *    stays in sync even after the cards are replaced.
+     * Two-layer font detection:
+     * 1. Capture-phase event on the grid — fires before galado-fp's own handlers
+     *    and before e.preventDefault() suppresses the tap on iOS Safari.
+     * 2. MutationObserver — syncs the font when galado-fp re-renders the grid
+     *    on every keystroke (the previously-selected card re-appears with .selected).
      */
     function bindFontCards() {
         var grid = document.getElementById('galado-fp-grid');
         if (!grid) return;
 
-        // --- Layer 1: capture-phase event (most reliable on mobile) ---
         function handleFontTap(e) {
             var card = e.target.closest ? e.target.closest('.galado-fp-card') : null;
             if (!card) return;
             var fontName = card.dataset.font || card.getAttribute('data-font');
-            if (fontName) {
-                currentFont = fontName;
-                updateOverlay();
-            }
+            if (fontName) { currentFont = fontName; updateOverlay(); }
         }
-        // passive:true lets the browser scroll freely; capture:true fires first
         grid.addEventListener('touchend', handleFontTap, { capture: true, passive: true });
         grid.addEventListener('click',    handleFontTap, { capture: true });
 
-        // --- Layer 2: MutationObserver — picks up pre-selected font after re-render ---
-        var observer = new MutationObserver(function() {
+        // Fallback: pick up pre-selected card after grid re-render
+        new MutationObserver(function() {
             var selected = grid.querySelector('.galado-fp-card.selected');
             if (!selected) return;
             var fontName = selected.dataset.font || selected.getAttribute('data-font');
-            if (fontName && fontName !== currentFont) {
-                currentFont = fontName;
-                updateOverlay();
-            }
-        });
-        // childList only — fires when renderPreviews() replaces $grid.html(...)
-        observer.observe(grid, { childList: true });
+            if (fontName && fontName !== currentFont) { currentFont = fontName; updateOverlay(); }
+        }).observe(grid, { childList: true });
     }
 
     function bindColourSelector() {
-        // galado-fp uses input[name="galado_font_color"] with values "Black"/"White"
         $(document).on('change', 'input[name="galado_font_color"]', function() {
             currentColor = $(this).val().toLowerCase();
             updateOverlay();
@@ -93,7 +82,7 @@
     }
 
     function updateOverlay() {
-        if (!overlay) return;
+        if (!overlay || !inner) return;
 
         if (!currentText) {
             overlay.classList.remove('visible');
@@ -101,26 +90,36 @@
             return;
         }
 
+        // Apply text and style before measuring
         overlay.textContent = currentText;
-
-        // galado-fp registers fonts with full names e.g. 'Rustling Sound'
-        // and cards store data-font="Rustling Sound" — so currentFont matches directly
-        if (currentFont) {
-            overlay.style.fontFamily = "'" + currentFont + "', cursive";
-        }
-
+        if (currentFont) overlay.style.fontFamily = "'" + currentFont + "', cursive";
         overlay.setAttribute('data-color', currentColor);
-        overlay.style.color = (currentColor === 'white')
-            ? '#ffffff' : '#1a1a1a';
+        overlay.style.color = (currentColor === 'white') ? '#ffffff' : '#1a1a1a';
 
-        var fontSize = baseFontSize;
-        if (currentText.length > 12) {
-            fontSize = Math.max(14, baseFontSize * (12 / currentText.length));
-        }
-        overlay.style.fontSize = fontSize + 'px';
-
+        // Show (but still invisible via opacity:0) so we can measure
         overlay.style.display = 'block';
-        overlay.offsetHeight; // force reflow for CSS transition
+
+        // ── Auto-fit font size to the rectangle's height ─────────────────────
+        // rectH is a % of the mockup image height → convert to px
+        var rectHpx = inner.clientHeight * rectH / 100;
+
+        if (rectHpx > 0) {
+            // Binary search: find the largest font that fits inside the rect height
+            var lo = 8, hi = maxFontSize;
+            while (hi - lo > 1) {
+                var mid = Math.round((lo + hi) / 2);
+                overlay.style.fontSize = mid + 'px';
+                // scrollHeight reflects the full rendered height including wrapped lines
+                if (overlay.scrollHeight <= rectHpx) lo = mid;
+                else hi = mid;
+            }
+            overlay.style.fontSize = lo + 'px';
+        } else {
+            overlay.style.fontSize = maxFontSize + 'px';
+        }
+
+        // Trigger reflow then fade in
+        overlay.offsetHeight;
         overlay.classList.add('visible');
     }
 
