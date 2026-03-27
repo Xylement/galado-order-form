@@ -20,17 +20,12 @@
     opacity: 1;
 }
 
-/* Make the gallery container relative for overlay positioning */
-.woocommerce-product-gallery {
-    position: relative !important;
-}
-
-.woocommerce-product-gallery .woocommerce-product-gallery__wrapper {
+/* Wrapper span inserted around the main product <img> — provides positioning context
+   without touching the gallery slider/lightbox structure */
+.gcp-img-wrap {
     position: relative;
-}
-
-.woocommerce-product-gallery__image {
-    position: relative;
+    display: block;
+    line-height: 0;
 }
 
 /* Font selector integration — highlight active font in existing font preview */

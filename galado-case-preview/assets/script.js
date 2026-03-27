@@ -7,13 +7,13 @@
 
     if (typeof gcpConfig === 'undefined' || !gcpConfig.enabled) return;
 
-    var overlay = null;
-    var galleryImage = null;
-    var currentFont = '';
-    var currentText = '';
+    var overlay    = null;
+    var imageWrap  = null; // .gcp-img-wrap span we inject around the <img>
+    var currentFont  = '';
+    var currentText  = '';
     var currentColor = 'black';
     var baseFontSize = parseInt(gcpConfig.fontSize) || 28;
-    var maxWidthPct = parseInt(gcpConfig.maxWidth) || 60;
+    var maxWidthPct  = parseInt(gcpConfig.maxWidth)  || 60;
 
     /**
      * Initialize once DOM is ready
@@ -27,69 +27,68 @@
         overlay = document.getElementById('gcp-overlay-text');
         if (!overlay) return;
 
-        // Find the main gallery image container
-        galleryImage = document.querySelector('.woocommerce-product-gallery__image');
-        if (!galleryImage) {
-            galleryImage = document.querySelector('.woocommerce-product-gallery__wrapper');
-        }
-        if (!galleryImage) return;
+        // Find the active/first gallery slide
+        var slide = document.querySelector('.woocommerce-product-gallery__image.flex-active-slide') ||
+                    document.querySelector('.woocommerce-product-gallery__image:first-child');
+        if (!slide) return;
 
-        // Move overlay inside the gallery image container
-        galleryImage.style.position = 'relative';
-        galleryImage.appendChild(overlay);
-
-        // Position the overlay based on preset
+        attachOverlayToSlide(slide);
         positionOverlay();
-
-        // Listen to the font preview plugin's text input
         bindTextInput();
-
-        // Listen to font card clicks
         bindFontCards();
-
-        // Listen to text colour selection
         bindColourSelector();
-
-        // Listen to gallery image changes (when user clicks thumbnails)
         observeGalleryChanges();
     }
 
     /**
-     * Position overlay based on admin preset config
+     * Wrap only the <img> inside the slide in a positioned span, then
+     * append the overlay inside that span.
+     * This avoids touching the FlexSlider/Flatsome gallery structure.
+     */
+    function attachOverlayToSlide(slide) {
+        var img = slide.querySelector('img');
+        if (!img) return;
+
+        // Already wrapped — just (re)append overlay
+        if (img.parentNode.classList && img.parentNode.classList.contains('gcp-img-wrap')) {
+            img.parentNode.appendChild(overlay);
+            imageWrap = img.parentNode;
+            return;
+        }
+
+        var wrap = document.createElement('span');
+        wrap.className = 'gcp-img-wrap';
+        img.parentNode.insertBefore(wrap, img);
+        wrap.appendChild(img);
+        wrap.appendChild(overlay);
+        imageWrap = wrap;
+    }
+
+    /**
+     * Position overlay based on admin config (percentages within the image)
      */
     function positionOverlay() {
         if (!overlay) return;
-
-        overlay.style.left = gcpConfig.x + '%';
-        overlay.style.top = gcpConfig.y + '%';
+        overlay.style.left      = gcpConfig.x + '%';
+        overlay.style.top       = gcpConfig.y + '%';
         overlay.style.transform = 'translate(-50%, -50%) rotate(' + (gcpConfig.rotate || 0) + 'deg)';
-        overlay.style.maxWidth = maxWidthPct + '%';
+        overlay.style.maxWidth  = maxWidthPct + '%';
     }
 
     /**
      * Bind to the personalisation text input (from galado-font-preview or WooCommerce custom fields)
      */
     function bindTextInput() {
-        // Try galado-font-preview input first
         var input = document.getElementById('galado-fp-text');
-
-        // Fallback: WooCommerce product add-on text fields
-        if (!input) {
-            input = document.querySelector('.wc-pao-addon-field[type="text"]');
-        }
-        if (!input) {
-            input = document.querySelector('input[name*="custom_text"], input[name*="personalise"], input[name*="personalize"], input[name*="name"]');
-        }
-
+        if (!input) input = document.querySelector('.wc-pao-addon-field[type="text"]');
+        if (!input) input = document.querySelector('input[name*="custom_text"], input[name*="personalise"], input[name*="personalize"], input[name*="name"]');
         if (!input) return;
 
-        // Listen for input
         input.addEventListener('input', function() {
             currentText = this.value.trim();
             updateOverlay();
         });
 
-        // Initialize if already has value
         if (input.value.trim()) {
             currentText = input.value.trim();
             updateOverlay();
@@ -100,22 +99,16 @@
      * Bind to font card clicks (from galado-font-preview plugin)
      */
     function bindFontCards() {
-        // Listen for clicks on font preview cards
         $(document).on('click', '.galado-fp-card', function() {
             var fontSlug = $(this).data('font-slug') || $(this).data('font');
-
-            // Remove active state from all cards
             $('.galado-fp-card').removeClass('gcp-active');
-            // Add to clicked card
             $(this).addClass('gcp-active');
-
             if (fontSlug) {
                 currentFont = fontSlug;
                 updateOverlay();
             }
         });
 
-        // Also listen for radio button changes (if font preview uses radios)
         $(document).on('change', 'input[name="galado_font_style"]', function() {
             var fontSlug = $(this).data('font-slug') || $(this).val();
             if (fontSlug) {
@@ -129,13 +122,11 @@
      * Bind to text colour selector
      */
     function bindColourSelector() {
-        // From galado-font-preview colour buttons
         $(document).on('click', '.galado-fp-color-btn, [data-text-color]', function() {
             currentColor = $(this).data('text-color') || $(this).data('color') || 'black';
             updateOverlay();
         });
 
-        // Radio/select colour inputs
         $(document).on('change', 'input[name*="text_color"], select[name*="text_color"], input[name*="font_color"], select[name*="font_color"]', function() {
             currentColor = $(this).val().toLowerCase();
             updateOverlay();
@@ -143,7 +134,7 @@
     }
 
     /**
-     * Update the overlay text
+     * Update the overlay text, font, colour, and size
      */
     function updateOverlay() {
         if (!overlay) return;
@@ -154,15 +145,12 @@
             return;
         }
 
-        // Set text
         overlay.textContent = currentText;
 
-        // Set font
         if (currentFont) {
             overlay.style.fontFamily = "'" + currentFont + "', cursive";
         }
 
-        // Set colour
         overlay.setAttribute('data-color', currentColor);
         if (currentColor === 'white' || currentColor === '#ffffff' || currentColor === '#fff') {
             overlay.style.color = '#ffffff';
@@ -177,34 +165,35 @@
         }
         overlay.style.fontSize = fontSize + 'px';
 
-        // Show
         overlay.style.display = 'block';
-        // Force reflow then add visible class for transition
-        overlay.offsetHeight;
+        overlay.offsetHeight; // force reflow for transition
         overlay.classList.add('visible');
     }
 
     /**
-     * Watch for gallery image changes (thumbnail clicks, Flatsome lightbox, etc.)
+     * Watch for gallery image changes (thumbnail clicks, Flatsome slider, etc.)
      */
     function observeGalleryChanges() {
-        // Flatsome theme uses a slider — watch for slide changes
         var gallery = document.querySelector('.woocommerce-product-gallery');
         if (!gallery) return;
 
-        // MutationObserver to detect when the main image changes
-        var observer = new MutationObserver(function(mutations) {
-            // Re-find and re-attach overlay to the current visible image
-            var newImage = gallery.querySelector('.woocommerce-product-gallery__image.flex-active-slide') ||
+        var observer = new MutationObserver(function() {
+            var newSlide = gallery.querySelector('.woocommerce-product-gallery__image.flex-active-slide') ||
                            gallery.querySelector('.woocommerce-product-gallery__image:first-child');
+            if (!newSlide) return;
 
-            if (newImage && newImage !== galleryImage) {
-                galleryImage = newImage;
-                galleryImage.style.position = 'relative';
-                galleryImage.appendChild(overlay);
-                positionOverlay();
-                updateOverlay();
-            }
+            var newImg = newSlide.querySelector('img');
+            if (!newImg) return;
+
+            // Already attached to this image's wrap
+            if (imageWrap && imageWrap.contains(newImg)) return;
+
+            // Detach overlay from its current parent before re-attaching
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+
+            attachOverlayToSlide(newSlide);
+            positionOverlay();
+            updateOverlay();
         });
 
         observer.observe(gallery, {

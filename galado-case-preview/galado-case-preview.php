@@ -90,40 +90,66 @@ class GALADO_Case_Preview {
     public function render_meta_box($post) {
         wp_nonce_field('galado_case_preview_save', 'galado_case_preview_nonce');
 
-        $enabled  = get_post_meta($post->ID, '_galado_case_preview_enabled', true);
-        $preset   = get_post_meta($post->ID, '_galado_case_preview_preset', true) ?: 'center';
+        $enabled   = get_post_meta($post->ID, '_galado_case_preview_enabled', true);
+        $x         = get_post_meta($post->ID, '_galado_case_preview_x', true);
+        $y         = get_post_meta($post->ID, '_galado_case_preview_y', true);
+        $rotate    = get_post_meta($post->ID, '_galado_case_preview_rotate', true);
         $max_width = get_post_meta($post->ID, '_galado_case_preview_max_width', true) ?: 60;
         $font_size = get_post_meta($post->ID, '_galado_case_preview_font_size', true) ?: 28;
+
+        // Backward compat: if never set, fall back to center
+        if ($x === '')      $x      = 50;
+        if ($y === '')      $y      = 50;
+        if ($rotate === '') $rotate = 0;
+
+        $thumb_url = get_the_post_thumbnail_url($post->ID, 'medium') ?: '';
         ?>
         <style>
             .gcp-meta label { display: block; margin: 8px 0 4px; font-weight: 600; font-size: 12px; }
-            .gcp-meta select, .gcp-meta input[type=number] { width: 100%; }
+            .gcp-meta input[type=number] { width: 100%; }
             .gcp-meta .description { font-size: 11px; color: #666; margin-top: 2px; }
-            .gcp-preset-preview {
-                margin: 10px 0;
-                background: #f0f0f0;
-                border-radius: 8px;
-                position: relative;
-                width: 100%;
-                padding-bottom: 120%;
-                overflow: hidden;
+
+            /* Drag box */
+            .gcp-drag-box {
+                position: relative; width: 100%; padding-bottom: 120%;
+                background: #e0e0e0; border-radius: 8px; overflow: hidden;
+                cursor: crosshair; margin: 8px 0; border: 2px solid #ccc;
+                user-select: none; -webkit-user-select: none;
             }
-            .gcp-preset-dot {
-                position: absolute;
-                width: 8px; height: 8px;
-                background: #0071e3;
-                border-radius: 50%;
+            .gcp-drag-box img {
+                position: absolute; top: 0; left: 0;
+                width: 100%; height: 100%; object-fit: cover;
+                pointer-events: none; display: block;
+            }
+            .gcp-drag-placeholder {
+                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 11px; color: #999; pointer-events: none;
+            }
+            .gcp-drag-dot {
+                position: absolute; width: 16px; height: 16px;
+                background: #0071e3; border-radius: 50%;
                 transform: translate(-50%, -50%);
-                box-shadow: 0 0 0 3px rgba(0,113,227,0.3);
+                box-shadow: 0 0 0 4px rgba(0,113,227,0.3), 0 2px 8px rgba(0,0,0,0.25);
+                cursor: grab; z-index: 3;
             }
-            .gcp-preset-text {
-                position: absolute;
-                transform: translate(-50%, -50%);
-                font-size: 11px;
-                color: #0071e3;
-                font-weight: 600;
-                white-space: nowrap;
+            .gcp-drag-dot:active { cursor: grabbing; }
+            .gcp-drag-tag {
+                position: absolute; font-size: 10px; color: #0071e3;
+                font-weight: 700; white-space: nowrap; pointer-events: none;
+                transform: translate(-50%, 8px); z-index: 4;
+                text-shadow: 0 1px 2px #fff;
             }
+            .gcp-coords { font-size: 11px; color: #555; margin-bottom: 6px; }
+
+            /* Preset quick-start buttons */
+            .gcp-presets { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+            .gcp-preset-btn {
+                flex: 1 1 45%; padding: 4px 6px; font-size: 11px;
+                background: #f0f0f0; border: 1px solid #ccc; border-radius: 4px;
+                cursor: pointer; text-align: center; line-height: 1.4;
+            }
+            .gcp-preset-btn:hover { background: #ddd; }
         </style>
         <div class="gcp-meta">
             <label>
@@ -131,22 +157,37 @@ class GALADO_Case_Preview {
                 Enable Live Preview on this product
             </label>
 
-            <label for="gcp_preset">Text Position Preset</label>
-            <select name="gcp_preset" id="gcp_preset">
-                <?php foreach ($this->presets as $key => $p): ?>
-                    <option value="<?php echo esc_attr($key); ?>" <?php selected($preset, $key); ?>
+            <label>Text Position — drag the dot or click to place</label>
+            <div class="gcp-drag-box" id="gcp-drag-box">
+                <?php if ($thumb_url): ?>
+                    <img src="<?php echo esc_url($thumb_url); ?>" alt="">
+                <?php else: ?>
+                    <div class="gcp-drag-placeholder">Click anywhere to set position</div>
+                <?php endif; ?>
+                <div class="gcp-drag-dot" id="gcp-drag-dot"></div>
+                <div class="gcp-drag-tag" id="gcp-drag-tag">Name</div>
+            </div>
+            <div class="gcp-coords" id="gcp-coords">
+                X: <?php echo esc_html($x); ?>% &nbsp; Y: <?php echo esc_html($y); ?>%
+            </div>
+
+            <div class="gcp-presets">
+                <?php foreach ($this->presets as $p): ?>
+                    <button type="button" class="gcp-preset-btn"
                         data-x="<?php echo esc_attr($p['x']); ?>"
                         data-y="<?php echo esc_attr($p['y']); ?>"
                         data-rotate="<?php echo esc_attr($p['rotate']); ?>">
                         <?php echo esc_html($p['label']); ?>
-                    </option>
+                    </button>
                 <?php endforeach; ?>
-            </select>
-
-            <div class="gcp-preset-preview" id="gcp-preview-box">
-                <div class="gcp-preset-dot" id="gcp-preview-dot"></div>
-                <div class="gcp-preset-text" id="gcp-preview-text">GALADO</div>
             </div>
+
+            <input type="hidden" name="gcp_x" id="gcp_x" value="<?php echo esc_attr($x); ?>">
+            <input type="hidden" name="gcp_y" id="gcp_y" value="<?php echo esc_attr($y); ?>">
+
+            <label for="gcp_rotate">Rotation (degrees)</label>
+            <input type="number" name="gcp_rotate" id="gcp_rotate" value="<?php echo esc_attr($rotate); ?>" min="-45" max="45" step="5">
+            <p class="description">Tilt the text. 0 = straight, negative = lean left.</p>
 
             <label for="gcp_max_width">Max Text Width (%)</label>
             <input type="number" name="gcp_max_width" id="gcp_max_width" value="<?php echo esc_attr($max_width); ?>" min="20" max="90" step="5">
@@ -159,23 +200,87 @@ class GALADO_Case_Preview {
 
         <script>
         (function() {
-            var sel = document.getElementById('gcp_preset');
-            var dot = document.getElementById('gcp-preview-dot');
-            var txt = document.getElementById('gcp-preview-text');
+            var box      = document.getElementById('gcp-drag-box');
+            var dot      = document.getElementById('gcp-drag-dot');
+            var tag      = document.getElementById('gcp-drag-tag');
+            var coords   = document.getElementById('gcp-coords');
+            var inputX   = document.getElementById('gcp_x');
+            var inputY   = document.getElementById('gcp_y');
+            var inputRot = document.getElementById('gcp_rotate');
 
-            function updatePreview() {
-                var opt = sel.options[sel.selectedIndex];
-                var x = opt.dataset.x + '%';
-                var y = opt.dataset.y + '%';
-                var r = opt.dataset.rotate || 0;
-                dot.style.left = x;
-                dot.style.top = y;
-                txt.style.left = x;
-                txt.style.top = (parseFloat(opt.dataset.y) - 8) + '%';
-                txt.style.transform = 'translate(-50%, -50%) rotate(' + r + 'deg)';
+            var curX = parseFloat(inputX.value) || 50;
+            var curY = parseFloat(inputY.value) || 50;
+            var dragging = false;
+
+            function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+            function moveDot(x, y) {
+                curX = clamp(x, 0, 100);
+                curY = clamp(y, 0, 100);
+                dot.style.left = curX + '%';
+                dot.style.top  = curY + '%';
+                tag.style.left = curX + '%';
+                tag.style.top  = curY + '%';
+                var rx = Math.round(curX), ry = Math.round(curY);
+                inputX.value = rx;
+                inputY.value = ry;
+                coords.innerHTML = 'X: ' + rx + '% &nbsp; Y: ' + ry + '%';
             }
-            sel.addEventListener('change', updatePreview);
-            updatePreview();
+
+            function pctFromEvent(e) {
+                var rect = box.getBoundingClientRect();
+                return {
+                    x: ((e.clientX - rect.left) / rect.width)  * 100,
+                    y: ((e.clientY - rect.top)  / rect.height) * 100
+                };
+            }
+
+            // Initialise dot position
+            moveDot(curX, curY);
+
+            // Click anywhere in box to move dot (unless starting a drag)
+            box.addEventListener('click', function(e) {
+                if (dragging) return;
+                var p = pctFromEvent(e);
+                moveDot(p.x, p.y);
+            });
+
+            // Drag the dot
+            dot.addEventListener('mousedown', function(e) {
+                dragging = true;
+                e.preventDefault();
+                e.stopPropagation();
+            });
+            document.addEventListener('mousemove', function(e) {
+                if (!dragging) return;
+                var p = pctFromEvent(e);
+                moveDot(p.x, p.y);
+            });
+            document.addEventListener('mouseup', function() { dragging = false; });
+
+            // Touch drag
+            dot.addEventListener('touchstart', function(e) {
+                dragging = true;
+                e.preventDefault();
+            }, { passive: false });
+            document.addEventListener('touchmove', function(e) {
+                if (!dragging) return;
+                var t = e.touches[0];
+                var rect = box.getBoundingClientRect();
+                moveDot(
+                    ((t.clientX - rect.left) / rect.width)  * 100,
+                    ((t.clientY - rect.top)  / rect.height) * 100
+                );
+            }, { passive: true });
+            document.addEventListener('touchend', function() { dragging = false; });
+
+            // Preset buttons
+            document.querySelectorAll('.gcp-preset-btn').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    moveDot(parseFloat(this.dataset.x), parseFloat(this.dataset.y));
+                    inputRot.value = parseFloat(this.dataset.rotate) || 0;
+                });
+            });
         })();
         </script>
         <?php
@@ -189,8 +294,10 @@ class GALADO_Case_Preview {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
         if (!current_user_can('edit_post', $post_id)) return;
 
-        update_post_meta($post_id, '_galado_case_preview_enabled', isset($_POST['gcp_enabled']) ? '1' : '0');
-        update_post_meta($post_id, '_galado_case_preview_preset', sanitize_text_field($_POST['gcp_preset'] ?? 'center'));
+        update_post_meta($post_id, '_galado_case_preview_enabled',   isset($_POST['gcp_enabled']) ? '1' : '0');
+        update_post_meta($post_id, '_galado_case_preview_x',         absint($_POST['gcp_x']         ?? 50));
+        update_post_meta($post_id, '_galado_case_preview_y',         absint($_POST['gcp_y']         ?? 50));
+        update_post_meta($post_id, '_galado_case_preview_rotate',    intval($_POST['gcp_rotate']    ?? 0));
         update_post_meta($post_id, '_galado_case_preview_max_width', absint($_POST['gcp_max_width'] ?? 60));
         update_post_meta($post_id, '_galado_case_preview_font_size', absint($_POST['gcp_font_size'] ?? 28));
     }
@@ -223,18 +330,28 @@ class GALADO_Case_Preview {
         // Main script
         wp_enqueue_script('galado-case-preview', plugin_dir_url(__FILE__) . 'assets/script.js', array('jquery'), '1.0.0', true);
 
-        // Pass config to JS
-        $preset_key = get_post_meta($post->ID, '_galado_case_preview_preset', true) ?: 'center';
-        $preset = $this->presets[$preset_key] ?? $this->presets['center'];
+        // Pass config to JS — use free-position values; fall back to preset for old products
+        $x      = get_post_meta($post->ID, '_galado_case_preview_x',      true);
+        $y      = get_post_meta($post->ID, '_galado_case_preview_y',      true);
+        $rotate = get_post_meta($post->ID, '_galado_case_preview_rotate', true);
+
+        if ($x === '') {
+            // Backward compat: read old preset key if no free position saved yet
+            $preset_key = get_post_meta($post->ID, '_galado_case_preview_preset', true) ?: 'center';
+            $preset = $this->presets[$preset_key] ?? $this->presets['center'];
+            $x      = $preset['x'];
+            $y      = $preset['y'];
+            $rotate = $preset['rotate'];
+        }
 
         wp_localize_script('galado-case-preview', 'gcpConfig', array(
-            'enabled'   => true,
-            'x'         => $preset['x'],
-            'y'         => $preset['y'],
-            'rotate'    => $preset['rotate'],
-            'maxWidth'  => get_post_meta($post->ID, '_galado_case_preview_max_width', true) ?: 60,
-            'fontSize'  => get_post_meta($post->ID, '_galado_case_preview_font_size', true) ?: 28,
-            'fonts'     => $this->get_font_slugs(),
+            'enabled'  => true,
+            'x'        => $x        ?: 50,
+            'y'        => $y        ?: 50,
+            'rotate'   => $rotate !== '' ? $rotate : 0,
+            'maxWidth' => get_post_meta($post->ID, '_galado_case_preview_max_width', true) ?: 60,
+            'fontSize' => get_post_meta($post->ID, '_galado_case_preview_font_size', true) ?: 28,
+            'fonts'    => $this->get_font_slugs(),
         ));
     }
 
