@@ -29,12 +29,27 @@ add_action('admin_init', function() {
         'galado_cs_thankyou_title' => '',
         'galado_cs_max_products' => 4,
         'galado_cs_smart_matching' => 'yes',
+        'galado_cs_ranking_mode' => 'hybrid',
     ];
 
     foreach ($settings as $key => $default) {
-        register_setting('galado_cs_settings', $key);
+        register_setting('galado_cs_settings', $key, [
+            'sanitize_callback' => $key === 'galado_cs_ranking_mode'
+                ? 'galado_cs_sanitize_ranking_mode'
+                : null,
+        ]);
     }
 });
+
+function galado_cs_sanitize_ranking_mode($value) {
+    $allowed = ['hybrid', 'trending', 'newest', 'lifetime'];
+    $clean = in_array($value, $allowed, true) ? $value : 'hybrid';
+    // Clear the trending cache so the new mode takes effect immediately.
+    if (class_exists('Galado_Crosssell_Engine')) {
+        Galado_Crosssell_Engine::clear_trending_cache();
+    }
+    return $clean;
+}
 
 function galado_cs_settings_page() {
     if (!current_user_can('manage_woocommerce')) return;
@@ -66,6 +81,19 @@ function galado_cs_settings_page() {
                             <?php endfor; ?>
                         </select>
                         <p class="description">Maximum number of cross-sell products to show per location.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Ranking Mode</th>
+                    <td>
+                        <?php $cs_mode = get_option('galado_cs_ranking_mode', 'hybrid'); ?>
+                        <select name="galado_cs_ranking_mode">
+                            <option value="hybrid" <?php selected($cs_mode, 'hybrid'); ?>>Hybrid — trending → newest → lifetime (recommended)</option>
+                            <option value="trending" <?php selected($cs_mode, 'trending'); ?>>Trending only — last 30 days top sellers</option>
+                            <option value="newest" <?php selected($cs_mode, 'newest'); ?>>Newest only — recently published products</option>
+                            <option value="lifetime" <?php selected($cs_mode, 'lifetime'); ?>>Lifetime bestsellers — original behaviour</option>
+                        </select>
+                        <p class="description">Controls how cross-sell candidates are ranked. Hybrid mixes recent sales with new arrivals so the same products don't dominate forever. Trending data is cached for 6 hours.</p>
                     </td>
                 </tr>
             </table>

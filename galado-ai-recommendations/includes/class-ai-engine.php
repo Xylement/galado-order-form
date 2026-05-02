@@ -242,25 +242,171 @@ class GAIR_AI_Engine {
     }
 
     /**
-     * Get products by category slug
+     * Get products by category slug — uses hybrid ranking (trending → newest → lifetime).
      */
     private static function get_products_by_category($cat_slug, $limit = 4, $exclude = []) {
-        $args = [
-            'limit'        => $limit,
-            'status'       => 'publish',
-            'stock_status' => 'instock',
-            'category'     => [$cat_slug],
-            'orderby'      => 'meta_value_num',
-            'meta_key'     => 'total_sales',
-            'order'        => 'DESC',
-        ];
+        return self::get_ranked_product_ids([$cat_slug], $limit, $exclude);
+    }
 
-        if (!empty($exclude)) {
-            $args['exclude'] = $exclude;
+    // =========================================================================
+    // HYBRID RANKING (trending 30d → newest → lifetime bestsellers)
+    // =========================================================================
+
+    /**
+     * Cached list of product IDs sorted by units sold in the last 30 days.
+     */
+    private static function get_trending_product_ids() {
+        $cache_key = 'gair_trending_30d';
+        $cached = get_transient($cache_key);
+        if (is_array($cached)) {
+            return $cached;
         }
 
-        $products = wc_get_products($args);
-        return array_map(function($p) { return $p->get_id(); }, $products);
+        $sales = [];
+        $orders = wc_get_orders([
+            'limit'        => -1,
+            'status'       => ['completed', 'processing'],
+            'date_created' => '>' . (time() - 30 * DAY_IN_SECONDS),
+            'return'       => 'objects',
+        ]);
+
+        foreach ($orders as $order) {
+            foreach ($order->get_items() as $item) {
+                $pid = method_exists($item, 'get_product_id') ? $item->get_product_id() : 0;
+                if (!$pid) continue;
+                $qty = method_exists($item, 'get_quantity') ? intval($item->get_quantity()) : 1;
+                $sales[$pid] = ($sales[$pid] ?? 0) + max(1, $qty);
+            }
+        }
+
+        arsort($sales);
+        $ids = array_map('intval', array_keys($sales));
+        set_transient($cache_key, $ids, 6 * HOUR_IN_SECONDS);
+        return $ids;
+    }
+
+    /**
+     * Hybrid ranking: trending (30d) → newest → lifetime bestsellers.
+     * Mode is controlled by `gair_settings[ranking_mode]` (default: hybrid).
+     */
+    private static function get_ranked_product_ids($cat_slugs = [], $limit = 4, $exclude = []) {
+        $mode = get_option('gair_settings', [])['ranking_mode'] ?? 'hybrid';
+        $cat_slugs = array_filter((array) $cat_slugs);
+        $exclude = array_map('intval', (array) $exclude);
+        $ids = [];
+
+        if ($mode === 'hybrid' || $mode === 'trending') {
+            $trending = self::get_trending_product_ids();
+            if (!empty($trending)) {
+                $ids = array_merge($ids, self::filter_product_ids($trending, $cat_slugs, $exclude));
+            }
+        }
+
+        if (count($ids) < $limit && ($mode === 'hybrid' || $mode === 'newest')) {
+            $newest = self::query_products(
+                ['orderby' => 'date', 'order' => 'DESC'],
+                $cat_slugs,
+                array_merge($exclude, $ids),
+                $limit * 2
+            );
+            $ids = array_merge($ids, $newest);
+        }
+
+        if (count($ids) < $limit) {
+            $lifetime = self::query_products(
+                ['orderby' => 'meta_value_num', 'meta_key' => 'total_sales', 'order' => 'DESC'],
+                $cat_slugs,
+                array_merge($exclude, $ids),
+                $limit * 2
+            );
+            $ids = array_merge($ids, $lifetime);
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        return array_slice($ids, 0, $limit);
+    }
+
+    /**
+     * Filter a candidate ID list by category, exclude, in-stock, and publish status.
+     * Preserves the order of $candidate_ids.
+     */
+    private static function filter_product_ids($candidate_ids, $cat_slugs, $exclude) {
+        if (empty($candidate_ids)) return [];
+
+        $candidate_ids = array_values(array_diff(array_map('intval', $candidate_ids), $exclude));
+        if (empty($candidate_ids)) return [];
+
+        $args = [
+            'post_type'      => 'product',
+            'post_status'    => 'publish',
+            'posts_per_page' => count($candidate_ids),
+            'post__in'       => $candidate_ids,
+            'orderby'        => 'post__in',
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_query'     => [
+                [
+                    'key'   => '_stock_status',
+                    'value' => 'instock',
+                ],
+            ],
+        ];
+
+        if (!empty($cat_slugs)) {
+            $args['tax_query'] = [
+                [
+                    'taxonomy' => 'product_cat',
+                    'field'    => 'slug',
+                    'terms'    => $cat_slugs,
+                ],
+            ];
+        }
+
+        $q = new WP_Query($args);
+        return array_map('intval', $q->posts);
+    }
+
+    /**
+     * Generic product query helper — returns IDs for given ordering + filters.
+     */
+    private static function query_products($order_args, $cat_slugs, $exclude, $limit) {
+        $args = array_merge([
+            'post_type'      => 'product',
+            'post_status'    => 'publish',
+            'posts_per_page' => $limit,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_query'     => [
+                [
+                    'key'   => '_stock_status',
+                    'value' => 'instock',
+                ],
+            ],
+        ], $order_args);
+
+        if (!empty($exclude)) {
+            $args['post__not_in'] = array_map('intval', $exclude);
+        }
+
+        if (!empty($cat_slugs)) {
+            $args['tax_query'] = [
+                [
+                    'taxonomy' => 'product_cat',
+                    'field'    => 'slug',
+                    'terms'    => $cat_slugs,
+                ],
+            ];
+        }
+
+        $q = new WP_Query($args);
+        return array_map('intval', $q->posts);
+    }
+
+    /**
+     * Public hook to clear the trending cache (called from admin).
+     */
+    public static function clear_trending_cache() {
+        delete_transient('gair_trending_30d');
     }
 
     /**
@@ -357,38 +503,19 @@ class GAIR_AI_Engine {
     }
 
     /**
-     * Get catalog summary for the AI prompt
+     * Get catalog summary for the AI prompt — trending (30d) + newest, falls back to lifetime.
      */
     private static function get_catalog_summary($exclude_id = 0) {
-        $products = [];
+        $exclude = $exclude_id ? [$exclude_id] : [];
 
-        $popular = wc_get_products([
-            'limit'    => 30,
-            'status'   => 'publish',
-            'orderby'  => 'meta_value_num',
-            'meta_key' => 'total_sales',
-            'order'    => 'DESC',
-            'stock_status' => 'instock',
-            'exclude'  => $exclude_id ? [$exclude_id] : [],
-        ]);
-        $products = array_merge($products, $popular);
+        // Trending IDs first (last 30 days), then newest, then lifetime — caps total at ~40.
+        $candidate_ids = self::get_ranked_product_ids([], 40, $exclude);
 
-        $recent = wc_get_products([
-            'limit'    => 15,
-            'status'   => 'publish',
-            'orderby'  => 'date',
-            'order'    => 'DESC',
-            'stock_status' => 'instock',
-            'exclude'  => $exclude_id ? [$exclude_id] : [],
-        ]);
-        $products = array_merge($products, $recent);
-
-        $seen = [];
         $unique = [];
-        foreach ($products as $p) {
-            if (!in_array($p->get_id(), $seen)) {
-                $seen[] = $p->get_id();
-                $unique[] = $p;
+        foreach ($candidate_ids as $id) {
+            $product = wc_get_product($id);
+            if ($product) {
+                $unique[] = $product;
             }
         }
 
@@ -515,22 +642,13 @@ class GAIR_AI_Engine {
     // =========================================================================
 
     /**
-     * Fallback: get popular products
+     * Fallback: get popular products via hybrid ranking (trending → newest → lifetime).
      */
     private static function get_fallback_products($exclude_id = 0) {
         $max = intval(get_option('gair_settings', [])['max_products'] ?? 4);
+        $exclude = $exclude_id ? [$exclude_id] : [];
 
-        $products = wc_get_products([
-            'limit'    => $max * 2,
-            'status'   => 'publish',
-            'orderby'  => 'meta_value_num',
-            'meta_key' => 'total_sales',
-            'order'    => 'DESC',
-            'stock_status' => 'instock',
-            'exclude'  => $exclude_id ? [$exclude_id] : [],
-        ]);
-
-        $ids = array_map(function($p) { return $p->get_id(); }, $products);
+        $ids = self::get_ranked_product_ids([], $max * 2, $exclude);
         shuffle($ids);
         return array_slice($ids, 0, $max);
     }

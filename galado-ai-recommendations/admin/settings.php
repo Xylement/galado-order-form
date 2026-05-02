@@ -21,9 +21,22 @@ function gair_settings_page() {
             'widget_title'     => sanitize_text_field($_POST['gair_widget_title'] ?? 'Recommended for You'),
             'daily_budget'     => floatval($_POST['gair_daily_budget'] ?? 2.00),
             'min_views_for_ai' => absint($_POST['gair_min_views_for_ai'] ?? 5),
+            'ranking_mode'     => in_array($_POST['gair_ranking_mode'] ?? 'hybrid', ['hybrid', 'trending', 'newest', 'lifetime'], true)
+                ? $_POST['gair_ranking_mode']
+                : 'hybrid',
         ];
         update_option('gair_settings', $settings);
+
+        // Refresh trending cache when mode changes so the new ranking takes effect immediately.
+        GAIR_AI_Engine::clear_trending_cache();
+
         echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
+    }
+
+    // Handle clear trending cache
+    if (isset($_POST['gair_clear_trending']) && wp_verify_nonce($_POST['gair_clear_trending_nonce'] ?? '', 'gair_clear_trending')) {
+        GAIR_AI_Engine::clear_trending_cache();
+        echo '<div class="notice notice-success"><p>Trending sales cache refreshed.</p></div>';
     }
 
     // Handle clear cache
@@ -178,6 +191,18 @@ function gair_settings_page() {
                     </td>
                 </tr>
                 <tr>
+                    <th>Ranking Mode</th>
+                    <td>
+                        <select name="gair_ranking_mode">
+                            <option value="hybrid" <?php selected($s['ranking_mode'] ?? 'hybrid', 'hybrid'); ?>>Hybrid — trending → newest → lifetime (recommended)</option>
+                            <option value="trending" <?php selected($s['ranking_mode'] ?? 'hybrid', 'trending'); ?>>Trending only — last 30 days top sellers</option>
+                            <option value="newest" <?php selected($s['ranking_mode'] ?? 'hybrid', 'newest'); ?>>Newest only — recently published products</option>
+                            <option value="lifetime" <?php selected($s['ranking_mode'] ?? 'hybrid', 'lifetime'); ?>>Lifetime bestsellers — original behaviour</option>
+                        </select>
+                        <p class="description">Controls how the rule-based fallback and AI candidate pool are ranked. Hybrid keeps things fresh while preserving social proof. Trending data is cached for 6 hours.</p>
+                    </td>
+                </tr>
+                <tr>
                     <th>Cache Duration</th>
                     <td>
                         <select name="gair_cache_hours">
@@ -290,6 +315,10 @@ function gair_settings_page() {
             <form method="post" style="display:inline;">
                 <?php wp_nonce_field('gair_clear_cache', 'gair_clear_nonce'); ?>
                 <button type="submit" name="gair_clear_cache" value="1" class="button" onclick="return confirm('Clear all cached recommendations?')">🗑️ Clear Cache</button>
+            </form>
+            <form method="post" style="display:inline;">
+                <?php wp_nonce_field('gair_clear_trending', 'gair_clear_trending_nonce'); ?>
+                <button type="submit" name="gair_clear_trending" value="1" class="button">🔄 Refresh Trending Sales (30d)</button>
             </form>
         </div>
     </div>

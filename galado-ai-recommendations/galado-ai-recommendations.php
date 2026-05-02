@@ -3,7 +3,7 @@
  * Plugin Name: GALADO AI Recommendations
  * Plugin URI: https://galado.com.my
  * Description: AI-powered personalised product recommendations using Claude or GPT. Tracks browsing behaviour and purchase history to suggest the perfect products for each customer.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAIR_VERSION', '1.0.0');
+define('GAIR_VERSION', '1.1.0');
 define('GAIR_PATH', plugin_dir_path(__FILE__));
 define('GAIR_URL', plugin_dir_url(__FILE__));
 
@@ -152,6 +152,7 @@ register_activation_hook(__FILE__, function() {
             'show_product'   => 1,
             'show_cart'      => 1,
             'widget_title'   => 'Recommended for You',
+            'ranking_mode'   => 'hybrid',
         ]);
     }
 });

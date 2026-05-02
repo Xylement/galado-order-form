@@ -285,44 +285,19 @@ class Galado_Crosssell_Engine {
         // Fetch more than needed so we can randomise
         $fetch_count = max($limit * 3, 12);
 
-        $args = [
-            'post_type' => 'product',
-            'post_status' => 'publish',
-            'posts_per_page' => $fetch_count,
-            'post__not_in' => $exclude_ids,
-            'orderby' => 'meta_value_num',
-            'meta_key' => 'total_sales',
-            'order' => 'DESC',
-            'tax_query' => [
-                [
-                    'taxonomy' => 'product_cat',
-                    'field' => 'slug',
-                    'terms' => $target_categories,
-                ]
-            ],
-            'meta_query' => [
-                [
-                    'key' => '_stock_status',
-                    'value' => 'instock',
-                ]
-            ]
-        ];
+        // Use hybrid ranking (trending 30d → newest → lifetime bestsellers).
+        $product_ids = self::get_ranked_product_ids($target_categories, $fetch_count, $exclude_ids);
 
-        $query = new WP_Query($args);
         $products = [];
-
-        foreach ($query->posts as $post) {
-            $product = wc_get_product($post->ID);
+        foreach ($product_ids as $pid) {
+            $product = wc_get_product($pid);
             if ($product && $product->is_purchasable()) {
                 $products[] = $product;
             }
         }
 
-        wp_reset_postdata();
-
-        // Randomise from the pool — mix of top sellers with variety
+        // Randomise from the pool — keep top 2 trending, shuffle the rest
         if (count($products) > $limit) {
-            // Keep top 2 sellers, randomise the rest
             $top = array_slice($products, 0, 2);
             $rest = array_slice($products, 2);
             shuffle($rest);
@@ -339,47 +314,19 @@ class Galado_Crosssell_Engine {
     private static function get_bestsellers($exclude_ids, $limit, $covered_categories = []) {
         $fetch_count = max($limit * 3, 12);
 
-        $args = [
-            'post_type' => 'product',
-            'post_status' => 'publish',
-            'posts_per_page' => $fetch_count,
-            'post__not_in' => $exclude_ids,
-            'orderby' => 'meta_value_num',
-            'meta_key' => 'total_sales',
-            'order' => 'DESC',
-            'meta_query' => [
-                [
-                    'key' => '_stock_status',
-                    'value' => 'instock',
-                ]
-            ]
-        ];
+        // Use hybrid ranking (trending 30d → newest → lifetime bestsellers).
+        // Pass an extra "exclude these categories" via filter on the ranking helper.
+        $product_ids = self::get_ranked_product_ids([], $fetch_count, $exclude_ids, $covered_categories);
 
-        // If we have covered categories, exclude products from those categories
-        if (!empty($covered_categories)) {
-            $args['tax_query'] = [
-                [
-                    'taxonomy' => 'product_cat',
-                    'field' => 'slug',
-                    'terms' => $covered_categories,
-                    'operator' => 'NOT IN',
-                ]
-            ];
-        }
-
-        $query = new WP_Query($args);
         $products = [];
-
-        foreach ($query->posts as $post) {
-            $product = wc_get_product($post->ID);
+        foreach ($product_ids as $pid) {
+            $product = wc_get_product($pid);
             if ($product && $product->is_purchasable()) {
                 $products[] = $product;
             }
         }
 
-        wp_reset_postdata();
-
-        // Randomise — keep top 1, shuffle rest
+        // Randomise — keep top 1 trending, shuffle rest
         if (count($products) > $limit) {
             $top = array_slice($products, 0, 1);
             $rest = array_slice($products, 1);
@@ -388,6 +335,191 @@ class Galado_Crosssell_Engine {
         }
 
         return array_slice($products, 0, $limit);
+    }
+
+    // =========================================================================
+    // HYBRID RANKING (trending 30d → newest → lifetime bestsellers)
+    // =========================================================================
+
+    /**
+     * Cached list of product IDs sorted by units sold in the last 30 days.
+     */
+    private static function get_trending_product_ids() {
+        $cache_key = 'galado_cs_trending_30d';
+        $cached = get_transient($cache_key);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $sales = [];
+        $orders = wc_get_orders([
+            'limit'        => -1,
+            'status'       => ['completed', 'processing'],
+            'date_created' => '>' . (time() - 30 * DAY_IN_SECONDS),
+            'return'       => 'objects',
+        ]);
+
+        foreach ($orders as $order) {
+            foreach ($order->get_items() as $item) {
+                $pid = method_exists($item, 'get_product_id') ? $item->get_product_id() : 0;
+                if (!$pid) continue;
+                $qty = method_exists($item, 'get_quantity') ? intval($item->get_quantity()) : 1;
+                $sales[$pid] = ($sales[$pid] ?? 0) + max(1, $qty);
+            }
+        }
+
+        arsort($sales);
+        $ids = array_map('intval', array_keys($sales));
+        set_transient($cache_key, $ids, 6 * HOUR_IN_SECONDS);
+        return $ids;
+    }
+
+    /**
+     * Hybrid ranking: trending (30d) → newest → lifetime bestsellers.
+     * Mode is controlled by `galado_cs_ranking_mode` (default: hybrid).
+     *
+     * @param array $include_cats Category slugs to include (empty = any).
+     * @param int   $limit        Max IDs to return.
+     * @param array $exclude_ids  Product IDs to exclude.
+     * @param array $exclude_cats Category slugs to exclude entirely.
+     */
+    private static function get_ranked_product_ids($include_cats = [], $limit = 4, $exclude_ids = [], $exclude_cats = []) {
+        $mode = get_option('galado_cs_ranking_mode', 'hybrid');
+        $include_cats = array_filter((array) $include_cats);
+        $exclude_cats = array_filter((array) $exclude_cats);
+        $exclude_ids = array_map('intval', (array) $exclude_ids);
+        $ids = [];
+
+        if ($mode === 'hybrid' || $mode === 'trending') {
+            $trending = self::get_trending_product_ids();
+            if (!empty($trending)) {
+                $ids = array_merge($ids, self::filter_product_ids($trending, $include_cats, $exclude_cats, $exclude_ids));
+            }
+        }
+
+        if (count($ids) < $limit && ($mode === 'hybrid' || $mode === 'newest')) {
+            $newest = self::query_products(
+                ['orderby' => 'date', 'order' => 'DESC'],
+                $include_cats,
+                $exclude_cats,
+                array_merge($exclude_ids, $ids),
+                $limit * 2
+            );
+            $ids = array_merge($ids, $newest);
+        }
+
+        if (count($ids) < $limit) {
+            $lifetime = self::query_products(
+                ['orderby' => 'meta_value_num', 'meta_key' => 'total_sales', 'order' => 'DESC'],
+                $include_cats,
+                $exclude_cats,
+                array_merge($exclude_ids, $ids),
+                $limit * 2
+            );
+            $ids = array_merge($ids, $lifetime);
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        return array_slice($ids, 0, $limit);
+    }
+
+    private static function filter_product_ids($candidate_ids, $include_cats, $exclude_cats, $exclude_ids) {
+        if (empty($candidate_ids)) return [];
+
+        $candidate_ids = array_values(array_diff(array_map('intval', $candidate_ids), $exclude_ids));
+        if (empty($candidate_ids)) return [];
+
+        $args = [
+            'post_type'      => 'product',
+            'post_status'    => 'publish',
+            'posts_per_page' => count($candidate_ids),
+            'post__in'       => $candidate_ids,
+            'orderby'        => 'post__in',
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_query'     => [
+                [
+                    'key'   => '_stock_status',
+                    'value' => 'instock',
+                ],
+            ],
+        ];
+
+        $tax_query = [];
+        if (!empty($include_cats)) {
+            $tax_query[] = [
+                'taxonomy' => 'product_cat',
+                'field'    => 'slug',
+                'terms'    => $include_cats,
+            ];
+        }
+        if (!empty($exclude_cats)) {
+            $tax_query[] = [
+                'taxonomy' => 'product_cat',
+                'field'    => 'slug',
+                'terms'    => $exclude_cats,
+                'operator' => 'NOT IN',
+            ];
+        }
+        if (!empty($tax_query)) {
+            if (count($tax_query) > 1) {
+                $tax_query['relation'] = 'AND';
+            }
+            $args['tax_query'] = $tax_query;
+        }
+
+        $q = new WP_Query($args);
+        return array_map('intval', $q->posts);
+    }
+
+    private static function query_products($order_args, $include_cats, $exclude_cats, $exclude_ids, $limit) {
+        $args = array_merge([
+            'post_type'      => 'product',
+            'post_status'    => 'publish',
+            'posts_per_page' => $limit,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'meta_query'     => [
+                [
+                    'key'   => '_stock_status',
+                    'value' => 'instock',
+                ],
+            ],
+        ], $order_args);
+
+        if (!empty($exclude_ids)) {
+            $args['post__not_in'] = array_map('intval', $exclude_ids);
+        }
+
+        $tax_query = [];
+        if (!empty($include_cats)) {
+            $tax_query[] = [
+                'taxonomy' => 'product_cat',
+                'field'    => 'slug',
+                'terms'    => $include_cats,
+            ];
+        }
+        if (!empty($exclude_cats)) {
+            $tax_query[] = [
+                'taxonomy' => 'product_cat',
+                'field'    => 'slug',
+                'terms'    => $exclude_cats,
+                'operator' => 'NOT IN',
+            ];
+        }
+        if (!empty($tax_query)) {
+            if (count($tax_query) > 1) {
+                $tax_query['relation'] = 'AND';
+            }
+            $args['tax_query'] = $tax_query;
+        }
+
+        $q = new WP_Query($args);
+        return array_map('intval', $q->posts);
+    }
+
+    public static function clear_trending_cache() {
+        delete_transient('galado_cs_trending_30d');
     }
 
     /**
