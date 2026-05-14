@@ -1,0 +1,59 @@
+.gfbf-wrap .gfbf-card {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    padding: 4px 24px 20px;
+    margin: 20px 0;
+    max-width: 880px;
+}
+
+.gfbf-wrap .gfbf-card h2 {
+    font-size: 15px;
+    margin: 18px 0 4px;
+}
+
+.gfbf-url {
+    display: inline-block;
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin-right: 8px;
+    font-size: 12px;
+    word-break: break-all;
+    max-width: 560px;
+}
+
+.gfbf-pill {
+    display: inline-block;
+    background: #00a32a;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.gfbf-cat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 4px 16px;
+    max-width: 700px;
+    margin-bottom: 8px;
+}
+
+.gfbf-cat-grid label {
+    font-size: 13px;
+}
+
+.gfbf-wrap .gfbf-card ol {
+    margin: 4px 0 14px 18px;
+}
+
+.gfbf-wrap .gfbf-card ol li {
+    margin-bottom: 4px;
+}
