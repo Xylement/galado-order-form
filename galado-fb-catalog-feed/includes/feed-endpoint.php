@@ -1,8 +1,11 @@
 <?php
 /**
- * Serves the Facebook product feed when ?galado_fb_feed= is requested.
+ * Streams the pre-built static feed file.
  *
- * No rewrite rules — a plain query var keeps activation side-effect-free.
+ * This endpoint does NO catalog work — building is entirely the job of
+ * GFBF_Feed_Builder running in WP-Cron. Serving here is just a token check
+ * plus readfile() of a static file, so even a heavy crawler hitting this
+ * URL costs almost nothing and can never overload the site.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -11,11 +14,14 @@ add_action('init', function () {
     if (!isset($_GET['galado_fb_feed'])) {
         return;
     }
+    if (!class_exists('GFBF_Feed_Builder')) {
+        return;
+    }
 
     $settings = get_option('gfbf_settings', []);
     $token    = isset($settings['token']) ? (string) $settings['token'] : '';
 
-    // Token gate — keeps the feed from being trivially scraped.
+    // Token gate.
     $given = isset($_GET['token']) ? sanitize_text_field(wp_unslash($_GET['token'])) : '';
     if ($token !== '' && !hash_equals($token, $given)) {
         status_header(403);
@@ -24,57 +30,34 @@ add_action('init', function () {
         exit;
     }
 
-    // Admin-only diagnostic — explains why the feed has the rows it does.
-    if (isset($_GET['debug']) && current_user_can('manage_woocommerce')) {
-        if (!class_exists('GFBF_Feed_Generator')) {
-            require_once GFBF_PATH . 'includes/class-feed-generator.php';
-        }
-        $generator = new GFBF_Feed_Generator($settings);
-        nocache_headers();
-        header('Content-Type: text/plain; charset=utf-8');
-        echo $generator->diagnose();
-        exit;
-    }
-
-    $format = isset($_GET['format']) ? sanitize_key((string) $_GET['format']) : ($settings['format'] ?? 'xml');
+    $format = isset($_GET['format']) ? sanitize_key((string) $_GET['format']) : 'xml';
     if (!in_array($format, ['xml', 'csv'], true)) {
         $format = 'xml';
     }
 
-    // Admins can force a rebuild with &refresh=1.
-    $force = isset($_GET['refresh']) && current_user_can('manage_woocommerce');
+    $file = GFBF_Feed_Builder::feed_path($format);
 
-    $cache_key = 'gfbf_feed_' . $format;
-    $body = $force ? false : get_transient($cache_key);
-
-    if ($body === false) {
-        if (!class_exists('GFBF_Feed_Generator')) {
-            require_once GFBF_PATH . 'includes/class-feed-generator.php';
-        }
-        $generator   = new GFBF_Feed_Generator($settings);
-        $body        = $format === 'csv' ? $generator->build_csv() : $generator->build_xml();
-        $cache_hours = max(1, intval($settings['cache_hours'] ?? 6));
-        set_transient($cache_key, $body, $cache_hours * HOUR_IN_SECONDS);
-        update_option('gfbf_last_generated', current_time('mysql'));
+    // No file yet (first build hasn't finished) — tell the caller to retry.
+    if (!is_file($file) || filesize($file) === 0) {
+        status_header(503);
+        header('Retry-After: 3600');
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Feed is being generated. Please check back shortly.';
+        exit;
     }
 
-    nocache_headers();
-    if ($format === 'csv') {
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: inline; filename="galado-facebook-catalog.csv"');
-    } else {
-        header('Content-Type: application/xml; charset=utf-8');
-        header('Content-Disposition: inline; filename="galado-facebook-catalog.xml"');
+    // Discard any buffered output so readfile() streams cleanly.
+    while (ob_get_level() > 0) {
+        ob_end_clean();
     }
 
-    echo $body;
+    header('Content-Type: ' . ($format === 'csv' ? 'text/csv' : 'application/xml') . '; charset=utf-8');
+    header('Content-Disposition: inline; filename="galado-facebook-catalog.' . $format . '"');
+    header('Content-Length: ' . filesize($file));
+    // Let Cloudflare/edge cache it so repeat pulls don't even reach origin.
+    header('Cache-Control: public, max-age=3600');
+    header('X-Robots-Tag: noindex');
+
+    readfile($file);
     exit;
 }, 1);
-
-/**
- * Clear both cached feed variants.
- */
-function gfbf_clear_cache() {
-    delete_transient('gfbf_feed_xml');
-    delete_transient('gfbf_feed_csv');
-}

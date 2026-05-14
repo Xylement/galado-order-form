@@ -1,9 +1,10 @@
 <?php
 /**
- * Builds a Facebook/Meta-spec product feed from the WooCommerce catalog.
+ * Per-item builder and serializers for the Facebook catalog feed.
  *
- * One row per simple product, or one row per variation (with a shared
- * item_group_id) for variable products.
+ * This class only ever touches ONE product at a time. There is no
+ * full-catalog loop here — batching across the catalog is the job of
+ * GFBF_Feed_Builder, which runs in the background via WP-Cron.
  */
 
 if (!defined('ABSPATH')) exit;
@@ -17,193 +18,86 @@ class GFBF_Feed_Generator {
         $this->settings = is_array($settings) ? $settings : [];
     }
 
-    /**
-     * Build the RSS 2.0 XML feed — Facebook's preferred format.
-     */
-    public function build_xml() {
-        $items = $this->collect_items();
+    // =========================================================================
+    // SERIALIZERS
+    // =========================================================================
 
-        $xml  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-        $xml .= '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">' . "\n";
-        $xml .= '<channel>' . "\n";
-        $xml .= '<title>' . $this->esc_xml(get_bloginfo('name') . ' — Facebook Catalog') . '</title>' . "\n";
-        $xml .= '<link>' . $this->esc_xml(home_url('/')) . '</link>' . "\n";
-        $xml .= '<description>' . $this->esc_xml('WooCommerce product feed for Meta Commerce Manager') . '</description>' . "\n";
-
-        foreach ($items as $item) {
-            $xml .= "<item>\n";
-            foreach ($item as $key => $value) {
-                if ($key === 'additional_image_link' && is_array($value)) {
-                    foreach ($value as $img) {
-                        $xml .= '  <g:additional_image_link>' . $this->esc_xml($img) . '</g:additional_image_link>' . "\n";
-                    }
-                    continue;
-                }
-                if ($value === '' || $value === null) {
-                    continue;
-                }
-                $xml .= '  <g:' . $key . '>' . $this->esc_xml($value) . '</g:' . $key . '>' . "\n";
-            }
-            $xml .= "</item>\n";
-        }
-
-        $xml .= '</channel>' . "\n" . '</rss>' . "\n";
-        return $xml;
+    public function xml_header() {
+        $out  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $out .= '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">' . "\n";
+        $out .= '<channel>' . "\n";
+        $out .= '<title>' . $this->esc_xml(get_bloginfo('name') . ' — Facebook Catalog') . '</title>' . "\n";
+        $out .= '<link>' . $this->esc_xml(home_url('/')) . '</link>' . "\n";
+        $out .= '<description>' . $this->esc_xml('WooCommerce product feed for Meta Commerce Manager') . '</description>' . "\n";
+        return $out;
     }
 
-    /**
-     * Build the CSV feed — accepted by Commerce Manager as a one-off upload.
-     */
-    public function build_csv() {
-        $items = $this->collect_items();
+    public function xml_footer() {
+        return '</channel>' . "\n" . '</rss>' . "\n";
+    }
 
-        $columns = [
+    public function csv_columns() {
+        return [
             'id', 'title', 'description', 'availability', 'condition',
             'price', 'sale_price', 'link', 'image_link', 'additional_image_link',
             'brand', 'google_product_category', 'product_type', 'item_group_id',
         ];
+    }
 
-        $fh = fopen('php://temp', 'r+');
-        fputcsv($fh, $columns);
+    /**
+     * Write the CSV column header to an open file handle.
+     */
+    public function write_csv_header($handle) {
+        fputcsv($handle, $this->csv_columns());
+    }
 
-        foreach ($items as $item) {
-            $row = [];
-            foreach ($columns as $col) {
-                $value = $item[$col] ?? '';
-                if ($col === 'additional_image_link' && is_array($value)) {
-                    $value = implode(',', $value);
-                }
-                $row[] = $value;
+    /**
+     * Write one row to an open CSV file handle.
+     */
+    public function write_csv_row($handle, array $row) {
+        $line = [];
+        foreach ($this->csv_columns() as $col) {
+            $value = $row[$col] ?? '';
+            if ($col === 'additional_image_link' && is_array($value)) {
+                $value = implode(',', $value);
             }
-            fputcsv($fh, $row);
+            $line[] = $value;
         }
-
-        rewind($fh);
-        $csv = stream_get_contents($fh);
-        fclose($fh);
-        return $csv;
+        fputcsv($handle, $line);
     }
 
     /**
-     * Count feed items — used by the admin screen.
+     * Serialize one row array to an XML <item> block.
      */
-    public function count_feed_items() {
-        return count($this->collect_items());
-    }
-
-    /**
-     * Lightweight plain-text diagnostic — uses direct count queries and loads
-     * only a tiny product sample, so it can't time out on a large catalog.
-     * Surfaced via ?galado_fb_feed=1&debug=1 for logged-in shop managers.
-     */
-    public function diagnose() {
-        global $wpdb;
-
-        $exclude_cats = isset($this->settings['exclude_cats']) && is_array($this->settings['exclude_cats'])
-            ? array_map('intval', $this->settings['exclude_cats'])
-            : [];
-        $include_variations = !empty($this->settings['include_variations']);
-
-        $lines = [];
-        $lines[] = '=== GALADO Facebook Catalog Feed — diagnostics ===';
-        $lines[] = 'include_variations: ' . ($include_variations ? 'yes' : 'no');
-        $lines[] = 'exclude_cats: ' . (empty($exclude_cats) ? 'none' : implode(',', $exclude_cats));
-        $lines[] = 'currency: ' . get_woocommerce_currency();
-        $lines[] = '';
-
-        // --- Direct count queries (no object loading) ---
-        $published_products = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->posts}
-             WHERE post_type = 'product' AND post_status = 'publish'"
-        );
-        $all_statuses = $wpdb->get_results(
-            "SELECT post_status, COUNT(*) AS n FROM {$wpdb->posts}
-             WHERE post_type = 'product' GROUP BY post_status",
-            ARRAY_A
-        );
-        $published_variations = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->posts}
-             WHERE post_type = 'product_variation' AND post_status = 'publish'"
-        );
-        $products_no_image = (int) $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->posts} p
-             LEFT JOIN {$wpdb->postmeta} pm
-               ON pm.post_id = p.ID AND pm.meta_key = '_thumbnail_id'
-             WHERE p.post_type = 'product' AND p.post_status = 'publish'
-               AND (pm.meta_value IS NULL OR pm.meta_value = '' OR pm.meta_value = '0')"
-        );
-
-        $lines[] = 'Published products (DB count): ' . $published_products;
-        $status_bits = [];
-        foreach ((array) $all_statuses as $row) {
-            $status_bits[] = $row['post_status'] . '=' . $row['n'];
-        }
-        $lines[] = 'All product statuses: ' . (empty($status_bits) ? 'none' : implode(', ', $status_bits));
-        $lines[] = 'Published variations (DB count): ' . $published_variations;
-        $lines[] = 'Published products with NO featured image: ' . $products_no_image;
-        $lines[] = '';
-
-        // --- wc_get_products sanity check (tiny limit) ---
-        $sample_ids = wc_get_products([
-            'status' => 'publish',
-            'limit'  => 5,
-            'return' => 'ids',
-        ]);
-        $lines[] = 'wc_get_products(status=publish, limit=5) => ' . count($sample_ids)
-            . ' ids: ' . implode(', ', array_map('strval', $sample_ids));
-
-        $page2_ids = wc_get_products([
-            'status' => 'publish',
-            'limit'  => 5,
-            'page'   => 2,
-            'return' => 'ids',
-        ]);
-        $lines[] = 'wc_get_products(status=publish, limit=5, page=2) => ' . count($page2_ids)
-            . ' ids: ' . implode(', ', array_map('strval', $page2_ids));
-        $lines[] = '';
-
-        // --- Light per-product sample (max 5 objects loaded) ---
-        foreach ($sample_ids as $id) {
-            $p = wc_get_product($id);
-            if (!$p) {
-                $lines[] = "#$id => wc_get_product() returned false";
+    public function row_to_xml(array $row) {
+        $xml = "<item>\n";
+        foreach ($row as $key => $value) {
+            if ($key === 'additional_image_link' && is_array($value)) {
+                foreach ($value as $img) {
+                    $xml .= '  <g:additional_image_link>' . $this->esc_xml($img) . '</g:additional_image_link>' . "\n";
+                }
                 continue;
             }
-            $lines[] = sprintf(
-                '#%d "%s" | type=%s status=%s visibility=%s price=%s image_id=%s children=%d',
-                $p->get_id(),
-                $this->truncate($p->get_name(), 40),
-                $p->get_type(),
-                $p->get_status(),
-                $p->get_catalog_visibility(),
-                var_export($p->get_price(), true),
-                var_export($p->get_image_id(), true),
-                count($p->get_children())
-            );
-            if ($p->is_type('variable')) {
-                $children = $p->get_children();
-                $first = !empty($children) ? wc_get_product($children[0]) : null;
-                if ($first) {
-                    $lines[] = sprintf(
-                        '    first variation #%d price=%s own_image_id=%s parent_image_id=%s',
-                        $first->get_id(),
-                        var_export($first->get_price(), true),
-                        var_export($first->get_image_id(), true),
-                        var_export($p->get_image_id(), true)
-                    );
-                }
+            if ($value === '' || $value === null) {
+                continue;
             }
+            $xml .= '  <g:' . $key . '>' . $this->esc_xml($value) . '</g:' . $key . '>' . "\n";
         }
-
-        return implode("\n", $lines);
+        $xml .= "</item>\n";
+        return $xml;
     }
 
+    // =========================================================================
+    // ROW BUILDING (one product at a time)
+    // =========================================================================
+
     /**
-     * Collect every feed row.
+     * Build feed rows for a single product: one row for a simple product,
+     * or one row per variation for a variable product.
      *
      * @return array<int, array<string, mixed>>
      */
-    private function collect_items() {
+    public function rows_for_product($product) {
         $exclude_cats = isset($this->settings['exclude_cats']) && is_array($this->settings['exclude_cats'])
             ? array_map('intval', $this->settings['exclude_cats'])
             : [];
@@ -211,52 +105,32 @@ class GFBF_Feed_Generator {
         $brand    = isset($this->settings['brand']) ? (string) $this->settings['brand'] : 'GALADO';
         $currency = get_woocommerce_currency();
 
-        $items = [];
-        $page  = 1;
+        if (!$this->is_product_eligible($product, $exclude_cats)) {
+            return [];
+        }
 
-        do {
-            $products = wc_get_products([
-                'status'  => 'publish',
-                'limit'   => 100,
-                'page'    => $page,
-                'orderby' => 'ID',
-                'order'   => 'ASC',
-                'return'  => 'objects',
-            ]);
+        $rows = [];
 
-            if (empty($products)) {
-                break;
-            }
-
-            foreach ($products as $product) {
-                if (!$this->is_product_eligible($product, $exclude_cats)) {
+        if ($product->is_type('variable') && $include_variations) {
+            $group_id = (string) $product->get_id();
+            foreach ($product->get_children() as $variation_id) {
+                $variation = wc_get_product($variation_id);
+                if (!$variation || !$variation->exists()) {
                     continue;
                 }
-
-                if ($product->is_type('variable') && $include_variations) {
-                    $group_id = (string) $product->get_id();
-                    foreach ($product->get_children() as $variation_id) {
-                        $variation = wc_get_product($variation_id);
-                        if (!$variation || !$variation->exists()) {
-                            continue;
-                        }
-                        $row = $this->build_item($variation, $product, $brand, $currency, $group_id);
-                        if ($row !== null) {
-                            $items[] = $row;
-                        }
-                    }
-                } else {
-                    $row = $this->build_item($product, null, $brand, $currency, '');
-                    if ($row !== null) {
-                        $items[] = $row;
-                    }
+                $row = $this->build_item($variation, $product, $brand, $currency, $group_id);
+                if ($row !== null) {
+                    $rows[] = $row;
                 }
             }
+        } else {
+            $row = $this->build_item($product, null, $brand, $currency, '');
+            if ($row !== null) {
+                $rows[] = $row;
+            }
+        }
 
-            $page++;
-        } while (count($products) === 100);
-
-        return $items;
+        return $rows;
     }
 
     /**
@@ -436,5 +310,74 @@ class GFBF_Feed_Generator {
 
     private function esc_xml($value) {
         return htmlspecialchars((string) $value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    }
+
+    // =========================================================================
+    // DIAGNOSTICS (lightweight — direct count queries, tiny sample)
+    // =========================================================================
+
+    /**
+     * Plain-text diagnostic. Uses direct count queries and loads only a small
+     * product sample, so it stays fast even on a large catalog.
+     */
+    public function diagnose() {
+        global $wpdb;
+
+        $lines = [];
+        $lines[] = '=== GALADO Facebook Catalog Feed — diagnostics ===';
+        $lines[] = 'include_variations: ' . (!empty($this->settings['include_variations']) ? 'yes' : 'no');
+        $lines[] = 'currency: ' . get_woocommerce_currency();
+        $lines[] = '';
+
+        $published_products = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts}
+             WHERE post_type = 'product' AND post_status = 'publish'"
+        );
+        $published_variations = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts}
+             WHERE post_type = 'product_variation' AND post_status = 'publish'"
+        );
+        $products_no_image = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts} p
+             LEFT JOIN {$wpdb->postmeta} pm
+               ON pm.post_id = p.ID AND pm.meta_key = '_thumbnail_id'
+             WHERE p.post_type = 'product' AND p.post_status = 'publish'
+               AND (pm.meta_value IS NULL OR pm.meta_value = '' OR pm.meta_value = '0')"
+        );
+
+        $lines[] = 'Published products (DB count): ' . $published_products;
+        $lines[] = 'Published variations (DB count): ' . $published_variations;
+        $lines[] = 'Published products with NO featured image: ' . $products_no_image;
+        $lines[] = '';
+
+        $sample_ids = wc_get_products([
+            'status' => 'publish',
+            'limit'  => 5,
+            'return' => 'ids',
+        ]);
+        $lines[] = 'wc_get_products(status=publish, limit=5) => ' . count($sample_ids)
+            . ' ids: ' . implode(', ', array_map('strval', $sample_ids));
+        $lines[] = '';
+
+        foreach ($sample_ids as $id) {
+            $p = wc_get_product($id);
+            if (!$p) {
+                $lines[] = "#$id => wc_get_product() returned false";
+                continue;
+            }
+            $rows = $this->rows_for_product($p);
+            $lines[] = sprintf(
+                '#%d "%s" | type=%s price=%s image_id=%s children=%d => %d feed row(s)',
+                $p->get_id(),
+                $this->truncate($p->get_name(), 40),
+                $p->get_type(),
+                var_export($p->get_price(), true),
+                var_export($p->get_image_id(), true),
+                count($p->get_children()),
+                count($rows)
+            );
+        }
+
+        return implode("\n", $lines);
     }
 }

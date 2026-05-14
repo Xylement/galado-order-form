@@ -12,42 +12,48 @@ function gfbf_settings_page() {
 
     $settings = get_option('gfbf_settings', []);
 
-    // Save settings
+    // --- Save settings ---
     if (isset($_POST['gfbf_save_nonce']) && wp_verify_nonce($_POST['gfbf_save_nonce'], 'gfbf_save')) {
         $exclude = isset($_POST['gfbf_exclude_cats']) && is_array($_POST['gfbf_exclude_cats'])
             ? array_map('intval', $_POST['gfbf_exclude_cats'])
             : [];
 
-        $format = in_array($_POST['gfbf_format'] ?? 'xml', ['xml', 'csv'], true)
-            ? $_POST['gfbf_format']
-            : 'xml';
+        $frequency = in_array($_POST['gfbf_frequency'] ?? 'daily', ['daily', 'twicedaily', 'manual'], true)
+            ? $_POST['gfbf_frequency']
+            : 'daily';
 
         $settings = [
             'token'              => sanitize_text_field($_POST['gfbf_token'] ?? ($settings['token'] ?? '')),
-            'format'             => $format,
             'include_variations' => isset($_POST['gfbf_include_variations']) ? 1 : 0,
             'exclude_cats'       => $exclude,
-            'cache_hours'        => max(1, min(48, intval($_POST['gfbf_cache_hours'] ?? 6))),
             'brand'              => sanitize_text_field($_POST['gfbf_brand'] ?? 'GALADO'),
+            'frequency'          => $frequency,
         ];
         update_option('gfbf_settings', $settings);
-        gfbf_clear_cache();
-        echo '<div class="notice notice-success"><p>Settings saved — feed cache cleared.</p></div>';
+        GFBF_Feed_Builder::ensure_schedule();
+        echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
     }
 
-    // Regenerate cache
-    if (isset($_POST['gfbf_regen_nonce']) && wp_verify_nonce($_POST['gfbf_regen_nonce'], 'gfbf_regen')) {
-        gfbf_clear_cache();
-        echo '<div class="notice notice-success"><p>Feed cache cleared — it rebuilds on the next request.</p></div>';
+    // --- Build now ---
+    if (isset($_POST['gfbf_build_nonce']) && wp_verify_nonce($_POST['gfbf_build_nonce'], 'gfbf_build')) {
+        $state = GFBF_Feed_Builder::get_state();
+        if ($state['status'] === 'running') {
+            echo '<div class="notice notice-warning"><p>A build is already in progress.</p></div>';
+        } else {
+            GFBF_Feed_Builder::start();
+            echo '<div class="notice notice-success"><p>Feed build started — it runs in the background. Refresh this page to watch progress.</p></div>';
+        }
     }
 
+    $settings    = get_option('gfbf_settings', []);
     $token       = $settings['token'] ?? '';
-    $format      = $settings['format'] ?? 'xml';
-    $cache_hours = intval($settings['cache_hours'] ?? 6);
     $brand       = $settings['brand'] ?? 'GALADO';
+    $frequency   = $settings['frequency'] ?? 'daily';
     $exclude     = isset($settings['exclude_cats']) && is_array($settings['exclude_cats'])
         ? $settings['exclude_cats']
         : [];
+
+    $state = GFBF_Feed_Builder::get_state();
 
     $xml_url = add_query_arg(
         array_filter(['galado_fb_feed' => 1, 'format' => 'xml', 'token' => $token]),
@@ -58,24 +64,66 @@ function gfbf_settings_page() {
         home_url('/')
     );
 
-    $last_generated = get_option('gfbf_last_generated', '');
-    $primary_url    = $format === 'csv' ? $csv_url : $xml_url;
-
     $product_cats = get_terms([
         'taxonomy'   => 'product_cat',
         'hide_empty' => false,
     ]);
+
+    // Auto-refresh the page while a build is running so progress updates.
+    if ($state['status'] === 'running') {
+        echo '<meta http-equiv="refresh" content="6">';
+    }
     ?>
     <div class="wrap gfbf-wrap">
         <h1>Facebook Catalog Feed</h1>
-        <p style="font-size:14px;color:#646970;max-width:760px;">
-            Generates a Meta-spec product feed straight from your live WooCommerce catalog —
-            no Graph API, no access tokens, nothing to break on a plugin update.
+        <p style="font-size:14px;color:#646970;max-width:780px;">
+            The feed is built in the background in small batches and saved as a static file.
+            Serving it is just a file read — it can't slow down or overload your site, even under heavy bot traffic.
         </p>
+
+        <!-- Build status -->
+        <div class="gfbf-card">
+            <h2>Build Status</h2>
+            <?php
+            $badge_class = 'gfbf-badge';
+            $badge_text  = ucfirst($state['status']);
+            if ($state['status'] === 'done')    { $badge_class .= ' gfbf-badge-ok'; }
+            if ($state['status'] === 'running') { $badge_class .= ' gfbf-badge-run'; }
+            if ($state['status'] === 'error')   { $badge_class .= ' gfbf-badge-err'; }
+            if ($state['status'] === 'idle')    { $badge_class .= ' gfbf-badge-idle'; }
+            ?>
+            <p>
+                <span class="<?php echo esc_attr($badge_class); ?>"><?php echo esc_html($badge_text); ?></span>
+                <?php if ($state['status'] === 'running'): ?>
+                    Processed <?php echo intval($state['offset']); ?> products,
+                    <?php echo intval($state['rows']); ?> feed rows so far…
+                    <em>(page auto-refreshes)</em>
+                <?php elseif ($state['status'] === 'done'): ?>
+                    <?php echo intval($state['rows']); ?> items —
+                    finished <?php echo esc_html($state['finished_at']); ?> (site time)
+                <?php elseif ($state['status'] === 'error'): ?>
+                    <strong>Error:</strong> <?php echo esc_html($state['message']); ?>
+                <?php else: ?>
+                    No feed built yet.
+                <?php endif; ?>
+            </p>
+            <form method="post">
+                <?php wp_nonce_field('gfbf_build', 'gfbf_build_nonce'); ?>
+                <button type="submit" class="button button-primary" <?php disabled($state['status'], 'running'); ?>>
+                    <?php echo $state['status'] === 'done' ? 'Rebuild Feed Now' : 'Build Feed Now'; ?>
+                </button>
+                <span class="description" style="margin-left:8px;">
+                    Runs in the background via WP-Cron. A large catalog may take a few minutes.
+                </span>
+            </form>
+        </div>
 
         <!-- Feed URLs -->
         <div class="gfbf-card">
             <h2>Your Feed URLs</h2>
+            <?php if ($state['status'] !== 'done'): ?>
+                <p class="description">These become live once the first build finishes.</p>
+            <?php endif; ?>
             <table class="form-table" role="presentation">
                 <tr>
                     <th scope="row">XML feed <span class="gfbf-pill">recommended</span></th>
@@ -91,18 +139,7 @@ function gfbf_settings_page() {
                         <a href="<?php echo esc_url($csv_url); ?>" target="_blank" class="button button-small">Open</a>
                     </td>
                 </tr>
-                <?php if ($last_generated): ?>
-                <tr>
-                    <th scope="row">Last built</th>
-                    <td><?php echo esc_html($last_generated); ?> (site time)</td>
-                </tr>
-                <?php endif; ?>
             </table>
-            <form method="post" style="margin-top:8px;">
-                <?php wp_nonce_field('gfbf_regen', 'gfbf_regen_nonce'); ?>
-                <button type="submit" class="button">Rebuild feed now</button>
-                <span class="description" style="margin-left:8px;">Or add <code>&amp;refresh=1</code> to a feed URL while logged in.</span>
-            </form>
         </div>
 
         <!-- How to connect -->
@@ -113,14 +150,9 @@ function gfbf_settings_page() {
                 <li>Open <a href="https://business.facebook.com/commerce" target="_blank">Commerce Manager</a> → your <strong>Catalog</strong> → <strong>Data Sources</strong>.</li>
                 <li>Choose <strong>Add Items → Data Feed → Scheduled feed</strong>.</li>
                 <li>Paste the <strong>XML feed URL</strong> above. Set frequency to <strong>Daily</strong>.</li>
-                <li>Currency: <strong><?php echo esc_html(get_woocommerce_currency()); ?></strong>. Finish — Facebook pulls automatically from now on.</li>
+                <li>Currency: <strong><?php echo esc_html(get_woocommerce_currency()); ?></strong>. Finish.</li>
             </ol>
-            <p><strong>Option B — One-off manual upload:</strong></p>
-            <ol>
-                <li>Click <strong>Open</strong> on the CSV feed above and save the file.</li>
-                <li>In Commerce Manager → Data Sources → <strong>Add Items → Upload → Manual upload</strong>.</li>
-                <li>Upload the saved file. Re-upload whenever you want to refresh.</li>
-            </ol>
+            <p><strong>Option B — One-off manual upload:</strong> open the CSV feed, save the file, then in Commerce Manager → Data Sources → <strong>Add Items → Upload</strong>.</p>
         </div>
 
         <!-- Settings -->
@@ -137,13 +169,14 @@ function gfbf_settings_page() {
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row">Default format</th>
+                        <th scope="row">Rebuild frequency</th>
                         <td>
-                            <select name="gfbf_format">
-                                <option value="xml" <?php selected($format, 'xml'); ?>>XML (RSS 2.0) — recommended</option>
-                                <option value="csv" <?php selected($format, 'csv'); ?>>CSV</option>
+                            <select name="gfbf_frequency">
+                                <option value="daily" <?php selected($frequency, 'daily'); ?>>Daily (recommended)</option>
+                                <option value="twicedaily" <?php selected($frequency, 'twicedaily'); ?>>Twice daily</option>
+                                <option value="manual" <?php selected($frequency, 'manual'); ?>>Manual only</option>
                             </select>
-                            <p class="description">Used when a request omits <code>&amp;format=</code>. Both URLs always work regardless.</p>
+                            <p class="description">How often the background rebuild runs. Facebook pulls daily, so Daily is plenty.</p>
                         </td>
                     </tr>
                     <tr>
@@ -157,17 +190,10 @@ function gfbf_settings_page() {
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row">Cache duration</th>
-                        <td>
-                            <input type="number" name="gfbf_cache_hours" value="<?php echo esc_attr($cache_hours); ?>" min="1" max="48" style="width:80px;"> hours
-                            <p class="description">How long a built feed is cached before rebuilding. Facebook pulls daily, so 6–12h is plenty.</p>
-                        </td>
-                    </tr>
-                    <tr>
                         <th scope="row">Feed token</th>
                         <td>
                             <input type="text" name="gfbf_token" value="<?php echo esc_attr($token); ?>" class="regular-text" autocomplete="off">
-                            <p class="description">Required in the feed URL as <code>&amp;token=</code>. Leave blank to make the feed public (not recommended).</p>
+                            <p class="description">Required in the feed URL as <code>&amp;token=</code>, and used in the feed filename so it isn't easily discoverable. Changing it requires a rebuild.</p>
                         </td>
                     </tr>
                     <tr>
@@ -182,7 +208,7 @@ function gfbf_settings_page() {
                                         </label>
                                     <?php endforeach; ?>
                                 </div>
-                                <p class="description">Tick categories to keep out of the feed — e.g. custom/personalised lines that don't have a fixed price or image.</p>
+                                <p class="description">Tick categories to keep out of the feed — e.g. custom/personalised lines without a fixed price or image.</p>
                             <?php else: ?>
                                 <p class="description">No product categories found.</p>
                             <?php endif; ?>
@@ -190,6 +216,7 @@ function gfbf_settings_page() {
                     </tr>
                 </table>
                 <?php submit_button('Save Settings'); ?>
+                <p class="description">Saving settings does not rebuild the feed — click <strong>Rebuild Feed Now</strong> above to apply changes.</p>
             </div>
         </form>
     </div>

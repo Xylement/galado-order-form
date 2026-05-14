@@ -2,8 +2,8 @@
 /**
  * Plugin Name: GALADO Facebook Catalog Feed
  * Plugin URI: https://galado.com.my
- * Description: Generates a Meta-spec product feed from your WooCommerce catalog. Point Facebook Commerce Manager's scheduled Data Feed at the feed URL, or download it once for a manual upload. No Graph API, no access tokens, nothing to break on a plugin update.
- * Version: 1.0.0
+ * Description: Generates a Meta-spec product feed from your WooCommerce catalog. The feed is built in the background (WP-Cron, in small time-boxed batches) and saved as a static file, so serving it can never slow down or overload the site. Point Facebook Commerce Manager's scheduled Data Feed at the feed URL.
+ * Version: 2.0.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,22 +15,21 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GFBF_VERSION', '1.0.0');
+define('GFBF_VERSION', '2.0.0');
 define('GFBF_PATH', plugin_dir_path(__FILE__));
 define('GFBF_URL', plugin_dir_url(__FILE__));
 
 /**
- * Default settings. A random token is generated once so the feed isn't
- * world-readable out of the box.
+ * Default settings. A random token is generated once so the feed file
+ * isn't trivially discoverable.
  */
 function gfbf_default_settings() {
     return [
         'token'              => wp_generate_password(20, false),
-        'format'             => 'xml',
         'include_variations' => 1,
         'exclude_cats'       => [],
-        'cache_hours'        => 6,
         'brand'              => 'GALADO',
+        'frequency'          => 'daily', // daily | twicedaily | manual
     ];
 }
 
@@ -49,15 +48,26 @@ add_action('plugins_loaded', function () {
     }
 
     require_once GFBF_PATH . 'includes/class-feed-generator.php';
+    require_once GFBF_PATH . 'includes/class-feed-builder.php';
     require_once GFBF_PATH . 'includes/feed-endpoint.php';
 
     if (is_admin()) {
         require_once GFBF_PATH . 'admin/settings-page.php';
     }
-});
+
+    // Background build hooks (cron only — never touched by a web request).
+    add_action('gfbf_scheduled_rebuild', ['GFBF_Feed_Builder', 'start']);
+    add_action('gfbf_run_batch', ['GFBF_Feed_Builder', 'run_batch']);
+
+    // Keep the recurring rebuild scheduled (git-sync skips activation).
+    GFBF_Feed_Builder::ensure_schedule();
+}, 20);
 
 // Admin menu — under the GALADO hub if available, otherwise under WooCommerce.
 add_action('admin_menu', function () {
+    if (!function_exists('gfbf_settings_page')) {
+        return; // WooCommerce inactive — settings page not loaded.
+    }
     $parent = class_exists('Galado_Admin_Hub') ? 'galado-hub' : 'woocommerce';
     add_submenu_page(
         $parent,
@@ -77,9 +87,15 @@ add_action('admin_enqueue_scripts', function ($hook) {
     wp_enqueue_style('gfbf-admin', GFBF_URL . 'admin/style.css', [], GFBF_VERSION);
 });
 
-// Activation — seed defaults and a random feed token.
+// Activation — seed defaults.
 register_activation_hook(__FILE__, function () {
     if (get_option('gfbf_settings') === false) {
         update_option('gfbf_settings', gfbf_default_settings());
     }
+});
+
+// Deactivation — clear all scheduled events so nothing runs while disabled.
+register_deactivation_hook(__FILE__, function () {
+    wp_clear_scheduled_hook('gfbf_scheduled_rebuild');
+    wp_clear_scheduled_hook('gfbf_run_batch');
 });
