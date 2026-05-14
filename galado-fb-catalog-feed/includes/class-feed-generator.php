@@ -92,10 +92,13 @@ class GFBF_Feed_Generator {
     }
 
     /**
-     * Plain-text diagnostic — explains why the feed has the rows it does.
+     * Lightweight plain-text diagnostic — uses direct count queries and loads
+     * only a tiny product sample, so it can't time out on a large catalog.
      * Surfaced via ?galado_fb_feed=1&debug=1 for logged-in shop managers.
      */
     public function diagnose() {
+        global $wpdb;
+
         $exclude_cats = isset($this->settings['exclude_cats']) && is_array($this->settings['exclude_cats'])
             ? array_map('intval', $this->settings['exclude_cats'])
             : [];
@@ -108,28 +111,66 @@ class GFBF_Feed_Generator {
         $lines[] = 'currency: ' . get_woocommerce_currency();
         $lines[] = '';
 
-        $publish = wc_get_products([
-            'status'  => 'publish',
-            'limit'   => 100,
-            'page'    => 1,
-            'orderby' => 'ID',
-            'order'   => 'ASC',
-            'return'  => 'objects',
-        ]);
-        $lines[] = 'wc_get_products(status=publish, limit=100, page=1) => ' . count($publish) . ' products';
+        // --- Direct count queries (no object loading) ---
+        $published_products = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts}
+             WHERE post_type = 'product' AND post_status = 'publish'"
+        );
+        $all_statuses = $wpdb->get_results(
+            "SELECT post_status, COUNT(*) AS n FROM {$wpdb->posts}
+             WHERE post_type = 'product' GROUP BY post_status",
+            ARRAY_A
+        );
+        $published_variations = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts}
+             WHERE post_type = 'product_variation' AND post_status = 'publish'"
+        );
+        $products_no_image = (int) $wpdb->get_var(
+            "SELECT COUNT(*) FROM {$wpdb->posts} p
+             LEFT JOIN {$wpdb->postmeta} pm
+               ON pm.post_id = p.ID AND pm.meta_key = '_thumbnail_id'
+             WHERE p.post_type = 'product' AND p.post_status = 'publish'
+               AND (pm.meta_value IS NULL OR pm.meta_value = '' OR pm.meta_value = '0')"
+        );
 
-        $any_ids = wc_get_products(['limit' => 10, 'return' => 'ids']);
-        $lines[] = 'wc_get_products(limit=10, any status) => ' . count($any_ids)
-            . ' ids: ' . implode(', ', array_map('strval', $any_ids));
+        $lines[] = 'Published products (DB count): ' . $published_products;
+        $status_bits = [];
+        foreach ((array) $all_statuses as $row) {
+            $status_bits[] = $row['post_status'] . '=' . $row['n'];
+        }
+        $lines[] = 'All product statuses: ' . (empty($status_bits) ? 'none' : implode(', ', $status_bits));
+        $lines[] = 'Published variations (DB count): ' . $published_variations;
+        $lines[] = 'Published products with NO featured image: ' . $products_no_image;
         $lines[] = '';
 
-        // Per-product breakdown for the first handful.
-        $skip_reasons = ['not_eligible' => 0, 'no_price' => 0, 'no_image' => 0, 'ok' => 0];
-        $sample = array_slice($publish, 0, 10);
-        foreach ($sample as $p) {
-            $eligible = $this->is_product_eligible($p, $exclude_cats);
+        // --- wc_get_products sanity check (tiny limit) ---
+        $sample_ids = wc_get_products([
+            'status' => 'publish',
+            'limit'  => 5,
+            'return' => 'ids',
+        ]);
+        $lines[] = 'wc_get_products(status=publish, limit=5) => ' . count($sample_ids)
+            . ' ids: ' . implode(', ', array_map('strval', $sample_ids));
+
+        $page2_ids = wc_get_products([
+            'status' => 'publish',
+            'limit'  => 5,
+            'page'   => 2,
+            'return' => 'ids',
+        ]);
+        $lines[] = 'wc_get_products(status=publish, limit=5, page=2) => ' . count($page2_ids)
+            . ' ids: ' . implode(', ', array_map('strval', $page2_ids));
+        $lines[] = '';
+
+        // --- Light per-product sample (max 5 objects loaded) ---
+        foreach ($sample_ids as $id) {
+            $p = wc_get_product($id);
+            if (!$p) {
+                $lines[] = "#$id => wc_get_product() returned false";
+                continue;
+            }
             $lines[] = sprintf(
-                '#%d "%s" | type=%s status=%s visibility=%s price=%s image_id=%s children=%d eligible=%s',
+                '#%d "%s" | type=%s status=%s visibility=%s price=%s image_id=%s children=%d',
                 $p->get_id(),
                 $this->truncate($p->get_name(), 40),
                 $p->get_type(),
@@ -137,11 +178,9 @@ class GFBF_Feed_Generator {
                 $p->get_catalog_visibility(),
                 var_export($p->get_price(), true),
                 var_export($p->get_image_id(), true),
-                count($p->get_children()),
-                $eligible ? 'yes' : 'NO'
+                count($p->get_children())
             );
-
-            if ($p->is_type('variable') && $include_variations) {
+            if ($p->is_type('variable')) {
                 $children = $p->get_children();
                 $first = !empty($children) ? wc_get_product($children[0]) : null;
                 if ($first) {
@@ -155,42 +194,6 @@ class GFBF_Feed_Generator {
                 }
             }
         }
-        $lines[] = '';
-
-        // Full run with reason counts.
-        foreach ($publish as $p) {
-            if (!$this->is_product_eligible($p, $exclude_cats)) {
-                $skip_reasons['not_eligible']++;
-                continue;
-            }
-            $targets = ($p->is_type('variable') && $include_variations)
-                ? array_filter(array_map('wc_get_product', $p->get_children()))
-                : [$p];
-            foreach ($targets as $t) {
-                $parent = ($p->is_type('variable') && $include_variations) ? $p : null;
-                if ($this->get_price($t) === null) {
-                    $skip_reasons['no_price']++;
-                    continue;
-                }
-                $image_id = $t->get_image_id();
-                if (!$image_id && $parent) {
-                    $image_id = $parent->get_image_id();
-                }
-                if (!$image_id || !wp_get_attachment_image_url($image_id, 'full')) {
-                    $skip_reasons['no_image']++;
-                    continue;
-                }
-                $skip_reasons['ok']++;
-            }
-        }
-
-        $lines[] = 'Row outcomes across first 100 published products:';
-        $lines[] = '  built OK        : ' . $skip_reasons['ok'];
-        $lines[] = '  skipped (no price): ' . $skip_reasons['no_price'];
-        $lines[] = '  skipped (no image): ' . $skip_reasons['no_image'];
-        $lines[] = '  product not eligible: ' . $skip_reasons['not_eligible'];
-        $lines[] = '';
-        $lines[] = 'collect_items() total => ' . count($this->collect_items()) . ' feed rows';
 
         return implode("\n", $lines);
     }
