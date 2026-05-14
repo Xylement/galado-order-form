@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Facebook Catalog Feed
  * Plugin URI: https://galado.com.my
  * Description: Generates a Meta-spec product feed from your WooCommerce catalog. The feed is built in the background (WP-Cron, in small time-boxed batches) and saved as a static file, so serving it can never slow down or overload the site. Point Facebook Commerce Manager's scheduled Data Feed at the feed URL.
- * Version: 2.0.0
+ * Version: 2.0.1
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GFBF_VERSION', '2.0.0');
+define('GFBF_VERSION', '2.0.1');
 define('GFBF_PATH', plugin_dir_path(__FILE__));
 define('GFBF_URL', plugin_dir_url(__FILE__));
 

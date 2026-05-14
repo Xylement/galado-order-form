@@ -166,8 +166,10 @@ class GFBF_Feed_Generator {
             return null; // Facebook requires a price.
         }
 
-        $sku = $product->get_sku();
-        $id  = $sku !== '' ? $sku : 'wc_' . $product->get_id();
+        // WooCommerce post IDs are always unique; SKUs are not — they can be
+        // blank, shared across variations, or genuinely duplicated, and a
+        // duplicate id makes Facebook reject the item. Always use the WC ID.
+        $id = 'wc_' . $product->get_id();
 
         // Title — for variations, append the variation attributes.
         if ($parent) {
