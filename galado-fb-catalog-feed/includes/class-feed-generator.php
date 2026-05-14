@@ -92,6 +92,110 @@ class GFBF_Feed_Generator {
     }
 
     /**
+     * Plain-text diagnostic — explains why the feed has the rows it does.
+     * Surfaced via ?galado_fb_feed=1&debug=1 for logged-in shop managers.
+     */
+    public function diagnose() {
+        $exclude_cats = isset($this->settings['exclude_cats']) && is_array($this->settings['exclude_cats'])
+            ? array_map('intval', $this->settings['exclude_cats'])
+            : [];
+        $include_variations = !empty($this->settings['include_variations']);
+
+        $lines = [];
+        $lines[] = '=== GALADO Facebook Catalog Feed — diagnostics ===';
+        $lines[] = 'include_variations: ' . ($include_variations ? 'yes' : 'no');
+        $lines[] = 'exclude_cats: ' . (empty($exclude_cats) ? 'none' : implode(',', $exclude_cats));
+        $lines[] = 'currency: ' . get_woocommerce_currency();
+        $lines[] = '';
+
+        $publish = wc_get_products([
+            'status'  => 'publish',
+            'limit'   => 100,
+            'page'    => 1,
+            'orderby' => 'ID',
+            'order'   => 'ASC',
+            'return'  => 'objects',
+        ]);
+        $lines[] = 'wc_get_products(status=publish, limit=100, page=1) => ' . count($publish) . ' products';
+
+        $any_ids = wc_get_products(['limit' => 10, 'return' => 'ids']);
+        $lines[] = 'wc_get_products(limit=10, any status) => ' . count($any_ids)
+            . ' ids: ' . implode(', ', array_map('strval', $any_ids));
+        $lines[] = '';
+
+        // Per-product breakdown for the first handful.
+        $skip_reasons = ['not_eligible' => 0, 'no_price' => 0, 'no_image' => 0, 'ok' => 0];
+        $sample = array_slice($publish, 0, 10);
+        foreach ($sample as $p) {
+            $eligible = $this->is_product_eligible($p, $exclude_cats);
+            $lines[] = sprintf(
+                '#%d "%s" | type=%s status=%s visibility=%s price=%s image_id=%s children=%d eligible=%s',
+                $p->get_id(),
+                $this->truncate($p->get_name(), 40),
+                $p->get_type(),
+                $p->get_status(),
+                $p->get_catalog_visibility(),
+                var_export($p->get_price(), true),
+                var_export($p->get_image_id(), true),
+                count($p->get_children()),
+                $eligible ? 'yes' : 'NO'
+            );
+
+            if ($p->is_type('variable') && $include_variations) {
+                $children = $p->get_children();
+                $first = !empty($children) ? wc_get_product($children[0]) : null;
+                if ($first) {
+                    $lines[] = sprintf(
+                        '    first variation #%d price=%s own_image_id=%s parent_image_id=%s',
+                        $first->get_id(),
+                        var_export($first->get_price(), true),
+                        var_export($first->get_image_id(), true),
+                        var_export($p->get_image_id(), true)
+                    );
+                }
+            }
+        }
+        $lines[] = '';
+
+        // Full run with reason counts.
+        foreach ($publish as $p) {
+            if (!$this->is_product_eligible($p, $exclude_cats)) {
+                $skip_reasons['not_eligible']++;
+                continue;
+            }
+            $targets = ($p->is_type('variable') && $include_variations)
+                ? array_filter(array_map('wc_get_product', $p->get_children()))
+                : [$p];
+            foreach ($targets as $t) {
+                $parent = ($p->is_type('variable') && $include_variations) ? $p : null;
+                if ($this->get_price($t) === null) {
+                    $skip_reasons['no_price']++;
+                    continue;
+                }
+                $image_id = $t->get_image_id();
+                if (!$image_id && $parent) {
+                    $image_id = $parent->get_image_id();
+                }
+                if (!$image_id || !wp_get_attachment_image_url($image_id, 'full')) {
+                    $skip_reasons['no_image']++;
+                    continue;
+                }
+                $skip_reasons['ok']++;
+            }
+        }
+
+        $lines[] = 'Row outcomes across first 100 published products:';
+        $lines[] = '  built OK        : ' . $skip_reasons['ok'];
+        $lines[] = '  skipped (no price): ' . $skip_reasons['no_price'];
+        $lines[] = '  skipped (no image): ' . $skip_reasons['no_image'];
+        $lines[] = '  product not eligible: ' . $skip_reasons['not_eligible'];
+        $lines[] = '';
+        $lines[] = 'collect_items() total => ' . count($this->collect_items()) . ' feed rows';
+
+        return implode("\n", $lines);
+    }
+
+    /**
      * Collect every feed row.
      *
      * @return array<int, array<string, mixed>>

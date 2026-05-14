@@ -24,6 +24,18 @@ add_action('init', function () {
         exit;
     }
 
+    // Admin-only diagnostic — explains why the feed has the rows it does.
+    if (isset($_GET['debug']) && current_user_can('manage_woocommerce')) {
+        if (!class_exists('GFBF_Feed_Generator')) {
+            require_once GFBF_PATH . 'includes/class-feed-generator.php';
+        }
+        $generator = new GFBF_Feed_Generator($settings);
+        nocache_headers();
+        header('Content-Type: text/plain; charset=utf-8');
+        echo $generator->diagnose();
+        exit;
+    }
+
     $format = isset($_GET['format']) ? sanitize_key((string) $_GET['format']) : ($settings['format'] ?? 'xml');
     if (!in_array($format, ['xml', 'csv'], true)) {
         $format = 'xml';
