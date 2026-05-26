@@ -4,7 +4,8 @@
     if (typeof galadoFonts === 'undefined') return;
 
     $(document).ready(function () {
-        var fonts = galadoFonts.fonts;
+        var fonts        = galadoFonts.fonts || [];
+        var defaultFont  = galadoFonts.defaultFont || '';
         var selectedFont = '';
 
         var $enable    = $('#galado-fp-enable');
@@ -55,6 +56,14 @@
             if (!text || !text.trim()) {
                 $grid.html('<div class="galado-fp-placeholder">Type your text above to see font previews</div>');
                 return;
+            }
+
+            // Preselect the default font the first time the grid renders.
+            if (!selectedFont && defaultFont && fonts.indexOf(defaultFont) !== -1) {
+                selectedFont = defaultFont;
+                $hidden.val(selectedFont);
+                $badgeName.text(selectedFont);
+                $badge.css('display', 'block');
             }
 
             var color = getFontColor();

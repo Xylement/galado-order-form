@@ -2,7 +2,7 @@
 /**
  * Plugin Name: GALADO Font Preview
  * Description: Adds a live font preview selector to selected WooCommerce products. Customers type their name, see it in custom fonts, and tap to select.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: GALADO
  * Requires Plugins: woocommerce
  * Text Domain: galado-font-preview
@@ -11,6 +11,9 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 class Galado_Font_Preview {
+
+    /** Site-wide fallback when no per-product default is configured. */
+    const DEFAULT_FONT = 'Gotcha';
 
     private $fonts = array(
         'Rustling Sound'    => 'Rustling Sound.ttf',
@@ -65,7 +68,15 @@ class Galado_Font_Preview {
     }
 
     public function render_meta_box( $post ) {
-        $enabled = get_post_meta( $post->ID, '_galado_font_preview_enabled', true );
+        $enabled      = get_post_meta( $post->ID, '_galado_font_preview_enabled', true );
+        $allowed      = get_post_meta( $post->ID, '_galado_font_preview_allowed_fonts', true );
+        $default_font = get_post_meta( $post->ID, '_galado_font_preview_default_font', true );
+
+        if ( ! is_array( $allowed ) ) $allowed = array();
+        if ( $default_font === '' || ! isset( $this->fonts[ $default_font ] ) ) {
+            $default_font = self::DEFAULT_FONT;
+        }
+
         wp_nonce_field( 'galado_font_preview_nonce', 'galado_font_preview_nonce_field' );
         ?>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 0;">
@@ -75,6 +86,31 @@ class Galado_Font_Preview {
         <p style="margin:8px 0 0;color:#666;font-size:12px;">
             When enabled, customers can type their name and select a font style before adding to cart.
         </p>
+
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid #eee;">
+            <p style="margin:0 0 6px;font-weight:600;font-size:12px;">Allowed Fonts</p>
+            <p style="margin:0 0 8px;color:#666;font-size:11px;line-height:1.4;">
+                Leave all unchecked to allow every font (default). Tick to restrict customers to a specific subset.
+            </p>
+            <?php foreach ( $this->fonts as $name => $file ) : ?>
+                <label style="display:block;padding:2px 0;font-size:12px;cursor:pointer;">
+                    <input type="checkbox" name="_galado_font_preview_allowed_fonts[]" value="<?php echo esc_attr( $name ); ?>" <?php checked( in_array( $name, $allowed, true ) ); ?>>
+                    <?php echo esc_html( $name ); ?>
+                </label>
+            <?php endforeach; ?>
+        </div>
+
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid #eee;">
+            <label style="display:block;font-weight:600;font-size:12px;margin-bottom:4px;">Default Font</label>
+            <select name="_galado_font_preview_default_font" style="width:100%;">
+                <?php foreach ( $this->fonts as $name => $file ) : ?>
+                    <option value="<?php echo esc_attr( $name ); ?>" <?php selected( $default_font, $name ); ?>><?php echo esc_html( $name ); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <p style="margin:6px 0 0;color:#666;font-size:11px;line-height:1.4;">
+                Preselected when the customer opens the personalisation panel. Falls back to <strong><?php echo esc_html( self::DEFAULT_FONT ); ?></strong> if not in the allowed list.
+            </p>
+        </div>
         <?php
     }
 
@@ -83,8 +119,24 @@ class Galado_Font_Preview {
              ! wp_verify_nonce( $_POST['galado_font_preview_nonce_field'], 'galado_font_preview_nonce' ) ) {
             return;
         }
+
         $enabled = isset( $_POST['_galado_font_preview_enabled'] ) ? 'yes' : 'no';
         update_post_meta( $post_id, '_galado_font_preview_enabled', $enabled );
+
+        // Allowed fonts — intersect with the known list so nothing unexpected sneaks in.
+        $known       = array_keys( $this->fonts );
+        $posted_list = isset( $_POST['_galado_font_preview_allowed_fonts'] ) && is_array( $_POST['_galado_font_preview_allowed_fonts'] )
+            ? array_map( 'sanitize_text_field', wp_unslash( $_POST['_galado_font_preview_allowed_fonts'] ) )
+            : array();
+        $allowed = array_values( array_intersect( $known, $posted_list ) );
+        update_post_meta( $post_id, '_galado_font_preview_allowed_fonts', $allowed );
+
+        // Default font — must be a known font, else fall back to the global default.
+        $posted_default = isset( $_POST['_galado_font_preview_default_font'] )
+            ? sanitize_text_field( wp_unslash( $_POST['_galado_font_preview_default_font'] ) )
+            : '';
+        $default = in_array( $posted_default, $known, true ) ? $posted_default : self::DEFAULT_FONT;
+        update_post_meta( $post_id, '_galado_font_preview_default_font', $default );
     }
 
     /**
@@ -107,23 +159,47 @@ class Galado_Font_Preview {
         global $product;
         if ( ! $this->is_enabled( $product ? $product->get_id() : 0 ) ) return;
 
+        $product_id = $product ? $product->get_id() : 0;
+
+        // Resolve the per-product font list. Empty saved list = "all fonts".
+        $saved_allowed = get_post_meta( $product_id, '_galado_font_preview_allowed_fonts', true );
+        if ( ! is_array( $saved_allowed ) || empty( $saved_allowed ) ) {
+            $font_names = array_keys( $this->fonts );
+        } else {
+            $font_names = array_values( array_intersect( array_keys( $this->fonts ), $saved_allowed ) );
+            // Saved list orphaned (e.g. a font was renamed) — fall back to all.
+            if ( empty( $font_names ) ) {
+                $font_names = array_keys( $this->fonts );
+            }
+        }
+
+        // Resolve the per-product default font; gracefully degrade if it isn't allowed.
+        $default_font = get_post_meta( $product_id, '_galado_font_preview_default_font', true );
+        if ( ! in_array( $default_font, $font_names, true ) ) {
+            $default_font = in_array( self::DEFAULT_FONT, $font_names, true )
+                ? self::DEFAULT_FONT
+                : ( $font_names[0] ?? '' );
+        }
+
         $plugin_url = plugin_dir_url( __FILE__ );
 
-        // Register custom font faces via inline CSS
+        // Only register @font-face for fonts actually offered on this product.
         $font_css = '';
-        foreach ( $this->fonts as $name => $file ) {
+        foreach ( $font_names as $name ) {
+            if ( ! isset( $this->fonts[ $name ] ) ) continue;
+            $file   = $this->fonts[ $name ];
             $url    = $plugin_url . 'fonts/' . rawurlencode( $file );
             $format = str_ends_with( $file, '.otf' ) ? 'opentype' : 'truetype';
             $font_css .= "@font-face { font-family: '{$name}'; src: url('{$url}') format('{$format}'); font-display: swap; }\n";
         }
 
-        wp_enqueue_style( 'galado-font-preview', $plugin_url . 'style.css', array(), '1.0.0' );
+        wp_enqueue_style( 'galado-font-preview', $plugin_url . 'style.css', array(), '1.1.0' );
         wp_add_inline_style( 'galado-font-preview', $font_css );
-        wp_enqueue_script( 'galado-font-preview', $plugin_url . 'script.js', array( 'jquery' ), '1.0.0', true );
+        wp_enqueue_script( 'galado-font-preview', $plugin_url . 'script.js', array( 'jquery' ), '1.1.0', true );
 
-        // Pass font list to JS
         wp_localize_script( 'galado-font-preview', 'galadoFonts', array(
-            'fonts' => array_keys( $this->fonts ),
+            'fonts'       => $font_names,
+            'defaultFont' => $default_font,
         ) );
     }
 
