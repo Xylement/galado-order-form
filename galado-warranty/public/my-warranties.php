@@ -19,12 +19,23 @@ add_shortcode('galado_warranty_list', function () {
 });
 
 // --- WC My Account endpoint --------------------------------------------------
+//
+// Endpoint registration runs once per request on `init` (the conventional
+// hook). Rewrite-rule flushing is handled by the activation hook in the
+// main plugin file — we never flush during normal request lifecycles, since
+// flushing fires every other plugin's rewrite_rules_array callbacks and
+// makes our plugin a blame magnet for unrelated bugs.
 
 add_action('init', function () {
-    add_rewrite_endpoint('warranties', EP_ROOT | EP_PAGES);
+    if (function_exists('add_rewrite_endpoint')) {
+        add_rewrite_endpoint('warranties', EP_ROOT | EP_PAGES);
+    }
 });
 
 add_filter('woocommerce_account_menu_items', function ($items) {
+    if (!is_array($items)) {
+        return $items;
+    }
     // Insert before "Logout" so it doesn't bury the link.
     $new = [];
     foreach ($items as $key => $label) {
@@ -40,20 +51,10 @@ add_filter('woocommerce_account_menu_items', function ($items) {
 });
 
 add_action('woocommerce_account_warranties_endpoint', function () {
-    gwarr_render_my_warranties();
-});
-
-/**
- * Activate the new endpoint's rewrite rules once after install — without this,
- * the /my-account/warranties/ URL 404s until permalinks are saved manually.
- */
-add_action('plugins_loaded', function () {
-    if (get_option('gwarr_endpoint_flushed') !== '1') {
-        add_rewrite_endpoint('warranties', EP_ROOT | EP_PAGES);
-        flush_rewrite_rules(false);
-        update_option('gwarr_endpoint_flushed', '1');
+    if (function_exists('gwarr_render_my_warranties')) {
+        gwarr_render_my_warranties();
     }
-}, 30);
+});
 
 // --- Renderer ----------------------------------------------------------------
 

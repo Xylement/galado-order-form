@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.0.0');
+define('GWARR_VERSION', '1.0.1');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -51,31 +51,44 @@ add_action('plugins_loaded', function () {
     }
 
     // git-sync deploys skip the activation hook — make sure the DB table
-    // exists regardless of how the plugin arrived.
+    // exists regardless of how the plugin arrived. Failures are logged but
+    // never bubble up: a missing table affects warranty features only, not
+    // the rest of the site.
     if (get_option('gwarr_db_version') !== GWARR_VERSION) {
-        gwarr_install_table();
-        update_option('gwarr_db_version', GWARR_VERSION);
+        try {
+            gwarr_install_table();
+            update_option('gwarr_db_version', GWARR_VERSION);
+        } catch (Throwable $e) {
+            error_log('[galado-warranty] install_table failed: ' . $e->getMessage());
+        }
     }
 
-    require_once GWARR_PATH . 'includes/class-warranty-db.php';
-    require_once GWARR_PATH . 'includes/class-warranty-marketplaces.php';
-    require_once GWARR_PATH . 'includes/class-warranty-coupon.php';
-    require_once GWARR_PATH . 'includes/class-warranty-email.php';
-    require_once GWARR_PATH . 'includes/class-warranty-klaviyo.php';
-    require_once GWARR_PATH . 'includes/class-warranty-approval.php';
-    require_once GWARR_PATH . 'public/register-shortcode.php';
-    require_once GWARR_PATH . 'public/my-warranties.php';
+    // Loading each module under try/catch keeps a problem in one file from
+    // taking the whole site down — worst case, the warranty UI doesn't render
+    // but other plugins continue working.
+    try {
+        require_once GWARR_PATH . 'includes/class-warranty-db.php';
+        require_once GWARR_PATH . 'includes/class-warranty-marketplaces.php';
+        require_once GWARR_PATH . 'includes/class-warranty-coupon.php';
+        require_once GWARR_PATH . 'includes/class-warranty-email.php';
+        require_once GWARR_PATH . 'includes/class-warranty-klaviyo.php';
+        require_once GWARR_PATH . 'includes/class-warranty-approval.php';
+        require_once GWARR_PATH . 'public/register-shortcode.php';
+        require_once GWARR_PATH . 'public/my-warranties.php';
 
-    if (is_admin()) {
-        require_once GWARR_PATH . 'admin/list-table.php';
-        require_once GWARR_PATH . 'admin/settings-page.php';
+        if (is_admin()) {
+            require_once GWARR_PATH . 'admin/list-table.php';
+            require_once GWARR_PATH . 'admin/settings-page.php';
+        }
+    } catch (Throwable $e) {
+        error_log('[galado-warranty] module load failed: ' . $e->getMessage());
     }
 }, 20);
 
 // Frontend assets — only on pages that actually contain a shortcode or My Account.
 add_action('wp_enqueue_scripts', function () {
     global $post;
-    $needs_assets = is_account_page();
+    $needs_assets = function_exists('is_account_page') && is_account_page();
     if (!$needs_assets && $post instanceof WP_Post) {
         $needs_assets = has_shortcode($post->post_content, 'galado_warranty_register')
             || has_shortcode($post->post_content, 'galado_warranty_list');
@@ -170,9 +183,22 @@ function gwarr_install_table() {
 }
 
 register_activation_hook(__FILE__, function () {
-    gwarr_install_table();
-    update_option('gwarr_db_version', GWARR_VERSION);
-    if (get_option('gwarr_settings') === false) {
-        update_option('gwarr_settings', gwarr_default_settings());
+    try {
+        gwarr_install_table();
+        update_option('gwarr_db_version', GWARR_VERSION);
+        if (get_option('gwarr_settings') === false) {
+            update_option('gwarr_settings', gwarr_default_settings());
+        }
+        // Register the My Account endpoint and flush rewrite rules once,
+        // here in activation only. Doing this every request fires every
+        // other plugin's rewrite_rules_array callbacks and is unsafe.
+        if (function_exists('add_rewrite_endpoint')) {
+            add_rewrite_endpoint('warranties', EP_ROOT | EP_PAGES);
+        }
+        if (function_exists('flush_rewrite_rules')) {
+            flush_rewrite_rules(false);
+        }
+    } catch (Throwable $e) {
+        error_log('[galado-warranty] activation failed: ' . $e->getMessage());
     }
 });
