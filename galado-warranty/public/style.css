@@ -1,0 +1,194 @@
+/* GALADO Warranty — public styles */
+
+.gwarr-card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 680px;
+    margin: 24px 0;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+
+.gwarr-card-login { text-align: center; }
+
+.gwarr-card h3 {
+    margin-top: 0;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+}
+
+.gwarr-lede {
+    color: #444;
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 4px 0 20px;
+}
+
+.gwarr-form { display: grid; gap: 16px; }
+
+.gwarr-row { display: grid; gap: 16px; }
+@media (min-width: 640px) {
+    .gwarr-row-2 { grid-template-columns: 1fr 1fr; }
+}
+
+.gwarr-field { display: block; }
+.gwarr-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 6px;
+}
+.gwarr-optional { color: #888; font-weight: 400; font-size: 12px; }
+
+.gwarr-field input[type=text],
+.gwarr-field input[type=email],
+.gwarr-field select,
+.gwarr-field textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d4d4d4;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+}
+.gwarr-field input:focus,
+.gwarr-field select:focus,
+.gwarr-field textarea:focus {
+    outline: none;
+    border-color: #1a1a1a;
+    box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+}
+
+.gwarr-help { display: block; font-size: 12px; color: #777; margin-top: 4px; }
+
+.gwarr-consent {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 12px;
+    background: #fafafa;
+    border-radius: 8px;
+}
+.gwarr-consent input { margin-top: 3px; }
+
+.gwarr-actions { display: flex; gap: 14px; align-items: center; margin: 4px 0 0; }
+.gwarr-btn {
+    background: #1a1a1a !important;
+    color: #fff !important;
+    border: none !important;
+    padding: 12px 22px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    cursor: pointer;
+    text-decoration: none !important;
+}
+.gwarr-btn:hover { background: #000 !important; }
+.gwarr-link { font-size: 13px; color: #666; }
+
+.gwarr-fineprint { font-size: 12px; color: #888; line-height: 1.5; }
+
+.gwarr-notice {
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 0 0 18px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+.gwarr-notice-success { background: #e6f4ea; border: 1px solid #b6d8c2; color: #1b5e20; }
+.gwarr-notice-error   { background: #fdeded; border: 1px solid #f3c8c8; color: #8a1f1f; }
+
+/* My Warranties list */
+
+.gwarr-my-list { display: grid; gap: 14px; }
+
+.gwarr-warranty-card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    padding: 16px 20px;
+}
+
+.gwarr-warranty-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    align-items: center;
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.gwarr-marketplace { font-weight: 600; color: #1a1a1a; }
+.gwarr-order { font-family: monospace; }
+
+.gwarr-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+.gwarr-badge-ok      { background: #00a32a; color: #fff; }
+.gwarr-badge-run,
+.gwarr-badge-pending { background: #dba617; color: #fff; }
+.gwarr-badge-err,
+.gwarr-badge-rejected{ background: #d63638; color: #fff; }
+.gwarr-badge-expired { background: #b0b0b0; color: #fff; }
+
+.gwarr-product { margin: 6px 0 14px; font-size: 16px; }
+
+.gwarr-meta {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 16px;
+    font-size: 13px;
+    margin: 0 0 14px;
+}
+.gwarr-meta dt { color: #777; }
+.gwarr-meta dd { margin: 0; }
+
+.gwarr-coupon {
+    background: #fff8e7;
+    border: 1px dashed #d6b656;
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+}
+.gwarr-coupon-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #876d2e;
+    margin-bottom: 4px;
+}
+.gwarr-coupon-code {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: monospace;
+    color: #1a1a1a;
+    display: inline-block;
+    padding: 4px 8px;
+    background: #fff;
+    border-radius: 4px;
+}
+.gwarr-coupon-help { font-size: 12px; color: #876d2e; margin: 8px 0 0; }
+
+.gwarr-pending-msg,
+.gwarr-rejected-msg { font-size: 13px; color: #555; margin: 0; }
+
+.gwarr-empty {
+    text-align: center;
+    padding: 32px 16px;
+    border: 1px dashed #ddd;
+    border-radius: 10px;
+    color: #666;
+}

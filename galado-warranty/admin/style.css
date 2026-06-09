@@ -1,0 +1,78 @@
+/* GALADO Warranty — admin styles */
+
+.gwarr-admin .gwarr-filters {
+    margin: 14px 0;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.gwarr-admin .gwarr-filters select,
+.gwarr-admin .gwarr-filters input[type=search] {
+    padding: 4px 8px;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.gwarr-table code {
+    background: #f0f0f1;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.gwarr-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    padding: 2px 7px;
+    border-radius: 3px;
+    color: #fff;
+}
+.gwarr-badge-pending  { background: #dba617; }
+.gwarr-badge-approved { background: #00a32a; }
+.gwarr-badge-rejected { background: #d63638; }
+.gwarr-badge-expired  { background: #8c8f94; }
+
+.gwarr-row-actions summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 4px 10px;
+    font-size: 12px;
+}
+.gwarr-row-actions[open] summary { background: #f0f0f1; }
+
+.gwarr-action-panel {
+    margin-top: 8px;
+    padding: 12px;
+    background: #f6f7f7;
+    border-radius: 6px;
+    display: grid;
+    gap: 12px;
+}
+
+.gwarr-action-panel label {
+    font-size: 12px;
+    font-weight: 600;
+    display: block;
+}
+.gwarr-action-panel input[type=text],
+.gwarr-action-panel input[type=date] {
+    width: 100%;
+    padding: 5px 8px;
+    margin-top: 3px;
+    font-weight: 400;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+}
+
+.gwarr-action-panel form {
+    background: #fff;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.gwarr-action-panel p { margin: 8px 0 0; }
