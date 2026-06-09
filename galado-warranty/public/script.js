@@ -8,6 +8,23 @@
             this.value = this.value.trim();
         });
 
+        // Swap the order-number placeholder to match the selected marketplace —
+        // each marketplace has a distinct ID shape, so a shared placeholder
+        // would mislead the customer.
+        var $marketplace = $('.gwarr-form select[name="marketplace"]');
+        var $orderInput  = $('.gwarr-form input[name="order_number"]');
+        if ($marketplace.length && $orderInput.length) {
+            var updateOrderPlaceholder = function () {
+                var example = $marketplace.find(':selected').attr('data-example');
+                $orderInput.attr(
+                    'placeholder',
+                    example ? 'e.g. ' + example : 'Order number'
+                );
+            };
+            $marketplace.on('change', updateOrderPlaceholder);
+            updateOrderPlaceholder();
+        }
+
         // Copy-coupon-to-clipboard convenience on the My Warranties view.
         $(document).on('click', '.gwarr-coupon-code', function () {
             var code = $(this).text().trim();

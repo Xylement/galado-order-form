@@ -23,8 +23,12 @@ class GWARR_Email {
             ? 'Your warranty registration is confirmed (plus a welcome coupon)'
             : "Your warranty is extended to {$months} months — and here's your welcome gift";
 
+        $product_phrase = !empty($row->product_text)
+            ? '<strong>' . esc_html($row->product_text) . '</strong> '
+            : 'your purchase ';
+
         $body  = '<p>Hi ' . esc_html($user->display_name ?: $user->user_login) . ',</p>';
-        $body .= '<p>Thanks for registering your <strong>' . esc_html($row->product_text) . '</strong> ('
+        $body .= '<p>Thanks for registering ' . $product_phrase . '('
               . esc_html(GWARR_Marketplaces::label($row->marketplace)) . ' order '
               . esc_html($row->order_number) . ').</p>';
 
@@ -57,8 +61,12 @@ class GWARR_Email {
 
         $subject = 'About your warranty registration';
 
+        $product_phrase = !empty($row->product_text)
+            ? 'for <strong>' . esc_html($row->product_text) . '</strong>'
+            : '(' . esc_html(GWARR_Marketplaces::label($row->marketplace)) . ' order ' . esc_html($row->order_number) . ')';
+
         $body  = '<p>Hi ' . esc_html($user->display_name ?: $user->user_login) . ',</p>';
-        $body .= '<p>Thanks for registering your warranty for <strong>' . esc_html($row->product_text) . '</strong>.</p>';
+        $body .= '<p>Thanks for registering your warranty ' . $product_phrase . '.</p>';
         $body .= '<p>Unfortunately we couldn\'t verify this order against our records.';
         if (!empty($row->admin_note)) {
             $body .= '<br><em>' . esc_html($row->admin_note) . '</em>';
@@ -83,7 +91,9 @@ class GWARR_Email {
         $body .= '<li><strong>Customer:</strong> ' . esc_html($user ? $user->display_name : 'unknown') . ' (' . esc_html($user ? $user->user_email : '—') . ')</li>';
         $body .= '<li><strong>Marketplace:</strong> ' . esc_html(GWARR_Marketplaces::label($row->marketplace)) . '</li>';
         $body .= '<li><strong>Order number:</strong> ' . esc_html($row->order_number) . '</li>';
-        $body .= '<li><strong>Product:</strong> ' . esc_html($row->product_text) . '</li>';
+        if (!empty($row->product_text)) {
+            $body .= '<li><strong>Product:</strong> ' . esc_html($row->product_text) . '</li>';
+        }
         $body .= '</ul>';
         $body .= '<p><a href="' . esc_url(admin_url('admin.php?page=galado-warranty&view=' . (int) $row->id)) . '">Review in admin →</a></p>';
 

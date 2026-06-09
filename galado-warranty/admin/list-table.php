@@ -143,7 +143,11 @@ function gwarr_render_admin_row($row) {
         <td><?php echo esc_html(GWARR_Marketplaces::label($row->marketplace)); ?></td>
         <td><code><?php echo esc_html($row->order_number); ?></code></td>
         <td>
-            <?php echo esc_html($row->product_text); ?>
+            <?php if (!empty($row->product_text)): ?>
+                <?php echo esc_html($row->product_text); ?>
+            <?php else: ?>
+                <span style="color:#999;">—</span>
+            <?php endif; ?>
             <?php if (!empty($row->notes)): ?>
                 <br><small><em><?php echo esc_html($row->notes); ?></em></small>
             <?php endif; ?>

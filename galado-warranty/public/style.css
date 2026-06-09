@@ -52,7 +52,24 @@
     border-radius: 8px;
     font-size: 14px;
     font-family: inherit;
+    line-height: 1.5;
     box-sizing: border-box;
+}
+
+/* The native <select> renders with a tighter intrinsic line-height than
+   <input>, which clips descenders ("p", "g") at the bottom — pad it out
+   and force a min-height so it matches the inputs visually. */
+.gwarr-field select {
+    padding: 12px 36px 12px 12px;
+    min-height: 48px;
+    line-height: 1.5;
+    appearance: none;
+    -webkit-appearance: none;
+    background-color: #fff;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23555' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 12px 8px;
 }
 .gwarr-field input:focus,
 .gwarr-field select:focus,

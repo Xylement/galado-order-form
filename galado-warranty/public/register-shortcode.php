@@ -63,13 +63,24 @@ function gwarr_render_register_form($atts = []) {
         <form method="post" class="gwarr-form" novalidate>
             <?php wp_nonce_field('gwarr_register', 'gwarr_nonce'); ?>
 
+            <?php
+            // Initial placeholder reflects the saved selection so the field is
+            // helpful even before JS attaches; the switcher in script.js keeps
+            // it in sync as the customer changes marketplace.
+            $initial_example = $form_values['marketplace']
+                ? GWARR_Marketplaces::order_example($form_values['marketplace'])
+                : 'e.g. 260609KXBRPS2K';
+            $initial_placeholder = $initial_example !== '' ? 'e.g. ' . $initial_example : 'Order number';
+            ?>
             <div class="gwarr-row gwarr-row-2">
                 <label class="gwarr-field">
                     <span class="gwarr-label">Where did you buy from?</span>
                     <select name="marketplace" required>
                         <option value="">— Select marketplace —</option>
                         <?php foreach ($marketplaces as $slug => $label): ?>
-                            <option value="<?php echo esc_attr($slug); ?>" <?php selected($form_values['marketplace'], $slug); ?>>
+                            <option value="<?php echo esc_attr($slug); ?>"
+                                    data-example="<?php echo esc_attr(GWARR_Marketplaces::order_example($slug)); ?>"
+                                    <?php selected($form_values['marketplace'], $slug); ?>>
                                 <?php echo esc_html($label); ?>
                             </option>
                         <?php endforeach; ?>
@@ -80,17 +91,9 @@ function gwarr_render_register_form($atts = []) {
                     <span class="gwarr-label">Order number</span>
                     <input type="text" name="order_number" maxlength="64"
                            value="<?php echo esc_attr($form_values['order_number']); ?>"
-                           placeholder="e.g. 250612ABCDEFG" required>
+                           placeholder="<?php echo esc_attr($initial_placeholder); ?>" required>
                 </label>
             </div>
-
-            <label class="gwarr-field">
-                <span class="gwarr-label">Product you purchased</span>
-                <input type="text" name="product_text" maxlength="255"
-                       value="<?php echo esc_attr($form_values['product_text']); ?>"
-                       placeholder="e.g. ImpactPro iPhone 15 Pro Max — Black" required>
-                <span class="gwarr-help">Type the product name as it appears on your order. Don't worry about being exact.</span>
-            </label>
 
             <label class="gwarr-field">
                 <span class="gwarr-label">Anything we should know? <span class="gwarr-optional">(optional)</span></span>
@@ -125,7 +128,6 @@ function gwarr_form_repost_values() {
     $values = [
         'marketplace'  => '',
         'order_number' => '',
-        'product_text' => '',
         'notes'        => '',
     ];
     foreach ($values as $key => $_) {
@@ -146,7 +148,6 @@ function gwarr_handle_form_submission() {
 
     $marketplace = isset($_POST['marketplace']) ? sanitize_key(wp_unslash($_POST['marketplace'])) : '';
     $order       = isset($_POST['order_number']) ? trim(sanitize_text_field(wp_unslash($_POST['order_number']))) : '';
-    $product     = isset($_POST['product_text']) ? trim(sanitize_text_field(wp_unslash($_POST['product_text']))) : '';
     $notes       = isset($_POST['notes']) ? trim(sanitize_textarea_field(wp_unslash($_POST['notes']))) : '';
     $consent     = !empty($_POST['marketing_consent']);
 
@@ -160,18 +161,17 @@ function gwarr_handle_form_submission() {
     } elseif (strlen($order) > 64) {
         $errors[] = 'Order number is too long.';
     }
-    if ($product === '') {
-        $errors[] = 'Please tell us which product you bought.';
-    }
     if (!empty($errors)) {
         return gwarr_notice('error', implode('<br>', array_map('esc_html', $errors)));
     }
 
+    // product_text stays in the schema (Phase 2 fills it from the sheet)
+    // — we just don't ask the customer for it.
     $id = GWARR_DB::insert([
         'user_id'           => get_current_user_id(),
         'marketplace'       => $marketplace,
         'order_number'      => $order,
-        'product_text'      => $product,
+        'product_text'      => '',
         'notes'             => $notes,
         'marketing_consent' => $consent ? 1 : 0,
         'status'            => 'pending',
