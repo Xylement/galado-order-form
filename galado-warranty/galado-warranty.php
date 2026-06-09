@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.0.3
+ * Version: 1.1.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.0.3');
+define('GWARR_VERSION', '1.1.0');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -25,16 +25,19 @@ define('GWARR_TABLE', 'galado_warranties');
  */
 function gwarr_default_settings() {
     return [
-        'klaviyo_api_key'     => '',
-        'klaviyo_list_id'     => '',
-        'klaviyo_event_name'  => 'Warranty Approved',
-        'coupon_amount'       => 10,           // percent
-        'coupon_min_spend'    => 0,
-        'coupon_expiry_days'  => 90,
-        'warranty_months'     => 6,
-        'from_name'           => 'GALADO',
-        'from_email'          => '',           // falls back to site admin email
-        'page_register_url'   => '',           // optional override for "register here" CTA
+        'klaviyo_api_key'      => '',
+        'klaviyo_list_id'      => '',
+        'klaviyo_event_name'   => 'Warranty Approved',
+        'coupon_amount'        => 10,           // percent
+        'coupon_min_spend'     => 0,
+        'coupon_expiry_days'   => 90,
+        'warranty_months'      => 6,
+        'from_name'            => 'GALADO',
+        'from_email'           => '',           // falls back to site admin email
+        'page_register_url'    => '',           // optional override for "register here" CTA
+        'sheet_id'             => '',           // Google Sheet ID for auto-approve
+        'service_account_json' => '',           // paste-in fallback when no wp-config constant
+        'auto_approve'         => 1,            // master toggle
     ];
 }
 
@@ -73,6 +76,9 @@ add_action('plugins_loaded', function () {
         require_once GWARR_PATH . 'includes/class-warranty-email.php';
         require_once GWARR_PATH . 'includes/class-warranty-klaviyo.php';
         require_once GWARR_PATH . 'includes/class-warranty-approval.php';
+        require_once GWARR_PATH . 'includes/class-warranty-sheet-api.php';
+        require_once GWARR_PATH . 'includes/class-warranty-sheet-sync.php';
+        require_once GWARR_PATH . 'includes/class-warranty-auto-approve.php';
         require_once GWARR_PATH . 'public/register-shortcode.php';
         require_once GWARR_PATH . 'public/my-warranties.php';
 
@@ -80,6 +86,11 @@ add_action('plugins_loaded', function () {
             require_once GWARR_PATH . 'admin/list-table.php';
             require_once GWARR_PATH . 'admin/settings-page.php';
         }
+
+        // Background sheet sync — hourly. Cron hook is registered here so
+        // even git-sync deploys (which skip activation) keep the sync alive.
+        add_action(GWARR_Sheet_Sync::CRON_HOOK, ['GWARR_Sheet_Sync', 'run']);
+        GWARR_Sheet_Sync::ensure_scheduled();
     } catch (Throwable $e) {
         error_log('[galado-warranty] module load failed: ' . $e->getMessage());
     }
@@ -154,7 +165,7 @@ function gwarr_install_table() {
     $table   = $wpdb->prefix . GWARR_TABLE;
     $charset = $wpdb->get_charset_collate();
 
-    $sql = "CREATE TABLE {$table} (
+    $sql_main = "CREATE TABLE {$table} (
         id BIGINT UNSIGNED AUTO_INCREMENT,
         user_id BIGINT UNSIGNED NOT NULL,
         marketplace VARCHAR(32) NOT NULL,
@@ -178,8 +189,28 @@ function gwarr_install_table() {
         KEY idx_created (created_at)
     ) {$charset};";
 
+    // Local cache of the Numeris sheet — fed by WP-Cron in the background,
+    // queried by the form-submit auto-approve path. Keeping it as a flat
+    // table means lookups are a primary-key hit, not a Google API round-trip.
+    $cache_table = $wpdb->prefix . 'galado_warranty_sheet_cache';
+    $sql_cache = "CREATE TABLE {$cache_table} (
+        id BIGINT UNSIGNED AUTO_INCREMENT,
+        marketplace VARCHAR(32) NOT NULL,
+        order_number VARCHAR(64) NOT NULL,
+        product_name VARCHAR(255) NOT NULL DEFAULT '',
+        purchase_date DATE NULL,
+        raw_marketplace VARCHAR(64) NOT NULL DEFAULT '',
+        sheet_tab VARCHAR(64) NOT NULL DEFAULT '',
+        raw_row INT NOT NULL DEFAULT 0,
+        synced_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id),
+        UNIQUE KEY uniq_cache_order (marketplace, order_number),
+        KEY idx_synced (synced_at)
+    ) {$charset};";
+
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
-    dbDelta($sql);
+    dbDelta($sql_main);
+    dbDelta($sql_cache);
 }
 
 register_activation_hook(__FILE__, function () {
@@ -200,5 +231,15 @@ register_activation_hook(__FILE__, function () {
         }
     } catch (Throwable $e) {
         error_log('[galado-warranty] activation failed: ' . $e->getMessage());
+    }
+});
+
+register_deactivation_hook(__FILE__, function () {
+    if (class_exists('GWARR_Sheet_Sync')) {
+        GWARR_Sheet_Sync::unschedule();
+    } else {
+        // Class might not be loaded yet if deactivation runs before plugins_loaded.
+        $next = wp_next_scheduled('gwarr_sheet_sync');
+        if ($next) wp_unschedule_event($next, 'gwarr_sheet_sync');
     }
 });

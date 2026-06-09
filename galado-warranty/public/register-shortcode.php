@@ -184,8 +184,18 @@ function gwarr_handle_form_submission() {
         return gwarr_notice('error', esc_html($id->get_error_message()));
     }
 
-    // Notify admin a new registration arrived (Phase 1 — manual approval flow).
-    if (function_exists('gwarr_send_admin_new_registration_email')) {
+    // Auto-approve if the order is in the local sheet cache. Cheap: this is
+    // a primary-key lookup against wp_galado_warranty_sheet_cache, not a
+    // network call. The Sheets API is only ever hit by the WP-Cron sync.
+    $settings   = get_option('gwarr_settings', []);
+    $auto_on    = !empty($settings['auto_approve']);
+    $autoresult = false;
+    if ($auto_on && class_exists('GWARR_Auto_Approve')) {
+        $autoresult = GWARR_Auto_Approve::try_for($id);
+    }
+
+    // If we didn't auto-approve, notify admin a pending registration arrived.
+    if (!$autoresult && function_exists('gwarr_send_admin_new_registration_email')) {
         $row = GWARR_DB::find($id);
         if ($row) {
             gwarr_send_admin_new_registration_email($row);
@@ -194,6 +204,17 @@ function gwarr_handle_form_submission() {
 
     // Clear $_POST so the form doesn't repopulate after a successful submit.
     $_POST = [];
+
+    if ($autoresult) {
+        $row = GWARR_DB::find($id);
+        $msg  = '<strong>You\'re all set — warranty extended.</strong> ';
+        if ($row && $row->warranty_ends) {
+            $msg .= 'Your warranty is now covered until <strong>' . esc_html(mysql2date('F j, Y', $row->warranty_ends)) . '</strong>. ';
+        }
+        $msg .= 'We\'ve emailed you your welcome coupon. ';
+        $msg .= 'See full details on <a href="' . esc_url(gwarr_my_warranties_url()) . '">My Warranties</a>.';
+        return gwarr_notice('success', $msg);
+    }
 
     $msg  = '<strong>Thanks — we got your registration.</strong> ';
     $msg .= 'We\'ll verify your order against our records and email you when your warranty is approved (usually within 1 business day). ';

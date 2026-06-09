@@ -14,21 +14,49 @@ function gwarr_render_settings_page() {
 
     // ---- Save ----
     if (isset($_POST['gwarr_save_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_save_nonce'])), 'gwarr_save')) {
+        // Preserve the existing service-account JSON when the field is blank
+        // (we don't echo the secret back into the form, so an empty post means
+        // "no change" rather than "clear it").
+        $posted_sa_json = isset($_POST['service_account_json'])
+            ? trim((string) wp_unslash($_POST['service_account_json']))
+            : '';
+        $sa_json = $posted_sa_json !== '' ? $posted_sa_json : ($settings['service_account_json'] ?? '');
+
         $settings = [
-            'klaviyo_api_key'    => sanitize_text_field($_POST['klaviyo_api_key'] ?? ''),
-            'klaviyo_list_id'    => sanitize_text_field($_POST['klaviyo_list_id'] ?? ''),
-            'klaviyo_event_name' => sanitize_text_field($_POST['klaviyo_event_name'] ?? 'Warranty Approved'),
-            'coupon_amount'      => max(0, min(100, (int) ($_POST['coupon_amount'] ?? 10))),
-            'coupon_min_spend'   => max(0, (float) ($_POST['coupon_min_spend'] ?? 0)),
-            'coupon_expiry_days' => max(1, min(365, (int) ($_POST['coupon_expiry_days'] ?? 90))),
-            'warranty_months'    => max(1, min(36, (int) ($_POST['warranty_months'] ?? 6))),
-            'from_name'          => sanitize_text_field($_POST['from_name'] ?? 'GALADO'),
-            'from_email'         => sanitize_email($_POST['from_email'] ?? ''),
-            'page_register_url'  => esc_url_raw($_POST['page_register_url'] ?? ''),
+            'klaviyo_api_key'      => sanitize_text_field($_POST['klaviyo_api_key'] ?? ''),
+            'klaviyo_list_id'      => sanitize_text_field($_POST['klaviyo_list_id'] ?? ''),
+            'klaviyo_event_name'   => sanitize_text_field($_POST['klaviyo_event_name'] ?? 'Warranty Approved'),
+            'coupon_amount'        => max(0, min(100, (int) ($_POST['coupon_amount'] ?? 10))),
+            'coupon_min_spend'     => max(0, (float) ($_POST['coupon_min_spend'] ?? 0)),
+            'coupon_expiry_days'   => max(1, min(365, (int) ($_POST['coupon_expiry_days'] ?? 90))),
+            'warranty_months'      => max(1, min(36, (int) ($_POST['warranty_months'] ?? 6))),
+            'from_name'            => sanitize_text_field($_POST['from_name'] ?? 'GALADO'),
+            'from_email'           => sanitize_email($_POST['from_email'] ?? ''),
+            'page_register_url'    => esc_url_raw($_POST['page_register_url'] ?? ''),
+            'sheet_id'             => sanitize_text_field($_POST['sheet_id'] ?? ''),
+            'service_account_json' => $sa_json,
+            'auto_approve'         => isset($_POST['auto_approve']) ? 1 : 0,
         ];
         update_option('gwarr_settings', $settings);
         delete_transient('gwarr_register_page_url'); // bust cache so override takes effect
         echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
+    }
+
+    // ---- Manual sync ----
+    if (isset($_POST['gwarr_sync_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_sync_nonce'])), 'gwarr_sync')) {
+        if (class_exists('GWARR_Sheet_Sync')) {
+            $result = GWARR_Sheet_Sync::run(true);
+            if (is_wp_error($result)) {
+                echo '<div class="notice notice-error"><p>Sync failed: ' . esc_html($result->get_error_message()) . '</p></div>';
+            } else {
+                $kept = isset($result['rows_kept']) ? (int) $result['rows_kept'] : 0;
+                $tabs = isset($result['tabs_seen']) ? (int) $result['tabs_seen'] : 0;
+                echo '<div class="notice notice-success"><p>Sync complete — read ' . $tabs . ' tab(s), cached ' . $kept . ' order(s).</p></div>';
+                if (!empty($result['tab_errors'])) {
+                    echo '<div class="notice notice-warning"><p>Some tabs reported errors:<br>' . esc_html(implode(' | ', $result['tab_errors'])) . '</p></div>';
+                }
+            }
+        }
     }
 
     ?>
@@ -114,6 +142,70 @@ function gwarr_render_settings_page() {
                 </tr>
             </table>
 
+            <h2 class="title">Auto-Approve (Google Sheet sync)</h2>
+            <?php
+            $sa_via_constant = defined('GALADO_GSHEETS_SERVICE_ACCOUNT_JSON');
+            $sa_present      = $sa_via_constant || !empty($settings['service_account_json']);
+            $last_sync       = get_option('gwarr_last_sheet_sync', '');
+            $last_sync_stats = get_option('gwarr_last_sheet_sync_stats', []);
+            ?>
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">Enable auto-approve</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="auto_approve" value="1" <?php checked(!empty($settings['auto_approve'])); ?>>
+                            On submit, look up the order in the cached sheet and auto-approve if found
+                        </label>
+                        <p class="description">If the order isn't found in the cache, the registration falls back to manual review.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Sheet ID</th>
+                    <td>
+                        <input type="text" name="sheet_id" value="<?php echo esc_attr($settings['sheet_id'] ?? ''); ?>" class="regular-text" placeholder="1uZyQiQm7E7lLykzzSYhBCjLt3iVkKmoJm-61hjnyvQw">
+                        <p class="description">The long ID from the sheet URL (between <code>/d/</code> and <code>/edit</code>). Reads columns A (marketplace), B (product), E (order #), J (purchase date) from every monthly tab.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Service account JSON</th>
+                    <td>
+                        <?php if ($sa_via_constant): ?>
+                            <p>
+                                <span class="dashicons dashicons-shield-alt" style="color:#00a32a;"></span>
+                                Provided via <code>GALADO_GSHEETS_SERVICE_ACCOUNT_JSON</code> constant in <code>wp-config.php</code> — recommended.
+                            </p>
+                        <?php else: ?>
+                            <textarea name="service_account_json" rows="4" class="large-text" autocomplete="off" placeholder="Paste the JSON key file contents here (or set GALADO_GSHEETS_SERVICE_ACCOUNT_JSON in wp-config.php instead)"><?php /* don't echo the secret back — empty field means "no change" */ ?></textarea>
+                            <?php if (!empty($settings['service_account_json'])): ?>
+                                <p class="description"><span class="dashicons dashicons-yes" style="color:#00a32a;"></span> Already stored. Leave this field blank to keep the existing value, or paste new contents to replace.</p>
+                            <?php else: ?>
+                                <p class="description">Paste the full JSON for service account <code>helix-sheets@galado-447205.iam.gserviceaccount.com</code>. For better security, define <code>GALADO_GSHEETS_SERVICE_ACCOUNT_JSON</code> in <code>wp-config.php</code> instead (either inline JSON or a file path).</p>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Sync status</th>
+                    <td>
+                        <?php if (!$sa_present || empty($settings['sheet_id'])): ?>
+                            <em>Configure Sheet ID + service account above, then save and use the Sync now button below.</em>
+                        <?php elseif ($last_sync): ?>
+                            <strong>Last sync:</strong> <?php echo esc_html(mysql2date(get_option('date_format') . ' g:i a', $last_sync)); ?>
+                            <?php if (!empty($last_sync_stats['rows_kept'])): ?>
+                                — kept <?php echo (int) $last_sync_stats['rows_kept']; ?> order(s) across <?php echo (int) ($last_sync_stats['tabs_seen'] ?? 0); ?> tab(s)
+                            <?php endif; ?>
+                            <?php if (!empty($last_sync_stats['tab_errors'])): ?>
+                                <br><span style="color:#d63638;">Errors: <?php echo esc_html(implode(' | ', $last_sync_stats['tab_errors'])); ?></span>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <em>Never synced. Save settings, then use the Sync now button below.</em>
+                        <?php endif; ?>
+                        <p class="description">Automatic hourly sync via WP-Cron. After every sync, any pending registrations that now have a matching cache entry are auto-approved.</p>
+                    </td>
+                </tr>
+            </table>
+
             <h2 class="title">Registration Page</h2>
             <table class="form-table" role="presentation">
                 <tr>
@@ -126,6 +218,12 @@ function gwarr_render_settings_page() {
             </table>
 
             <?php submit_button('Save Settings'); ?>
+        </form>
+
+        <form method="post" style="margin-top:8px;">
+            <?php wp_nonce_field('gwarr_sync', 'gwarr_sync_nonce'); ?>
+            <button type="submit" class="button">🔄 Sync sheet now</button>
+            <span class="description" style="margin-left:8px;">Manually pulls fresh data from the sheet and re-checks pending registrations.</span>
         </form>
 
         <hr style="margin:40px 0;">
