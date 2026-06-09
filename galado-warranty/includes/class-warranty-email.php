@@ -29,15 +29,23 @@ class GWARR_Email {
             ? 'Your warranty registration is confirmed (plus a welcome gift)'
             : "Your warranty is now {$months} months — and here's your welcome gift";
 
-        $product_phrase = !empty($row->product_text)
-            ? '<strong>' . esc_html($row->product_text) . '</strong>'
-            : 'your purchase';
+        $marketplace_label = esc_html(GWARR_Marketplaces::label($row->marketplace));
+        $order_code        = '<code style="font-family:monospace;background:#f6f7f7;padding:2px 6px;border-radius:3px;">' . esc_html($row->order_number) . '</code>';
 
         $content  = self::heading('Thanks for registering, ' . esc_html(self::first_name($user)) . '.');
-        $content .= self::paragraph(
-            'Your warranty for ' . $product_phrase . ' (' . esc_html(GWARR_Marketplaces::label($row->marketplace))
-            . ' order <code style="font-family:monospace;background:#f6f7f7;padding:2px 6px;border-radius:3px;">' . esc_html($row->order_number) . '</code>) is now on file.'
-        );
+
+        if (!empty($row->product_text)) {
+            $content .= self::paragraph(
+                'We\'ve registered the following from your ' . $marketplace_label . ' order ' . $order_code . ':'
+            );
+            $content .= '<div style="background:#f6f7f7;border-radius:10px;padding:14px 18px;margin:0 0 18px;">'
+                      . gwarr_format_product_email($row->product_text)
+                      . '</div>';
+        } else {
+            $content .= self::paragraph(
+                'We\'ve registered your ' . $marketplace_label . ' order ' . $order_code . '.'
+            );
+        }
 
         if ($is_expired) {
             $content .= self::callout('warning',
@@ -74,16 +82,14 @@ class GWARR_Email {
         $user = get_userdata((int) $row->user_id);
         if (!$user) return false;
 
-        $product_phrase = !empty($row->product_text)
-            ? 'for <strong>' . esc_html($row->product_text) . '</strong>'
-            : '(' . esc_html(GWARR_Marketplaces::label($row->marketplace)) . ' order '
-              . '<code style="font-family:monospace;background:#f6f7f7;padding:2px 6px;border-radius:3px;">' . esc_html($row->order_number) . '</code>)';
+        $marketplace_label = esc_html(GWARR_Marketplaces::label($row->marketplace));
+        $order_code        = '<code style="font-family:monospace;background:#f6f7f7;padding:2px 6px;border-radius:3px;">' . esc_html($row->order_number) . '</code>';
 
         $subject = 'About your GALADO warranty registration';
 
         $content  = self::heading('Hi ' . esc_html(self::first_name($user)) . ',');
         $content .= self::paragraph(
-            'Thanks for registering your warranty ' . $product_phrase . '.'
+            'Thanks for registering your warranty for ' . $marketplace_label . ' order ' . $order_code . '.'
         );
         $content .= self::callout('warning',
             'Unfortunately we couldn\'t verify this order against our records.'
@@ -114,7 +120,8 @@ class GWARR_Email {
             'Order number' => '<code style="font-family:monospace;">' . esc_html($row->order_number) . '</code>',
         ];
         if (!empty($row->product_text)) {
-            $rows['Product'] = esc_html($row->product_text);
+            // Multi-line product strings render correctly inside the definition table.
+            $rows['Product'] = gwarr_format_product_email($row->product_text);
         }
 
         $content  = self::heading('New warranty registration', 'h3');

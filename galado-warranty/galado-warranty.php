@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.1.4
+ * Version: 1.1.5
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.1.4');
+define('GWARR_VERSION', '1.1.5');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -63,6 +63,67 @@ function gwarr_perk_description() {
 function gwarr_coverage_url() {
     $settings = get_option('gwarr_settings', []);
     return $settings['support_coverage_url'] ?? 'https://galado.com.my/support/#tab_satisfaction-guarantee';
+}
+
+/**
+ * Render a product_text value (which may contain multi-line "1) … 2) …" lists
+ * from the sheet) as HTML for a web page (My Warranties, admin, etc.).
+ * Single-item strings stay inline; multi-item lists become a <ul>.
+ */
+function gwarr_format_product_html($text) {
+    $text = trim((string) $text);
+    if ($text === '') return '';
+
+    $lines = preg_split('/\r?\n/', $text);
+    $clean = function ($line) {
+        return trim(preg_replace('/^\s*\d+\)\s*/', '', (string) $line));
+    };
+
+    if (count($lines) === 1) {
+        return esc_html($clean($lines[0]));
+    }
+
+    $items = array_filter(array_map($clean, $lines), 'strlen');
+    if (count($items) <= 1) {
+        return esc_html(reset($items) ?: $text);
+    }
+
+    $html = '<ul class="gwarr-product-list">';
+    foreach ($items as $item) {
+        $html .= '<li>' . esc_html($item) . '</li>';
+    }
+    $html .= '</ul>';
+    return $html;
+}
+
+/**
+ * Email-flavoured variant: same logic but with inline styles for email clients
+ * that strip <style> blocks (Gmail, Outlook, Apple Mail).
+ */
+function gwarr_format_product_email($text) {
+    $text = trim((string) $text);
+    if ($text === '') return '';
+
+    $lines = preg_split('/\r?\n/', $text);
+    $clean = function ($line) {
+        return trim(preg_replace('/^\s*\d+\)\s*/', '', (string) $line));
+    };
+
+    if (count($lines) === 1) {
+        return esc_html($clean($lines[0]));
+    }
+
+    $items = array_filter(array_map($clean, $lines), 'strlen');
+    if (count($items) <= 1) {
+        return esc_html(reset($items) ?: $text);
+    }
+
+    $html = '<ul style="margin:6px 0 0;padding:0 0 0 20px;font-size:15px;line-height:1.6;color:#1a1a1a;">';
+    foreach ($items as $item) {
+        $html .= '<li style="margin:0 0 4px;">' . esc_html($item) . '</li>';
+    }
+    $html .= '</ul>';
+    return $html;
 }
 
 add_action('plugins_loaded', function () {
@@ -201,7 +262,7 @@ function gwarr_install_table() {
         user_id BIGINT UNSIGNED NOT NULL,
         marketplace VARCHAR(32) NOT NULL,
         order_number VARCHAR(64) NOT NULL,
-        product_text VARCHAR(255) NOT NULL DEFAULT '',
+        product_text TEXT NOT NULL,
         notes TEXT NULL,
         marketing_consent TINYINT(1) NOT NULL DEFAULT 1,
         status VARCHAR(16) NOT NULL DEFAULT 'pending',
@@ -228,7 +289,7 @@ function gwarr_install_table() {
         id BIGINT UNSIGNED AUTO_INCREMENT,
         marketplace VARCHAR(32) NOT NULL,
         order_number VARCHAR(64) NOT NULL,
-        product_name VARCHAR(255) NOT NULL DEFAULT '',
+        product_name TEXT NOT NULL,
         purchase_date DATE NULL,
         raw_marketplace VARCHAR(64) NOT NULL DEFAULT '',
         sheet_tab VARCHAR(64) NOT NULL DEFAULT '',

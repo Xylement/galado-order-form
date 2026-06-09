@@ -118,7 +118,7 @@ function gwarr_render_my_warranty_card($row) {
 
         <div class="gwarr-warranty-body">
             <?php if (!empty($row->product_text)): ?>
-                <p class="gwarr-product"><strong><?php echo esc_html($row->product_text); ?></strong></p>
+                <div class="gwarr-product"><?php echo gwarr_format_product_html($row->product_text); ?></div>
             <?php endif; ?>
 
             <?php if ($is_approved): ?>

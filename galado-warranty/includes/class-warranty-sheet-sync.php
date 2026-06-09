@@ -127,9 +127,13 @@ class GWARR_Sheet_Sync {
                 }
 
                 $raw_marketplace = isset($row[0]) ? trim((string) $row[0]) : '';
-                $product         = isset($row[1]) ? trim((string) $row[1]) : '';
+                $items_raw       = isset($row[1]) ? trim((string) $row[1]) : '';
+                $variants_raw    = isset($row[2]) ? trim((string) $row[2]) : '';
                 $order_number    = isset($row[4]) ? trim((string) $row[4]) : '';
                 $date_raw        = isset($row[9]) ? trim((string) $row[9]) : '';
+
+                // Merge B (Items) + C (Color/Model) per item: "1) Wrist Strap — Natural Titanium\n2) Clip On Charms — 360 Smiley"
+                $product = self::merge_items_with_variants($items_raw, $variants_raw);
 
                 if ($order_number === '' || $raw_marketplace === '') {
                     continue;
@@ -183,6 +187,54 @@ class GWARR_Sheet_Sync {
         self::log("Sync complete in {$duration}s — tabs:{$stats['tabs_seen']} kept:{$stats['rows_kept']} failed:{$stats['rows_failed']}");
 
         return $stats;
+    }
+
+    /**
+     * Combine the "Items" (col B) and "Color/Model" (col C) cells into a single
+     * customer-friendly product description. The sheet stores multi-item orders
+     * as numbered lists in BOTH columns, e.g.
+     *
+     *   B: "1) Wrist Strap\n2) Clip On Charms"
+     *   C: "1) Natural Titanium\n2) 360 Smiley"
+     *
+     *   becomes "1) Wrist Strap — Natural Titanium\n2) Clip On Charms — 360 Smiley"
+     *
+     * Single-item rows (no leading number, no newline) are returned as
+     * "Item — Variant" or just "Item" when no variant exists.
+     */
+    public static function merge_items_with_variants($items_raw, $variants_raw) {
+        $items_raw    = (string) $items_raw;
+        $variants_raw = (string) $variants_raw;
+
+        if ($items_raw === '') return '';
+
+        $item_lines    = preg_split('/\r?\n/', $items_raw);
+        $variant_lines = $variants_raw !== '' ? preg_split('/\r?\n/', $variants_raw) : [];
+
+        // Strip leading "N) " numbering so we can recombine cleanly.
+        $strip = function ($line) {
+            return trim(preg_replace('/^\s*\d+\)\s*/', '', (string) $line));
+        };
+
+        $items    = array_values(array_filter(array_map($strip, $item_lines), 'strlen'));
+        $variants = array_values(array_map($strip, $variant_lines));
+
+        if (count($items) === 0) return '';
+
+        // Single item — no numbering needed.
+        if (count($items) === 1) {
+            $variant = $variants[0] ?? '';
+            return $variant !== '' ? $items[0] . ' — ' . $variant : $items[0];
+        }
+
+        // Multi-item — re-number to keep the "1) ... 2) ..." structure consistent.
+        $lines = [];
+        foreach ($items as $i => $item) {
+            $variant = $variants[$i] ?? '';
+            $combined = $variant !== '' ? $item . ' — ' . $variant : $item;
+            $lines[]  = ($i + 1) . ') ' . $combined;
+        }
+        return implode("\n", $lines);
     }
 
     /**

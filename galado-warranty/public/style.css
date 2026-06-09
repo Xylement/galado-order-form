@@ -162,7 +162,15 @@
 .gwarr-badge-rejected{ background: #d63638; color: #fff; }
 .gwarr-badge-expired { background: #b0b0b0; color: #fff; }
 
-.gwarr-product { margin: 6px 0 14px; font-size: 16px; }
+.gwarr-product { margin: 6px 0 14px; font-size: 16px; font-weight: 600; color: #1a1a1a; }
+.gwarr-product-list {
+    margin: 4px 0 0;
+    padding: 0 0 0 22px;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.55;
+}
+.gwarr-product-list li { margin: 2px 0; }
 
 .gwarr-meta {
     display: grid;

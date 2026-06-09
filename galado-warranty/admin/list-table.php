@@ -144,7 +144,7 @@ function gwarr_render_admin_row($row) {
         <td><code><?php echo esc_html($row->order_number); ?></code></td>
         <td>
             <?php if (!empty($row->product_text)): ?>
-                <?php echo esc_html($row->product_text); ?>
+                <?php echo nl2br(esc_html($row->product_text)); ?>
             <?php else: ?>
                 <span style="color:#999;">—</span>
             <?php endif; ?>
