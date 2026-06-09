@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.1.2
+ * Version: 1.1.3
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.1.2');
+define('GWARR_VERSION', '1.1.3');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -31,7 +31,7 @@ function gwarr_default_settings() {
         'coupon_amount'        => 10,           // percent
         'coupon_min_spend'     => 0,
         'coupon_expiry_days'   => 90,
-        'coupon_free_shipping' => 1,            // also waive shipping on the welcome coupon
+        'coupon_free_shipping' => 0,            // GALADO already ships free in Malaysia (99% of customers), so the flag is a no-op for them and the "+ free shipping" copy is misleading. Leave off by default; admins can enable per-market if shipping rules change.
         'warranty_months'      => 6,
         'from_name'            => 'GALADO',
         'from_email'           => '',           // falls back to site admin email

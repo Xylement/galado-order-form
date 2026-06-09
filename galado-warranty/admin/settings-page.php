@@ -124,9 +124,10 @@ function gwarr_render_settings_page() {
                             Also waive shipping on the customer's next order
                         </label>
                         <p class="description">
-                            For this flag to actually waive shipping at checkout you also need a
-                            <strong>Free Shipping</strong> method on at least one zone in
-                            <em>WooCommerce → Settings → Shipping</em> with <strong>"A valid free shipping coupon"</strong> set under "Free Shipping Requires". Otherwise the coupon discounts the order but shipping still charges normally.
+                            <strong>Off by default</strong> for GALADO, since shipping within Malaysia is already free (99% of customers).
+                            Enabling adds "+ free shipping" to the perk copy across the form, My Warranties, and email —
+                            and also requires a WooCommerce <strong>Free Shipping</strong> method with <strong>"A valid free shipping coupon"</strong>
+                            configured at <em>WooCommerce → Settings → Shipping</em>, otherwise the flag is a no-op at checkout.
                         </p>
                     </td>
                 </tr>
