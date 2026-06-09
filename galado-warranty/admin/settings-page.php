@@ -121,13 +121,17 @@ function gwarr_render_settings_page() {
                     <td>
                         <label>
                             <input type="checkbox" name="coupon_free_shipping" value="1" <?php checked(!empty($settings['coupon_free_shipping'])); ?>>
-                            Also waive shipping on the customer's next order
+                            Surface "free shipping" as part of the coupon perks
                         </label>
                         <p class="description">
-                            <strong>Off by default</strong> for GALADO, since shipping within Malaysia is already free (99% of customers).
-                            Enabling adds "+ free shipping" to the perk copy across the form, My Warranties, and email —
-                            and also requires a WooCommerce <strong>Free Shipping</strong> method with <strong>"A valid free shipping coupon"</strong>
-                            configured at <em>WooCommerce → Settings → Shipping</em>, otherwise the flag is a no-op at checkout.
+                            <strong>On by default.</strong> Even though GALADO already ships free within Malaysia,
+                            marketplace buyers don't read shipping policies — they react to "10% off + free shipping"
+                            on the coupon as a stronger conversion signal. The text appears in the registration form,
+                            My Warranties view, and approval email.
+                            <br><br>
+                            At checkout the flag is a no-op (shipping is already free). If your shipping config ever requires
+                            <em>"A valid free shipping coupon"</em>, this same coupon would then also unlock shipping —
+                            no extra work needed.
                         </p>
                     </td>
                 </tr>
