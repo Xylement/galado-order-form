@@ -21,10 +21,11 @@ class GWARR_Coupon {
             return new WP_Error('gwarr_no_wc', 'WooCommerce is not active.');
         }
 
-        $settings    = get_option('gwarr_settings', []);
-        $amount      = max(0, (float) ($settings['coupon_amount'] ?? 10));
-        $min_spend   = max(0, (float) ($settings['coupon_min_spend'] ?? 0));
-        $expiry_days = max(1, (int) ($settings['coupon_expiry_days'] ?? 90));
+        $settings      = get_option('gwarr_settings', []);
+        $amount        = max(0, (float) ($settings['coupon_amount'] ?? 10));
+        $min_spend     = max(0, (float) ($settings['coupon_min_spend'] ?? 0));
+        $expiry_days   = max(1, (int) ($settings['coupon_expiry_days'] ?? 90));
+        $free_shipping = !empty($settings['coupon_free_shipping']);
 
         $user_email = self::user_email($row->user_id);
         if (!$user_email) {
@@ -43,6 +44,10 @@ class GWARR_Coupon {
         $coupon->set_email_restrictions([$user_email]);
         $coupon->set_minimum_amount($min_spend);
         $coupon->set_date_expires(time() + ($expiry_days * DAY_IN_SECONDS));
+        // Free shipping flag only takes effect if a WooCommerce shipping zone
+        // is configured with the "Free shipping requires a valid free
+        // shipping coupon" option enabled — see WC → Settings → Shipping.
+        $coupon->set_free_shipping($free_shipping);
         $coupon->set_description(sprintf(
             'GALADO warranty welcome coupon — registration #%d (%s order %s)',
             (int) $row->id,
@@ -60,18 +65,20 @@ class GWARR_Coupon {
     }
 
     /**
-     * WARRANTY-XXXXXX style code, collision-checked against existing coupons.
+     * W-XXXXXX style code, collision-checked against existing coupons.
+     * Old WARRANTY-XXXXXX codes from earlier versions continue to work since
+     * we never disable existing coupons; only newly-issued ones use W-.
      */
     private static function unique_code() {
         for ($i = 0; $i < 8; $i++) {
             $suffix = strtoupper(wp_generate_password(6, false, false));
-            $code   = 'WARRANTY-' . $suffix;
+            $code   = 'W-' . $suffix;
             if (!wc_get_coupon_id_by_code($code)) {
                 return $code;
             }
         }
         // Extremely unlikely fallback — uniqid is high-entropy enough.
-        return 'WARRANTY-' . strtoupper(uniqid());
+        return 'W-' . strtoupper(uniqid());
     }
 
     private static function user_email($user_id) {

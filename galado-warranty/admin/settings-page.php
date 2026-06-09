@@ -31,10 +31,12 @@ function gwarr_render_settings_page() {
             'coupon_amount'        => max(0, min(100, (int) ($_POST['coupon_amount'] ?? 10))),
             'coupon_min_spend'     => max(0, (float) ($_POST['coupon_min_spend'] ?? 0)),
             'coupon_expiry_days'   => max(1, min(365, (int) ($_POST['coupon_expiry_days'] ?? 90))),
+            'coupon_free_shipping' => isset($_POST['coupon_free_shipping']) ? 1 : 0,
             'warranty_months'      => max(1, min(36, (int) ($_POST['warranty_months'] ?? 6))),
             'from_name'            => sanitize_text_field($_POST['from_name'] ?? 'GALADO'),
             'from_email'           => sanitize_email($_POST['from_email'] ?? ''),
             'page_register_url'    => esc_url_raw($_POST['page_register_url'] ?? ''),
+            'support_coverage_url' => esc_url_raw($_POST['support_coverage_url'] ?? ''),
             'sheet_id'             => sanitize_text_field($_POST['sheet_id'] ?? ''),
             'service_account_json' => $sa_json,
             'auto_approve'         => isset($_POST['auto_approve']) ? 1 : 0,
@@ -112,6 +114,20 @@ function gwarr_render_settings_page() {
                     <th scope="row">Expiry</th>
                     <td>
                         <input type="number" name="coupon_expiry_days" value="<?php echo esc_attr($settings['coupon_expiry_days']); ?>" min="1" max="365" style="width:80px;"> days from issue
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Free shipping</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="coupon_free_shipping" value="1" <?php checked(!empty($settings['coupon_free_shipping'])); ?>>
+                            Also waive shipping on the customer's next order
+                        </label>
+                        <p class="description">
+                            For this flag to actually waive shipping at checkout you also need a
+                            <strong>Free Shipping</strong> method on at least one zone in
+                            <em>WooCommerce → Settings → Shipping</em> with <strong>"A valid free shipping coupon"</strong> set under "Free Shipping Requires". Otherwise the coupon discounts the order but shipping still charges normally.
+                        </p>
                     </td>
                 </tr>
             </table>
@@ -246,6 +262,13 @@ function gwarr_render_settings_page() {
                     <td>
                         <input type="url" name="page_register_url" value="<?php echo esc_attr($settings['page_register_url']); ?>" class="regular-text" placeholder="https://galado.com.my/register-warranty/">
                         <p class="description">Optional override — the "Register a warranty" CTA in My Warranties points here. Leave blank to auto-detect (any page that contains <code>[galado_warranty_register]</code>).</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Coverage page URL</th>
+                    <td>
+                        <input type="url" name="support_coverage_url" value="<?php echo esc_attr($settings['support_coverage_url'] ?? ''); ?>" class="regular-text" placeholder="https://galado.com.my/support/#tab_satisfaction-guarantee">
+                        <p class="description">Linked from the registration form, My Warranties, and approval emails as "what's covered". Defaults to your satisfaction-guarantee tab.</p>
                     </td>
                 </tr>
             </table>

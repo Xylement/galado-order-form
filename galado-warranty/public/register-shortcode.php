@@ -89,8 +89,12 @@ function gwarr_render_register_form($atts = []) {
     <div class="gwarr-card">
         <h3>Register your warranty</h3>
         <p class="gwarr-lede">
-            Bought from a marketplace (Shopee, Lazada, TikTok, WhatsApp, social)?
-            Register here to extend your warranty from <strong>1 month to 6 months</strong> and unlock a welcome discount for your next purchase on galado.com.my.
+            Bought from Shopee, Lazada, or TikTok? Register here to extend your warranty from
+            <strong>1 month to 6 months</strong> and get a welcome coupon for <strong><?php echo esc_html(gwarr_perk_description()); ?></strong> on your next purchase at galado.com.my.
+        </p>
+
+        <p class="gwarr-coverage-note">
+            🛡 Wondering what the warranty covers? See our <a href="<?php echo esc_url(gwarr_coverage_url()); ?>" target="_blank" rel="noopener">satisfaction guarantee details</a>.
         </p>
 
         <form method="post" class="gwarr-form" novalidate>

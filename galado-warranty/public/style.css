@@ -199,7 +199,27 @@
     background: #fff;
     border-radius: 4px;
 }
-.gwarr-coupon-help { font-size: 12px; color: #876d2e; margin: 8px 0 0; }
+.gwarr-coupon-perks {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin: 8px 0 2px;
+}
+.gwarr-coupon-help { font-size: 12px; color: #876d2e; margin: 4px 0 0; }
+
+.gwarr-coverage-note {
+    margin: 14px 0 0;
+    padding: 12px 14px;
+    background: #f6f7f7;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #555;
+}
+.gwarr-coverage-note a {
+    color: #1a1a1a;
+    font-weight: 600;
+    text-decoration: underline;
+}
 
 .gwarr-pending-msg,
 .gwarr-rejected-msg { font-size: 13px; color: #555; margin: 0; }

@@ -80,6 +80,9 @@ function gwarr_render_my_warranties() {
     }
 
     ?>
+    <p class="gwarr-coverage-note">
+        🛡 What's covered? See our <a href="<?php echo esc_url(gwarr_coverage_url()); ?>" target="_blank" rel="noopener">satisfaction guarantee details</a>.
+    </p>
     <div class="gwarr-my-list">
         <?php foreach ($rows as $row): ?>
             <?php gwarr_render_my_warranty_card($row); ?>
@@ -130,7 +133,8 @@ function gwarr_render_my_warranty_card($row) {
                     <div class="gwarr-coupon">
                         <span class="gwarr-coupon-label">Your welcome coupon</span>
                         <code class="gwarr-coupon-code"><?php echo esc_html($row->coupon_code); ?></code>
-                        <p class="gwarr-coupon-help">Apply this code at checkout on galado.com.my for a discount on your next direct purchase.</p>
+                        <p class="gwarr-coupon-perks"><?php echo esc_html(gwarr_perk_description()); ?></p>
+                        <p class="gwarr-coupon-help">Apply this code at checkout on galado.com.my. Single use, customer-specific.</p>
                     </div>
                 <?php endif; ?>
 

@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.1.1
+ * Version: 1.1.2
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.1.1');
+define('GWARR_VERSION', '1.1.2');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -31,14 +31,38 @@ function gwarr_default_settings() {
         'coupon_amount'        => 10,           // percent
         'coupon_min_spend'     => 0,
         'coupon_expiry_days'   => 90,
+        'coupon_free_shipping' => 1,            // also waive shipping on the welcome coupon
         'warranty_months'      => 6,
         'from_name'            => 'GALADO',
         'from_email'           => '',           // falls back to site admin email
         'page_register_url'    => '',           // optional override for "register here" CTA
+        'support_coverage_url' => 'https://galado.com.my/support/#tab_satisfaction-guarantee',
         'sheet_id'             => '',           // Google Sheet ID for auto-approve
         'service_account_json' => '',           // paste-in fallback when no wp-config constant
         'auto_approve'         => 1,            // master toggle
     ];
+}
+
+/**
+ * Human-readable perk summary built from the current coupon settings.
+ * Reused by the My Warranties view + every email that mentions the coupon
+ * so changes to settings stay in lockstep across all surfaces.
+ */
+function gwarr_perk_description() {
+    $settings      = get_option('gwarr_settings', []);
+    $amount        = (int) ($settings['coupon_amount'] ?? 10);
+    $free_shipping = !empty($settings['coupon_free_shipping']);
+
+    $parts = [];
+    if ($amount > 0) $parts[] = $amount . '% off';
+    if ($free_shipping) $parts[] = 'free shipping';
+
+    return $parts ? implode(' + ', $parts) : 'a discount';
+}
+
+function gwarr_coverage_url() {
+    $settings = get_option('gwarr_settings', []);
+    return $settings['support_coverage_url'] ?? 'https://galado.com.my/support/#tab_satisfaction-guarantee';
 }
 
 add_action('plugins_loaded', function () {
