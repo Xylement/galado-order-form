@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.1.0');
+define('GWARR_VERSION', '1.1.1');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -81,6 +81,7 @@ add_action('plugins_loaded', function () {
         require_once GWARR_PATH . 'includes/class-warranty-auto-approve.php';
         require_once GWARR_PATH . 'public/register-shortcode.php';
         require_once GWARR_PATH . 'public/my-warranties.php';
+        require_once GWARR_PATH . 'public/auth-ajax.php';
 
         if (is_admin()) {
             require_once GWARR_PATH . 'admin/list-table.php';
@@ -109,6 +110,12 @@ add_action('wp_enqueue_scripts', function () {
     }
     wp_enqueue_style('galado-warranty', GWARR_URL . 'public/style.css', [], GWARR_VERSION);
     wp_enqueue_script('galado-warranty', GWARR_URL . 'public/script.js', ['jquery'], GWARR_VERSION, true);
+
+    // Make the AJAX endpoint + nonce available to the auth modal.
+    wp_localize_script('galado-warranty', 'gwarrAuth', [
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce'   => wp_create_nonce('gwarr_auth'),
+    ]);
 });
 
 // Admin assets — only on the plugin's screens.

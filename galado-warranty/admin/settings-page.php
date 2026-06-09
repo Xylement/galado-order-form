@@ -22,6 +22,8 @@ function gwarr_render_settings_page() {
             : '';
         $sa_json = $posted_sa_json !== '' ? $posted_sa_json : ($settings['service_account_json'] ?? '');
 
+        $had_sheet_creds = !empty($settings['sheet_id']) && !empty($settings['service_account_json']);
+
         $settings = [
             'klaviyo_api_key'      => sanitize_text_field($_POST['klaviyo_api_key'] ?? ''),
             'klaviyo_list_id'      => sanitize_text_field($_POST['klaviyo_list_id'] ?? ''),
@@ -40,6 +42,20 @@ function gwarr_render_settings_page() {
         update_option('gwarr_settings', $settings);
         delete_transient('gwarr_register_page_url'); // bust cache so override takes effect
         echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
+
+        // First time the sheet credentials are populated → kick off an initial
+        // sync immediately so customers aren't stuck on "pending" while waiting
+        // for the hourly cron to fire.
+        $has_sheet_creds_now = !empty($settings['sheet_id']) && (!empty($settings['service_account_json']) || defined('GALADO_GSHEETS_SERVICE_ACCOUNT_JSON'));
+        if (!$had_sheet_creds && $has_sheet_creds_now && class_exists('GWARR_Sheet_Sync')) {
+            $result = GWARR_Sheet_Sync::run(true);
+            if (is_wp_error($result)) {
+                echo '<div class="notice notice-warning"><p>Saved, but initial sync failed: ' . esc_html($result->get_error_message()) . '</p></div>';
+            } else {
+                $kept = isset($result['rows_kept']) ? (int) $result['rows_kept'] : 0;
+                echo '<div class="notice notice-success"><p>Initial sheet sync complete — cached ' . $kept . ' order(s). Auto-approve is now live.</p></div>';
+            }
+        }
     }
 
     // ---- Manual sync ----
@@ -188,6 +204,14 @@ function gwarr_render_settings_page() {
                 <tr>
                     <th scope="row">Sync status</th>
                     <td>
+                        <?php
+                        global $wpdb;
+                        $cache_count = 0;
+                        if (class_exists('GWARR_Sheet_Sync')) {
+                            $cache_count = (int) $wpdb->get_var('SELECT COUNT(*) FROM ' . GWARR_Sheet_Sync::cache_table());
+                        }
+                        $next_cron = wp_next_scheduled('gwarr_sheet_sync');
+                        ?>
                         <?php if (!$sa_present || empty($settings['sheet_id'])): ?>
                             <em>Configure Sheet ID + service account above, then save and use the Sync now button below.</em>
                         <?php elseif ($last_sync): ?>
@@ -198,8 +222,17 @@ function gwarr_render_settings_page() {
                             <?php if (!empty($last_sync_stats['tab_errors'])): ?>
                                 <br><span style="color:#d63638;">Errors: <?php echo esc_html(implode(' | ', $last_sync_stats['tab_errors'])); ?></span>
                             <?php endif; ?>
+                            <br><strong>Orders in cache:</strong> <?php echo number_format($cache_count); ?>
+                            <?php if ($next_cron): ?>
+                                <br><strong>Next auto-sync:</strong> <?php echo esc_html(mysql2date(get_option('date_format') . ' g:i a', date('Y-m-d H:i:s', $next_cron))); ?>
+                            <?php endif; ?>
                         <?php else: ?>
-                            <em>Never synced. Save settings, then use the Sync now button below.</em>
+                            <strong style="color:#dba617;">Never synced.</strong> Auto-approve only works once the local cache is populated — click <em>Sync sheet now</em> below to do the first run.
+                        <?php endif; ?>
+                        <?php if ($cache_count === 0 && $sa_present && !empty($settings['sheet_id']) && !empty($settings['auto_approve'])): ?>
+                            <p style="color:#dba617;margin:8px 0 0;">
+                                ⚠ Auto-approve is enabled but the cache is empty — every submission will fall to manual review until the sheet is synced.
+                            </p>
                         <?php endif; ?>
                         <p class="description">Automatic hourly sync via WP-Cron. After every sync, any pending registrations that now have a matching cache entry are auto-approved.</p>
                     </td>

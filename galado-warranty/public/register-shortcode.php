@@ -13,33 +13,66 @@ if (!defined('ABSPATH')) exit;
 add_shortcode('galado_warranty_register', 'gwarr_render_register_form');
 
 /**
+ * Process form POSTs BEFORE any HTML is sent, so we can do PRG (POST →
+ * redirect → GET). Without this, the success notice was only visible
+ * in the POST response — refreshing the page or relying on themes /
+ * page-cache behaviour could swallow it on the first submit.
+ *
+ * Flow:
+ *   1. template_redirect fires (still no output sent)
+ *   2. We process the form, stash the notice in a per-user transient
+ *   3. wp_safe_redirect back to the same URL (now a GET request)
+ *   4. The shortcode renders normally, reads the notice from the transient
+ *      and renders it once
+ */
+add_action('template_redirect', 'gwarr_maybe_process_register_form');
+
+function gwarr_maybe_process_register_form() {
+    if (empty($_POST['gwarr_submit']) || empty($_POST['gwarr_nonce'])) {
+        return;
+    }
+    if (!wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_nonce'])), 'gwarr_register')) {
+        return;
+    }
+    if (!is_user_logged_in()) {
+        return;
+    }
+
+    $notice = gwarr_handle_form_submission();
+    if ($notice !== '') {
+        set_transient('gwarr_form_notice_' . get_current_user_id(), $notice, 60);
+    }
+
+    // Reload as a GET so refreshing doesn't re-submit and so the notice
+    // arrives via the transient on the next render.
+    $url = remove_query_arg(['gwarr_submit']);
+    if (!$url) {
+        $url = home_url(add_query_arg([], $_SERVER['REQUEST_URI'] ?? '/'));
+    }
+    wp_safe_redirect($url);
+    exit;
+}
+
+/**
  * Render the registration form OR a result/notice depending on state.
  */
 function gwarr_render_register_form($atts = []) {
     ob_start();
 
-    // ---- Handle submission first so the result message renders inline. ----
+    // Pop any notice stashed by the template_redirect handler above.
     $submission_notice = '';
-    if (
-        isset($_POST['gwarr_submit'], $_POST['gwarr_nonce']) &&
-        wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_nonce'])), 'gwarr_register')
-    ) {
-        $submission_notice = gwarr_handle_form_submission();
+    if (is_user_logged_in()) {
+        $notice_key = 'gwarr_form_notice_' . get_current_user_id();
+        $stashed    = get_transient($notice_key);
+        if (is_string($stashed) && $stashed !== '') {
+            $submission_notice = $stashed;
+            delete_transient($notice_key);
+        }
     }
 
     // ---- Not logged in: show the login/register prompt. ----
     if (!is_user_logged_in()) {
-        $account_url = wc_get_page_permalink('myaccount');
-        ?>
-        <div class="gwarr-card gwarr-card-login">
-            <h3>Register your warranty</h3>
-            <p>You need a free GALADO account to register your warranty. It takes 30 seconds and lets you view your warranty status, redeem your welcome coupon, and access future perks.</p>
-            <p>
-                <a class="button gwarr-btn" href="<?php echo esc_url($account_url); ?>">Log in or create an account</a>
-            </p>
-            <p class="gwarr-fineprint">Already registered? <a href="<?php echo esc_url($account_url); ?>">Log in here</a> and come back to this page.</p>
-        </div>
-        <?php
+        gwarr_render_login_prompt();
         return ob_get_clean();
     }
 
@@ -220,6 +253,91 @@ function gwarr_handle_form_submission() {
     $msg .= 'We\'ll verify your order against our records and email you when your warranty is approved (usually within 1 business day). ';
     $msg .= 'You can check status any time on <a href="' . esc_url(gwarr_my_warranties_url()) . '">My Warranties</a>.';
     return gwarr_notice('success', $msg);
+}
+
+/**
+ * Render the "log in or create an account" prompt + the modal markup.
+ * The modal is mounted once on the page; clicking either button reveals
+ * it instead of redirecting to /my-account/. AJAX endpoints below.
+ */
+function gwarr_render_login_prompt() {
+    ?>
+    <div class="gwarr-card gwarr-card-login">
+        <h3>Register your warranty</h3>
+        <p>You need a free GALADO account to register your warranty. It takes 30 seconds and lets you view your warranty status, redeem your welcome coupon, and access future perks.</p>
+        <p>
+            <button type="button" class="button gwarr-btn" data-gwarr-auth="register">Create an account</button>
+            <button type="button" class="button gwarr-btn-secondary" data-gwarr-auth="login">Log in</button>
+        </p>
+        <p class="gwarr-fineprint">No need to leave this page — your warranty registration form will appear right after you sign in.</p>
+    </div>
+
+    <?php gwarr_render_auth_modal(); ?>
+    <?php
+}
+
+/**
+ * The shared AJAX login/register modal. Rendered once whenever the login
+ * prompt is shown.
+ */
+function gwarr_render_auth_modal() {
+    ?>
+    <div id="gwarr-auth-modal" class="gwarr-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="gwarr-auth-modal-title">
+        <div class="gwarr-modal-overlay" data-gwarr-modal-close></div>
+        <div class="gwarr-modal-dialog">
+            <button type="button" class="gwarr-modal-close" data-gwarr-modal-close aria-label="Close">&times;</button>
+
+            <div class="gwarr-modal-tabs" role="tablist">
+                <button type="button" class="gwarr-modal-tab is-active" data-gwarr-tab="login" role="tab" aria-selected="true">Log in</button>
+                <button type="button" class="gwarr-modal-tab" data-gwarr-tab="register" role="tab" aria-selected="false">Create account</button>
+            </div>
+
+            <h3 id="gwarr-auth-modal-title" class="gwarr-modal-title">Log in to GALADO</h3>
+
+            <form class="gwarr-modal-form is-active" data-gwarr-form="login" novalidate>
+                <label class="gwarr-modal-field">
+                    <span>Email or username</span>
+                    <input type="text" name="username" autocomplete="username" required>
+                </label>
+                <label class="gwarr-modal-field">
+                    <span>Password</span>
+                    <input type="password" name="password" autocomplete="current-password" required>
+                </label>
+                <label class="gwarr-modal-remember">
+                    <input type="checkbox" name="remember" value="1" checked>
+                    <span>Remember me</span>
+                </label>
+                <button type="submit" class="button gwarr-btn gwarr-modal-submit">Log in</button>
+                <p class="gwarr-modal-error" role="alert"></p>
+            </form>
+
+            <form class="gwarr-modal-form" data-gwarr-form="register" novalidate hidden>
+                <div class="gwarr-modal-row">
+                    <label class="gwarr-modal-field">
+                        <span>First name</span>
+                        <input type="text" name="first_name" autocomplete="given-name">
+                    </label>
+                    <label class="gwarr-modal-field">
+                        <span>Last name</span>
+                        <input type="text" name="last_name" autocomplete="family-name">
+                    </label>
+                </div>
+                <label class="gwarr-modal-field">
+                    <span>Email</span>
+                    <input type="email" name="email" autocomplete="email" required>
+                </label>
+                <label class="gwarr-modal-field">
+                    <span>Create a password</span>
+                    <input type="password" name="password" autocomplete="new-password" minlength="8" required>
+                    <small>At least 8 characters.</small>
+                </label>
+                <button type="submit" class="button gwarr-btn gwarr-modal-submit">Create account</button>
+                <p class="gwarr-modal-fineprint">By creating an account you agree to receive a one-time confirmation and (if you opt in) occasional emails about your warranty and offers.</p>
+                <p class="gwarr-modal-error" role="alert"></p>
+            </form>
+        </div>
+    </div>
+    <?php
 }
 
 function gwarr_notice($type, $html) {
