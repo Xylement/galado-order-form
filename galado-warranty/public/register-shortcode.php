@@ -178,6 +178,9 @@ function gwarr_handle_form_submission() {
     ]);
 
     if (is_wp_error($id)) {
+        if ($id->get_error_code() === 'gwarr_duplicate') {
+            return gwarr_render_duplicate_notice($id, $marketplace, $order);
+        }
         return gwarr_notice('error', esc_html($id->get_error_message()));
     }
 
@@ -199,8 +202,51 @@ function gwarr_handle_form_submission() {
 }
 
 function gwarr_notice($type, $html) {
-    $type  = $type === 'success' ? 'success' : 'error';
+    $valid = ['success', 'error', 'info'];
+    $type  = in_array($type, $valid, true) ? $type : 'error';
     return '<div class="gwarr-notice gwarr-notice-' . esc_attr($type) . '">' . $html . '</div>';
+}
+
+/**
+ * Build the inline notice shown when GWARR_DB::insert() flagged a duplicate.
+ * Branches between "you already registered this" and "someone else claimed it",
+ * and fires the admin alert in the cross-account case.
+ */
+function gwarr_render_duplicate_notice($wp_error, $marketplace, $order_number) {
+    $data      = $wp_error->get_error_data();
+    $same_user = !empty($data['same_user']);
+    $existing  = isset($data['existing']) ? $data['existing'] : null;
+
+    if ($same_user) {
+        $msg  = '<strong>You\'ve already registered this order.</strong> ';
+        $msg .= 'You can see its status';
+        if ($existing && !empty($existing->coupon_code)) {
+            $msg .= ' and your welcome coupon';
+        }
+        $msg .= ' on your <a href="' . esc_url(gwarr_my_warranties_url()) . '">My Warranties</a> page.';
+        return gwarr_notice('info', $msg);
+    }
+
+    // Different user — could be the same person with two accounts (forgot which
+    // email they used) or an unauthorised claim. Alert admin either way.
+    if ($existing && function_exists('gwarr_send_admin_cross_claim_alert')) {
+        gwarr_send_admin_cross_claim_alert($existing, get_current_user_id());
+    }
+    if (function_exists('error_log')) {
+        error_log(sprintf(
+            '[galado-warranty] Cross-claim attempt: user %d tried to register %s order %s already registered by user %d (status: %s)',
+            (int) get_current_user_id(),
+            $marketplace,
+            $order_number,
+            $existing ? (int) $existing->user_id : 0,
+            $existing ? $existing->status : 'unknown'
+        ));
+    }
+
+    $msg  = '<strong>This order number is already registered to another account.</strong> ';
+    $msg .= 'If you registered it under a different email, please log in with that account. ';
+    $msg .= 'If you believe this is a mistake, please contact us — we\'ve notified our team to look into it.';
+    return gwarr_notice('error', $msg);
 }
 
 /**

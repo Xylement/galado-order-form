@@ -119,6 +119,8 @@
 }
 .gwarr-notice-success { background: #e6f4ea; border: 1px solid #b6d8c2; color: #1b5e20; }
 .gwarr-notice-error   { background: #fdeded; border: 1px solid #f3c8c8; color: #8a1f1f; }
+.gwarr-notice-info    { background: #e7f1fd; border: 1px solid #b6c8e4; color: #1a3a7e; }
+.gwarr-notice a       { color: inherit; text-decoration: underline; }
 
 /* My Warranties list */
 

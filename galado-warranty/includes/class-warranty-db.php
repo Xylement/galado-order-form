@@ -16,8 +16,18 @@ class GWARR_DB {
     }
 
     /**
-     * Insert a new registration (always pending). Returns the new row ID,
-     * or a WP_Error if the marketplace+order combo already exists.
+     * Insert a new registration. Returns the row ID on success, or a WP_Error
+     * with structured `data` describing the conflict on duplicates.
+     *
+     * Conflict semantics:
+     *   - Same user + previous record was rejected → allow retry (UPDATE in
+     *     place, reset to pending). Lets a customer fix a typo without
+     *     emailing support.
+     *   - Same user + previous record is pending/approved → block with
+     *     code 'gwarr_duplicate' and data['same_user'] = true.
+     *   - Different user → block with code 'gwarr_duplicate' and
+     *     data['same_user'] = false. The caller should alert admins
+     *     (could be a confused customer with two accounts, or fraud).
      */
     public static function insert($args) {
         global $wpdb;
@@ -32,10 +42,40 @@ class GWARR_DB {
             'status'            => 'pending',
         ]);
 
-        if (self::find_by_order($row['marketplace'], $row['order_number'])) {
+        $existing = self::find_by_order($row['marketplace'], $row['order_number']);
+        if ($existing) {
+            $same_user = (int) $existing->user_id === (int) $row['user_id'];
+
+            // Same user wants to retry after a rejection — overwrite in place.
+            if ($same_user && $existing->status === 'rejected') {
+                $ok = $wpdb->update(
+                    self::table(),
+                    [
+                        'notes'             => (string) $row['notes'],
+                        'marketing_consent' => $row['marketing_consent'] ? 1 : 0,
+                        'status'            => 'pending',
+                        'admin_note'        => null,
+                        'approved_by'       => null,
+                        'approved_at'       => null,
+                    ],
+                    ['id' => (int) $existing->id],
+                    ['%s', '%d', '%s', '%s', '%d', '%s'],
+                    ['%d']
+                );
+                if ($ok === false) {
+                    return new WP_Error('gwarr_update_failed', $wpdb->last_error ?: 'Database update failed.');
+                }
+                return (int) $existing->id;
+            }
+
+            // Anything else — block, but carry context so the caller can branch.
             return new WP_Error(
                 'gwarr_duplicate',
-                'This order number is already registered. Check the My Warranties page.'
+                'This order number is already registered.',
+                [
+                    'existing'  => $existing,
+                    'same_user' => $same_user,
+                ]
             );
         }
 

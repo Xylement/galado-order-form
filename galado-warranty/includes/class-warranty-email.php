@@ -100,6 +100,43 @@ class GWARR_Email {
         return self::send($admin_email, $subject, $body);
     }
 
+    /**
+     * Alert admin when a customer tries to register an order that's already
+     * claimed by a *different* account. Could be a customer with two email
+     * accounts who forgot — or a fraud attempt. Either way, you need to see it.
+     */
+    public static function send_admin_cross_claim_alert($existing, $attempting_user_id) {
+        $admin_email = get_option('admin_email');
+        if (!$admin_email) return false;
+
+        $existing_user   = get_userdata((int) $existing->user_id);
+        $attempting_user = get_userdata((int) $attempting_user_id);
+
+        $subject = '[GALADO] Warranty claim conflict — order already registered by another account';
+
+        $body  = '<p>Someone just tried to register a warranty for an order that\'s already on file under a different account.</p>';
+        $body .= '<p>This could be the same customer who used a different email address (and forgot which one they registered with), or it could be an unauthorised claim. Worth a quick look.</p>';
+
+        $body .= '<h3 style="margin-bottom:4px;">Order</h3><ul style="margin-top:0;">';
+        $body .= '<li><strong>Marketplace:</strong> ' . esc_html(GWARR_Marketplaces::label($existing->marketplace)) . '</li>';
+        $body .= '<li><strong>Order number:</strong> <code>' . esc_html($existing->order_number) . '</code></li>';
+        $body .= '</ul>';
+
+        $body .= '<h3 style="margin-bottom:4px;">Already registered by</h3><ul style="margin-top:0;">';
+        $body .= '<li><strong>' . esc_html($existing_user ? $existing_user->display_name : '(deleted user)') . '</strong> &lt;' . esc_html($existing_user ? $existing_user->user_email : '—') . '&gt;</li>';
+        $body .= '<li><strong>Status:</strong> ' . esc_html(ucfirst($existing->status)) . '</li>';
+        $body .= '<li><strong>Registered on:</strong> ' . esc_html($existing->created_at) . '</li>';
+        $body .= '</ul>';
+
+        $body .= '<h3 style="margin-bottom:4px;">New claim attempt by</h3><ul style="margin-top:0;">';
+        $body .= '<li><strong>' . esc_html($attempting_user ? $attempting_user->display_name : '(unknown user)') . '</strong> &lt;' . esc_html($attempting_user ? $attempting_user->user_email : '—') . '&gt;</li>';
+        $body .= '</ul>';
+
+        $body .= '<p style="margin-top:24px;"><a href="' . esc_url(admin_url('admin.php?page=galado-warranty')) . '">Open Warranty admin →</a></p>';
+
+        return self::send($admin_email, $subject, $body);
+    }
+
     /** Shared mail helper — wraps the HTML and sets sane From headers. */
     private static function send($to, $subject, $body_html) {
         $settings   = get_option('gwarr_settings', []);
@@ -120,8 +157,12 @@ class GWARR_Email {
 }
 
 /**
- * Functional alias used by the registration form for the admin notification.
+ * Functional aliases used by the registration form.
  */
 function gwarr_send_admin_new_registration_email($row) {
     return GWARR_Email::send_admin_new($row);
+}
+
+function gwarr_send_admin_cross_claim_alert($existing, $attempting_user_id) {
+    return GWARR_Email::send_admin_cross_claim_alert($existing, $attempting_user_id);
 }
