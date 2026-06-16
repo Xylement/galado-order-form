@@ -248,6 +248,10 @@ class GWARR_Sheet_Sync {
         if (strpos($raw, 'shopee') !== false) return 'shopee';
         if (strpos($raw, 'lazada') !== false) return 'lazada';
         if (strpos($raw, 'tiktok') !== false || strpos($raw, 'tik tok') !== false) return 'tiktok';
+        // Retail walk-in receipts — the sheet column A reads "POS" for these.
+        // Exact match (not substring) so we don't accidentally swallow other
+        // tokens that happen to contain "pos".
+        if ($raw === 'pos') return 'retail';
 
         return '';
     }
