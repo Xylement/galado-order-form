@@ -260,6 +260,106 @@ class GWARR_DB {
     }
 
     /**
+     * Edit a registration's editable fields from the admin UI. Whitelisted
+     * fields only — status, coupon_code, approved_by, etc. stay under the
+     * control of the approve/reject lifecycle.
+     *
+     * If purchase_date changes on an approved row, warranty_ends is auto
+     * recomputed from the configured warranty period.
+     */
+    public static function update($id, $args) {
+        global $wpdb;
+
+        $existing = self::find($id);
+        if (!$existing) {
+            return new WP_Error('gwarr_not_found', 'Registration not found.');
+        }
+
+        $editable = [];
+        $formats  = [];
+
+        if (array_key_exists('marketplace', $args)) {
+            if (!GWARR_Marketplaces::is_valid($args['marketplace'])) {
+                return new WP_Error('gwarr_bad_marketplace', 'Unknown marketplace.');
+            }
+            $editable['marketplace'] = $args['marketplace'];
+            $formats[] = '%s';
+        }
+        if (array_key_exists('order_number', $args)) {
+            $order = trim((string) $args['order_number']);
+            if ($order === '') {
+                return new WP_Error('gwarr_bad_order', 'Order number cannot be empty.');
+            }
+            if (strlen($order) > 64) {
+                return new WP_Error('gwarr_bad_order', 'Order number is too long.');
+            }
+            // Guard against duplicating into another existing (marketplace, order_number)
+            $mp = $editable['marketplace'] ?? $existing->marketplace;
+            $clash = self::find_by_order($mp, $order);
+            if ($clash && (int) $clash->id !== (int) $existing->id) {
+                return new WP_Error('gwarr_duplicate', 'Another registration already uses that marketplace + order number.');
+            }
+            $editable['order_number'] = $order;
+            $formats[] = '%s';
+        }
+        if (array_key_exists('product_text', $args)) {
+            $editable['product_text'] = (string) $args['product_text'];
+            $formats[] = '%s';
+        }
+        if (array_key_exists('notes', $args)) {
+            $editable['notes'] = (string) $args['notes'];
+            $formats[] = '%s';
+        }
+        if (array_key_exists('admin_note', $args)) {
+            $editable['admin_note'] = (string) $args['admin_note'];
+            $formats[] = '%s';
+        }
+
+        // purchase_date only meaningful once the row is approved. If supplied,
+        // also recompute warranty_ends so the customer-facing dates stay consistent.
+        if (array_key_exists('purchase_date', $args) && $args['purchase_date'] !== '') {
+            $ts = strtotime((string) $args['purchase_date']);
+            if ($ts === false) {
+                return new WP_Error('gwarr_bad_date', 'Invalid purchase date.');
+            }
+            $editable['purchase_date'] = gmdate('Y-m-d', $ts);
+            $formats[] = '%s';
+
+            if ($existing->status === 'approved') {
+                $settings = get_option('gwarr_settings', []);
+                $months   = max(1, (int) ($settings['warranty_months'] ?? 6));
+                $editable['warranty_ends'] = gmdate('Y-m-d', strtotime('+' . $months . ' months', $ts));
+                $formats[] = '%s';
+            }
+        }
+
+        if (empty($editable)) {
+            return $existing; // nothing actually changed
+        }
+
+        $ok = $wpdb->update(self::table(), $editable, ['id' => (int) $id], $formats, ['%d']);
+        if ($ok === false) {
+            return new WP_Error('gwarr_update_failed', $wpdb->last_error ?: 'Database update failed.');
+        }
+
+        return self::find($id);
+    }
+
+    /**
+     * Hard-delete a registration. The associated WC coupon (if any) is NOT
+     * touched — the admin can clear it manually from WooCommerce → Coupons
+     * if they want. Caller should confirm this in the UI.
+     */
+    public static function delete($id) {
+        global $wpdb;
+        $ok = $wpdb->delete(self::table(), ['id' => (int) $id], ['%d']);
+        if ($ok === false) {
+            return new WP_Error('gwarr_delete_failed', $wpdb->last_error ?: 'Database delete failed.');
+        }
+        return $ok > 0;
+    }
+
+    /**
      * Status counts for the admin filter chips.
      */
     public static function status_counts() {

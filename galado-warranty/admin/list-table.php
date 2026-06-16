@@ -161,6 +161,8 @@ function gwarr_render_admin_row($row) {
 }
 
 function gwarr_render_admin_row_actions($row) {
+    // Status-specific panels first (Approve/Reject for pending, summary for approved/rejected),
+    // then Edit + Delete that apply to every row.
     if ($row->status === 'pending') {
         $today = current_time('Y-m-d');
         ?>
@@ -203,6 +205,84 @@ function gwarr_render_admin_row_actions($row) {
             echo '<small><em>' . esc_html($row->admin_note) . '</em></small>';
         }
     }
+
+    gwarr_render_edit_panel($row);
+    gwarr_render_delete_form($row);
+}
+
+/**
+ * Inline edit panel shown on every row (independent of status). Lets the
+ * admin correct the marketplace/order#/product list/notes without going
+ * through the approve flow.
+ */
+function gwarr_render_edit_panel($row) {
+    $marketplaces = GWARR_Marketplaces::all();
+    ?>
+    <details class="gwarr-row-actions gwarr-edit-row">
+        <summary class="button">Edit</summary>
+        <div class="gwarr-action-panel">
+            <form method="post" class="gwarr-edit-form">
+                <?php wp_nonce_field('gwarr_admin_action', 'gwarr_admin_nonce'); ?>
+                <input type="hidden" name="gwarr_id" value="<?php echo (int) $row->id; ?>">
+
+                <label>Marketplace<br>
+                    <select name="marketplace">
+                        <?php foreach ($marketplaces as $slug => $label): ?>
+                            <option value="<?php echo esc_attr($slug); ?>" <?php selected($row->marketplace, $slug); ?>>
+                                <?php echo esc_html($label); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+
+                <label>Order number<br>
+                    <input type="text" name="order_number" maxlength="64" value="<?php echo esc_attr($row->order_number); ?>" required>
+                </label>
+
+                <label>Product(s) <small>(one per line, newline-separated)</small><br>
+                    <textarea name="product_text" rows="3" style="width:100%;"><?php echo esc_textarea($row->product_text); ?></textarea>
+                </label>
+
+                <label>Customer notes<br>
+                    <textarea name="notes" rows="2" style="width:100%;"><?php echo esc_textarea($row->notes); ?></textarea>
+                </label>
+
+                <label>Admin note <small>(internal/customer-visible)</small><br>
+                    <input type="text" name="admin_note" maxlength="200" value="<?php echo esc_attr($row->admin_note); ?>">
+                </label>
+
+                <?php if ($row->status === 'approved'): ?>
+                    <label>Purchase date <small>(updating recomputes warranty end)</small><br>
+                        <input type="date" name="purchase_date" value="<?php echo esc_attr($row->purchase_date); ?>">
+                    </label>
+                <?php endif; ?>
+
+                <p>
+                    <button type="submit" name="gwarr_action" value="edit" class="button button-primary">Save changes</button>
+                </p>
+                <p class="description" style="margin:0;font-size:11px;color:#666;">
+                    Editing here does <strong>not</strong> trigger emails, coupons, or Klaviyo events. Use Approve / Reject for those.
+                </p>
+            </form>
+        </div>
+    </details>
+    <?php
+}
+
+/**
+ * Small confirm-then-delete form. Coupon is intentionally not touched —
+ * manage from WooCommerce → Coupons if needed.
+ */
+function gwarr_render_delete_form($row) {
+    $confirm = 'Permanently delete this warranty registration? The associated coupon (if any) will stay active in WooCommerce — manage it there separately.';
+    ?>
+    <form method="post" class="gwarr-delete-form" style="display:inline-block;margin-top:6px;"
+          onsubmit="return confirm('<?php echo esc_attr($confirm); ?>');">
+        <?php wp_nonce_field('gwarr_admin_action', 'gwarr_admin_nonce'); ?>
+        <input type="hidden" name="gwarr_id" value="<?php echo (int) $row->id; ?>">
+        <button type="submit" name="gwarr_action" value="delete" class="button button-link-delete">Delete</button>
+    </form>
+    <?php
 }
 
 function gwarr_render_pagination($total, $per_page, $current_page) {
@@ -263,6 +343,33 @@ function gwarr_handle_admin_post() {
             return gwarr_admin_notice('error', 'Rejection failed: ' . esc_html($result->get_error_message()));
         }
         return gwarr_admin_notice('success', 'Registration rejected and customer notified.');
+    }
+
+    if ($action === 'edit') {
+        $args = [];
+        if (isset($_POST['marketplace']))   $args['marketplace']   = sanitize_key(wp_unslash($_POST['marketplace']));
+        if (isset($_POST['order_number']))  $args['order_number']  = sanitize_text_field(wp_unslash($_POST['order_number']));
+        if (isset($_POST['product_text']))  $args['product_text']  = sanitize_textarea_field(wp_unslash($_POST['product_text']));
+        if (isset($_POST['notes']))         $args['notes']         = sanitize_textarea_field(wp_unslash($_POST['notes']));
+        if (isset($_POST['admin_note']))    $args['admin_note']    = sanitize_text_field(wp_unslash($_POST['admin_note']));
+        if (isset($_POST['purchase_date'])) $args['purchase_date'] = sanitize_text_field(wp_unslash($_POST['purchase_date']));
+
+        $result = GWARR_DB::update($id, $args);
+        if (is_wp_error($result)) {
+            return gwarr_admin_notice('error', 'Edit failed: ' . esc_html($result->get_error_message()));
+        }
+        return gwarr_admin_notice('success', 'Registration #' . $id . ' updated.');
+    }
+
+    if ($action === 'delete') {
+        $result = GWARR_DB::delete($id);
+        if (is_wp_error($result)) {
+            return gwarr_admin_notice('error', 'Delete failed: ' . esc_html($result->get_error_message()));
+        }
+        if (!$result) {
+            return gwarr_admin_notice('error', 'Registration #' . $id . ' not found or already deleted.');
+        }
+        return gwarr_admin_notice('success', 'Registration #' . $id . ' deleted. Any associated coupon remains active — manage from WooCommerce → Coupons if needed.');
     }
 
     return '';

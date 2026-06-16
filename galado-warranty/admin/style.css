@@ -76,3 +76,18 @@
 }
 
 .gwarr-action-panel p { margin: 8px 0 0; }
+
+.gwarr-edit-row .gwarr-action-panel { min-width: 280px; }
+.gwarr-edit-row .gwarr-action-panel select,
+.gwarr-edit-row .gwarr-action-panel textarea {
+    width: 100%;
+    padding: 5px 8px;
+    margin-top: 3px;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    font-weight: 400;
+    font-family: inherit;
+}
+.gwarr-edit-row .gwarr-action-panel textarea { min-height: 56px; }
+
+.gwarr-delete-form { margin-top: 6px; }
