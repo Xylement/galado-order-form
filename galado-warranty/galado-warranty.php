@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.1.7
+ * Version: 1.2.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.1.7');
+define('GWARR_VERSION', '1.2.0');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -63,6 +63,64 @@ function gwarr_perk_description() {
 function gwarr_coverage_url() {
     $settings = get_option('gwarr_settings', []);
     return $settings['support_coverage_url'] ?? 'https://galado.com.my/support/#tab_satisfaction-guarantee';
+}
+
+/**
+ * Warranty months for a customer by their GALADO Club tier.
+ *
+ * Black-tier Club members get 12 months of coverage; everyone else gets the
+ * configured standard (default 6). The Club server at GALADO_CLUB_URL is the
+ * source of truth — we cache its answer for 1 hour per email and fail safe
+ * to the configured standard if the Club is unreachable, so a Club outage
+ * never breaks the warranty flow.
+ *
+ * Constants GALADO_CLUB_URL and GALADO_CLUB_BRIDGE_SECRET are already defined
+ * in wp-config.php by the Club bridge plugin — we reuse them rather than
+ * adding another secret to manage.
+ */
+function galado_warranty_months_for_email($email) {
+    $standard = max(1, (int) (get_option('gwarr_settings', [])['warranty_months'] ?? 6));
+    $email    = strtolower(trim((string) $email));
+
+    if ($email === '' || !defined('GALADO_CLUB_URL') || !defined('GALADO_CLUB_BRIDGE_SECRET')) {
+        return $standard;
+    }
+
+    $key    = 'gwarr_months_' . md5($email);
+    $cached = get_transient($key);
+    if (false !== $cached) {
+        return max(1, (int) $cached);
+    }
+
+    $resp = wp_remote_get(
+        rtrim(GALADO_CLUB_URL, '/') . '/api/warranty/coverage?email=' . rawurlencode($email),
+        [
+            'timeout' => 4,
+            'headers' => ['x-club-bridge-secret' => GALADO_CLUB_BRIDGE_SECRET],
+        ]
+    );
+
+    if (is_wp_error($resp) || 200 !== wp_remote_retrieve_response_code($resp)) {
+        return $standard; // Club down / non-200 → fall back, never break a warranty
+    }
+
+    $data   = json_decode(wp_remote_retrieve_body($resp), true);
+    $months = (is_array($data) && !empty($data['months'])) ? max(1, (int) $data['months']) : $standard;
+    set_transient($key, $months, HOUR_IN_SECONDS);
+    return $months;
+}
+
+/**
+ * Resolve the warranty-months value for a registration row. Looks up the
+ * user's email from user_id, falls back to the configured standard if the
+ * user was deleted.
+ */
+function gwarr_months_for_row($row) {
+    $user = $row && !empty($row->user_id) ? get_userdata((int) $row->user_id) : null;
+    if ($user && !empty($user->user_email)) {
+        return galado_warranty_months_for_email($user->user_email);
+    }
+    return max(1, (int) (get_option('gwarr_settings', [])['warranty_months'] ?? 6));
 }
 
 /**

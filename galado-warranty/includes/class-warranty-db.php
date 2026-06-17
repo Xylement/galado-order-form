@@ -202,8 +202,10 @@ class GWARR_DB {
     public static function approve($id, $purchase_date, $coupon_code, $admin_note = '') {
         global $wpdb;
 
-        $settings = get_option('gwarr_settings', []);
-        $months   = max(1, (int) ($settings['warranty_months'] ?? 6));
+        // Tier-aware coverage length — Black Club members get 12 months, others 6.
+        // Fetched fresh per approval so we always reflect the customer's current tier.
+        $existing = self::find($id);
+        $months   = gwarr_months_for_row($existing);
 
         $ts = strtotime($purchase_date);
         if ($ts === false) {
@@ -326,8 +328,8 @@ class GWARR_DB {
             $formats[] = '%s';
 
             if ($existing->status === 'approved') {
-                $settings = get_option('gwarr_settings', []);
-                $months   = max(1, (int) ($settings['warranty_months'] ?? 6));
+                // Tier-aware coverage (Black Club = 12, others = configured standard).
+                $months = gwarr_months_for_row($existing);
                 $editable['warranty_ends'] = gmdate('Y-m-d', strtotime('+' . $months . ' months', $ts));
                 $formats[] = '%s';
             }

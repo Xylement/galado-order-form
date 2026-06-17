@@ -86,11 +86,20 @@ function gwarr_render_register_form($atts = []) {
     $form_values    = gwarr_form_repost_values();
     $my_warranties  = gwarr_my_warranties_url();
     ?>
+    <?php
+    // Tier-aware messaging: Black Club members see "1 month to 12 months",
+    // everyone else sees "1 month to 6 months". Helper falls back to the
+    // configured standard if Club is unreachable, so this is always safe.
+    $current_user_email = is_user_logged_in() ? wp_get_current_user()->user_email : '';
+    $extension_months   = function_exists('galado_warranty_months_for_email')
+        ? max(1, (int) galado_warranty_months_for_email($current_user_email))
+        : 6;
+    ?>
     <div class="gwarr-card">
         <h3>Register your warranty</h3>
         <p class="gwarr-lede">
             Bought from Shopee, Lazada, or TikTok? Register here to extend your warranty from
-            <strong>1 month to 6 months</strong> and get a welcome coupon for <strong><?php echo esc_html(gwarr_perk_description()); ?></strong> on your next purchase at galado.com.my.
+            <strong>1 month to <?php echo (int) $extension_months; ?> months</strong> and get a welcome coupon for <strong><?php echo esc_html(gwarr_perk_description()); ?></strong> on your next purchase at galado.com.my.
         </p>
 
         <p class="gwarr-coverage-note">

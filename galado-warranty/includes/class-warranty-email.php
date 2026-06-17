@@ -21,7 +21,10 @@ class GWARR_Email {
         if (!$user) return false;
 
         $settings    = get_option('gwarr_settings', []);
-        $months      = (int) ($settings['warranty_months'] ?? 6);
+        // Tier-aware coverage length — Black Club members get 12, others 6.
+        $months      = function_exists('gwarr_months_for_row')
+            ? gwarr_months_for_row($row)
+            : max(1, (int) ($settings['warranty_months'] ?? 6));
         $is_expired  = $row->warranty_ends && strtotime($row->warranty_ends) < strtotime(current_time('Y-m-d'));
         $expiry_days = (int) ($settings['coupon_expiry_days'] ?? 90);
 
