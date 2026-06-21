@@ -276,10 +276,18 @@ function gwarr_handle_form_submission() {
     }
 
     // If we didn't auto-approve, notify admin a pending registration arrived.
+    // Deferred past the response flush so the customer isn't kept waiting on
+    // an admin email they never see.
     if (!$autoresult && function_exists('gwarr_send_admin_new_registration_email')) {
         $row = GWARR_DB::find($id);
         if ($row) {
-            gwarr_send_admin_new_registration_email($row);
+            if (class_exists('GWARR_Deferred')) {
+                GWARR_Deferred::add(function () use ($row) {
+                    gwarr_send_admin_new_registration_email($row);
+                });
+            } else {
+                gwarr_send_admin_new_registration_email($row);
+            }
         }
     }
 

@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.3.1
+ * Version: 1.3.2
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.3.1');
+define('GWARR_VERSION', '1.3.2');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -160,6 +160,51 @@ function galado_club_notify_warranty($email, $warranty_id, $args = array()) {
         ],
         'body'     => $body,
     ]);
+}
+
+/**
+ * Run heavy work AFTER the HTTP response is flushed to the client.
+ *
+ * The approval email (wp_mail / SMTP, 1–3s) and the Klaviyo sync (3 sequential
+ * API calls, 2–5s) don't need to block the customer — they only need to happen.
+ * On PHP-FPM (fastcgi_finish_request available) we close the connection first
+ * so the browser navigates to the result page instantly, then finish the work
+ * in the background of the same request. Where FPM isn't available it still
+ * runs on shutdown, just without the early flush.
+ *
+ * Tasks are collected and executed once on the WP 'shutdown' hook; each is
+ * wrapped so one failure never aborts the rest.
+ */
+class GWARR_Deferred {
+    private static $tasks  = [];
+    private static $hooked = false;
+
+    public static function add($callback) {
+        if (!is_callable($callback)) {
+            return;
+        }
+        self::$tasks[] = $callback;
+        if (!self::$hooked) {
+            self::$hooked = true;
+            add_action('shutdown', [__CLASS__, 'flush'], 0);
+        }
+    }
+
+    public static function flush() {
+        // Send the response now; keep working after the browser has it.
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
+        $tasks       = self::$tasks;
+        self::$tasks = [];
+        foreach ($tasks as $task) {
+            try {
+                call_user_func($task);
+            } catch (\Throwable $e) {
+                error_log('[galado-warranty] deferred task failed: ' . $e->getMessage());
+            }
+        }
+    }
 }
 
 /**

@@ -37,9 +37,13 @@ class GWARR_Approval {
             return $updated;
         }
 
-        // Side-effects — failures here are non-fatal for the admin UX.
-        GWARR_Email::send_approved($updated);
-        GWARR_Klaviyo::on_approval($updated);
+        // Email + Klaviyo are slow (SMTP + 3 API calls) but the customer doesn't
+        // need to wait on them — the coupon and warranty dates are already saved.
+        // Defer them past the response flush so registration feels instant.
+        self::dispatch(function () use ($updated) {
+            GWARR_Email::send_approved($updated);
+            GWARR_Klaviyo::on_approval($updated);
+        });
 
         return $updated;
     }
@@ -55,7 +59,22 @@ class GWARR_Approval {
             return $updated;
         }
 
-        GWARR_Email::send_rejected($updated);
+        self::dispatch(function () use ($updated) {
+            GWARR_Email::send_rejected($updated);
+        });
         return $updated;
+    }
+
+    /**
+     * Run post-approval/rejection side-effects after the response flushes when
+     * possible, falling back to inline execution if the deferral helper isn't
+     * available (e.g. partial load).
+     */
+    private static function dispatch($callback) {
+        if (class_exists('GWARR_Deferred')) {
+            GWARR_Deferred::add($callback);
+        } else {
+            call_user_func($callback);
+        }
     }
 }
