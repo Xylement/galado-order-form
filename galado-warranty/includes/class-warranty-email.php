@@ -26,59 +26,164 @@ class GWARR_Email {
             ? gwarr_months_for_row($row)
             : max(1, (int) ($settings['warranty_months'] ?? 6));
         $is_expired  = $row->warranty_ends && strtotime($row->warranty_ends) < strtotime(current_time('Y-m-d'));
-        $expiry_days = (int) ($settings['coupon_expiry_days'] ?? 90);
 
-        $subject = $is_expired
-            ? 'Your warranty registration is confirmed (plus a welcome gift)'
-            : "Your warranty is now {$months} months — and here's your welcome gift";
+        // Expired registrations (purchase older than the coverage window) keep
+        // the plain layout with its honest "already lapsed" warning — the
+        // branded happy-path template has no expired variant.
+        if ($is_expired) {
+            return self::send_approved_expired($user, $row, $months, $settings);
+        }
 
+        $is_black = $months >= 12;
+        $subject  = $is_black
+            ? "Your warranty is now 12 months — and here's your welcome gift ✦"
+            : 'Your GALADO warranty is registered ✦';
+
+        $body = self::render_branded_approved($user, $row, $months, $is_black, $settings);
+
+        return self::send($user->user_email, $subject, $body);
+    }
+
+    /**
+     * Fallback for registrations whose coverage window has already lapsed —
+     * uses the generic layout so we can show the honest "expired" warning.
+     */
+    private static function send_approved_expired($user, $row, $months, $settings) {
+        $expiry_days       = (int) ($settings['coupon_expiry_days'] ?? 90);
         $marketplace_label = esc_html(GWARR_Marketplaces::label($row->marketplace));
         $order_code        = '<code style="font-family:monospace;background:#f6f7f7;padding:2px 6px;border-radius:3px;">' . esc_html($row->order_number) . '</code>';
 
         $content  = self::heading('Thanks for registering, ' . esc_html(self::first_name($user)) . '.');
-
         if (!empty($row->product_text)) {
-            $content .= self::paragraph(
-                'We\'ve registered the following from your ' . $marketplace_label . ' order ' . $order_code . ':'
-            );
+            $content .= self::paragraph('We\'ve registered the following from your ' . $marketplace_label . ' order ' . $order_code . ':');
             $content .= '<div style="background:#f6f7f7;border-radius:10px;padding:14px 18px;margin:0 0 18px;">'
-                      . gwarr_format_product_email($row->product_text)
-                      . '</div>';
+                      . gwarr_format_product_email($row->product_text) . '</div>';
         } else {
-            $content .= self::paragraph(
-                'We\'ve registered your ' . $marketplace_label . ' order ' . $order_code . '.'
-            );
+            $content .= self::paragraph('We\'ve registered your ' . $marketplace_label . ' order ' . $order_code . '.');
         }
-
-        if ($is_expired) {
-            $content .= self::callout('warning',
-                'Your purchase date is more than ' . $months . ' months old, so the extended warranty has already lapsed. '
-                . 'We still want to thank you for being a customer — your welcome gift is waiting below.'
-            );
-        } else {
-            $content .= self::callout('success',
-                '<strong>Your warranty is now covered until ' . esc_html(mysql2date('F j, Y', $row->warranty_ends)) . '.</strong>'
-            );
-        }
-
+        $content .= self::callout('warning',
+            'Your purchase date is more than ' . (int) $months . ' months old, so the extended warranty has already lapsed. '
+            . 'We still want to thank you for being a customer — your welcome gift is waiting below.'
+        );
         if (!empty($row->coupon_code)) {
             $content .= self::coupon_card($row->coupon_code, $expiry_days);
         }
-
-        $content .= self::heading('What\'s covered?', 'h3');
-        $content .= self::paragraph(
-            'Read the full satisfaction guarantee — what we replace, what we don\'t, and how to claim — on our support page.'
-        );
         $content .= self::button('See what\'s covered →', gwarr_coverage_url());
-
-        $content .= self::divider();
-        $content .= self::paragraph(
-            'You can view your warranty status and coupon any time on your '
-            . '<a href="' . esc_url(wc_get_account_endpoint_url('warranties')) . '" style="color:#1a1a1a;font-weight:600;">My Warranties</a> page.'
-        );
         $content .= self::signoff();
 
-        return self::send($user->user_email, $subject, self::email_layout($content));
+        return self::send($user->user_email, 'Your warranty registration is confirmed (plus a welcome gift)', self::email_layout($content));
+    }
+
+    /**
+     * The GALADO-brand warranty-registration email (cream bg, Baloo 2 / Nunito,
+     * coral CTA). Mirrors WARRANTY-EMAIL-SPEC.md / warranty-email.html — coupon
+     * block and Black-tier perk badge are conditional. Primary CTA points to
+     * the Club to pull the marketplace buyer in; "see what's covered" is a
+     * quiet secondary link.
+     */
+    private static function render_branded_approved($user, $row, $months, $is_black, $settings) {
+        // ---- Resolve + escape every value ----
+        $name        = esc_html(self::first_name($user) ?: 'there');
+        $marketplace = esc_html(GWARR_Marketplaces::label($row->marketplace));
+        $order       = esc_html($row->order_number);
+        $until       = esc_html(mysql2date('F j, Y', $row->warranty_ends));
+        $months      = (int) $months;
+        $product_html = !empty($row->product_text) ? nl2br(esc_html($row->product_text)) : '';
+
+        $club_base = defined('GALADO_CLUB_URL') ? rtrim(GALADO_CLUB_URL, '/') : 'https://club.galado.com.my';
+        $club_url   = esc_url($club_base . '/?utm_source=warranty_email');
+        $support_url = esc_url(function_exists('gwarr_coverage_url') ? gwarr_coverage_url() : home_url('/'));
+        $shop_url    = esc_url(home_url('/'));
+
+        $show_coupon = !empty($row->coupon_code);
+        $coupon_code  = esc_html((string) $row->coupon_code);
+        $coupon_offer = esc_html(function_exists('gwarr_perk_description') ? gwarr_perk_description() : '');
+        $expiry_days  = (int) ($settings['coupon_expiry_days'] ?? 90);
+        $coupon_terms = esc_html('on your next direct order at galado.com.my · single use · valid ' . $expiry_days . ' days');
+
+        // ---- Header ----
+        $h  = '<!DOCTYPE html><html lang="en"><head>';
+        $h .= '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
+        $h .= '<meta name="color-scheme" content="light only"><title>GALADO Warranty</title>';
+        $h .= '<style>';
+        $h .= "@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap');";
+        $h .= 'body{margin:0;padding:0;background:#fff6ee;}';
+        $h .= '@media (max-width:520px){.gc-card{padding:30px 22px !important;}}';
+        $h .= '</style></head>';
+        $h .= '<body style="margin:0;padding:0;background-color:#fff6ee;">';
+        $h .= '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#fff6ee;">Your GALADO warranty is registered — coverage details and a welcome gift inside.</div>';
+        $h .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fff6ee;">';
+        $h .= '<tr><td align="center" style="padding:36px 16px;">';
+        $h .= '<table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:100%;">';
+
+        // GALADO wordmark + WARRANTY pill
+        $h .= '<tr><td align="center" style="padding-bottom:22px;">';
+        $h .= '<span style="font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:24px;color:#46302e;letter-spacing:0.02em;vertical-align:middle;">GALADO</span>';
+        $h .= '<span style="display:inline-block;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:12px;letter-spacing:0.08em;color:#ffffff;background-color:#f25d6f;background-image:linear-gradient(135deg,#ff7e8a,#f25d6f);padding:4px 10px;border-radius:8px;margin-left:7px;vertical-align:middle;">WARRANTY</span>';
+        $h .= '</td></tr>';
+
+        // Card
+        $h .= '<tr><td class="gc-card" style="background-color:#ffffff;border:1px solid #f3ddd2;border-radius:28px;padding:38px 34px;text-align:center;box-shadow:0 6px 18px rgba(70,48,46,0.08);">';
+
+        // Hero shield
+        $h .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 18px;"><tr>';
+        $h .= '<td align="center" valign="middle" width="64" height="64" style="width:64px;height:64px;border-radius:50%;background-color:#f5b83d;background-image:radial-gradient(circle at 35% 30%,#fff3cd,#f5b83d 70%);border:3px solid #d99a23;font-size:30px;">&#128737;&#65039;</td>';
+        $h .= '</tr></table>';
+
+        $h .= '<h1 style="margin:0 0 12px;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:24px;line-height:1.15;color:#46302e;">Thanks for registering, ' . $name . '!</h1>';
+
+        if ($product_html !== '') {
+            $h .= '<p style="margin:0 0 22px;font-family:\'Nunito\',sans-serif;font-weight:600;font-size:15px;line-height:1.55;color:#8a6f6c;">We\'ve registered the following from your ' . $marketplace . ' order <strong style="color:#46302e;">' . $order . '</strong>:</p>';
+            $h .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px;"><tr>';
+            $h .= '<td style="background-color:#fff6ee;border:1px solid #f3ddd2;border-radius:14px;padding:16px 18px;text-align:left;font-family:\'Baloo 2\',sans-serif;font-weight:700;font-size:16px;color:#46302e;">&#128241;&nbsp; ' . $product_html . '</td>';
+            $h .= '</tr></table>';
+        } else {
+            $h .= '<p style="margin:0 0 16px;font-family:\'Nunito\',sans-serif;font-weight:600;font-size:15px;line-height:1.55;color:#8a6f6c;">We\'ve registered your ' . $marketplace . ' order <strong style="color:#46302e;">' . $order . '</strong>.</p>';
+        }
+
+        // Coverage callout
+        $h .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 12px;"><tr>';
+        $h .= '<td style="background-color:#eef7f0;border:1px solid #cfe8d6;border-radius:14px;padding:14px 18px;text-align:center;font-family:\'Nunito\',sans-serif;font-weight:800;font-size:15px;color:#3fa66f;">&#128737;&#65039; <strong>' . $months . ' months</strong> of coverage &mdash; until <span style="white-space:nowrap;">' . $until . '</span>.</td>';
+        $h .= '</tr></table>';
+
+        // Black-tier perk badge (only for Black members)
+        if ($is_black) {
+            $h .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;"><tr>';
+            $h .= '<td style="background-color:#211f2a;background-image:linear-gradient(135deg,#2b2735,#1a1822);border:1px solid #d9b44a;border-radius:14px;padding:13px 18px;text-align:center;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:13px;letter-spacing:0.05em;color:#e8c971;">&#128081; BLACK MEMBER PERK &mdash; 12 months, double the standard 6</td>';
+            $h .= '</tr></table>';
+        } else {
+            // keep spacing consistent below the coverage callout
+            $h .= '<div style="height:10px;line-height:10px;font-size:0;">&nbsp;</div>';
+        }
+
+        // Welcome-gift coupon (optional)
+        if ($show_coupon) {
+            $h .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 26px;"><tr>';
+            $h .= '<td style="background-color:#fffaf0;border:2px dashed #e3b341;border-radius:18px;padding:22px 18px;text-align:center;">';
+            $h .= '<div style="font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:12px;letter-spacing:0.12em;color:#f25d6f;margin-bottom:12px;">YOUR WELCOME GIFT</div>';
+            $h .= '<div style="display:inline-block;font-family:\'Courier New\',monospace;font-weight:700;font-size:26px;letter-spacing:0.08em;color:#46302e;background-color:#fff6ee;border:1px solid #f3ddd2;border-radius:12px;padding:12px 24px;margin-bottom:14px;">' . $coupon_code . '</div>';
+            $h .= '<div style="font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:17px;color:#46302e;margin-bottom:4px;">' . $coupon_offer . '</div>';
+            $h .= '<div style="font-family:\'Nunito\',sans-serif;font-weight:600;font-size:12px;color:#b8a6a1;">' . $coupon_terms . '</div>';
+            $h .= '</td></tr></table>';
+        }
+
+        // Club nudge
+        $h .= '<p style="margin:0 0 20px;font-family:\'Nunito\',sans-serif;font-weight:600;font-size:14px;line-height:1.55;color:#8a6f6c;">While you\'re here &mdash; your <strong style="color:#46302e;">GALADO Club</strong> locker has G-Coins, badges and a Buddy to dress up, growing with every order. &#10022;</p>';
+
+        // Primary CTA -> Club
+        $h .= '<a href="' . $club_url . '" target="_blank" rel="noopener" style="display:inline-block;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:16px;line-height:1;color:#ffffff;text-decoration:none;padding:15px 32px;border-radius:999px;background-color:#f25d6f;background-image:linear-gradient(135deg,#ff7e8a,#f25d6f);box-shadow:0 6px 16px rgba(242,93,111,0.35);">Open GALADO Club &rarr;</a>';
+
+        // Secondary quiet link -> what's covered
+        $h .= '<p style="margin:18px 0 0;font-family:\'Nunito\',sans-serif;font-weight:600;font-size:13px;color:#8a6f6c;">Need your coverage details? <a href="' . $support_url . '" style="color:#f25d6f;text-decoration:underline;font-weight:700;">See what\'s covered &rarr;</a></p>';
+
+        $h .= '</td></tr>';
+
+        // Footer
+        $h .= '<tr><td style="padding:18px 18px 0;text-align:center;font-family:\'Nunito\',sans-serif;font-size:11px;color:#b8a6a1;">GALADO &middot; <a href="' . $shop_url . '" style="color:#b8a6a1;text-decoration:underline;">galado.com.my</a></td></tr>';
+
+        $h .= '</table></td></tr></table></body></html>';
+
+        return $h;
     }
 
     public static function send_rejected($row) {
