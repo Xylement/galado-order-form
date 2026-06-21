@@ -36,6 +36,7 @@
         if ($regForm.length && $overlay.length) {
             var stepEl = document.getElementById('gwarr-processing-step');
             var stepTimer = null;
+            var submitting = false;
             var steps = [
                 'Sending your details securely',
                 'Verifying your order',
@@ -43,7 +44,7 @@
                 'Almost there'
             ];
 
-            $regForm.on('submit', function () {
+            $regForm.on('submit', function (e) {
                 var formEl = this;
 
                 // The form is novalidate, but honour required fields so the
@@ -55,8 +56,16 @@
                     return; // let native validation handle it; no overlay
                 }
 
-                // Guard against double submit.
-                $regForm.find('button[type="submit"]').prop('disabled', true);
+                // Guard against double submit with a flag — NOT by disabling the
+                // submit button. The button is <button name="gwarr_submit"> and
+                // the server gates on $_POST['gwarr_submit']; a disabled control
+                // is excluded from the POST, so disabling it here would drop the
+                // gate value and the registration would silently do nothing.
+                if (submitting) {
+                    e.preventDefault();
+                    return;
+                }
+                submitting = true;
 
                 $overlay.removeAttr('hidden').attr('aria-hidden', 'false');
                 document.body.style.overflow = 'hidden';
@@ -74,16 +83,17 @@
                     }, 1600);
                 }
 
-                // Let the native POST proceed (no preventDefault).
+                // Let the native POST proceed (no preventDefault) — the button's
+                // name/value stays in the payload because it isn't disabled.
             });
 
             // If the customer comes back via the browser's back button (bfcache),
-            // the overlay can be left visible — hide it on pageshow.
+            // the overlay can be left visible — hide it and reset the guard.
             window.addEventListener('pageshow', function () {
                 if (stepTimer) { clearInterval(stepTimer); stepTimer = null; }
+                submitting = false;
                 $overlay.attr('hidden', 'hidden').attr('aria-hidden', 'true');
                 document.body.style.overflow = '';
-                $regForm.find('button[type="submit"]').prop('disabled', false);
             });
         }
 
