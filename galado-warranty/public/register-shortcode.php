@@ -38,10 +38,19 @@ function gwarr_maybe_process_register_form() {
         return;
     }
 
+    gwarr_mark('prg: handler start');
     $result = gwarr_handle_form_submission();
+    gwarr_mark('prg: handler returned');
+
     if (!empty($result['notice'])) {
         set_transient('gwarr_form_notice_' . get_current_user_id(), $result['notice'], 60);
     }
+
+    gwarr_mark('prg: before redirect');
+    gwarr_store_marks([
+        'ok'           => !empty($result['ok']),
+        'total_php_ms' => round((microtime(true) - (isset($GLOBALS['timestart']) ? (float) $GLOBALS['timestart'] : microtime(true))) * 1000, 1),
+    ]);
 
     if (!empty($result['ok'])) {
         // Success → land them on My Warranties. That page is a WooCommerce
@@ -258,6 +267,7 @@ function gwarr_handle_form_submission() {
 
     // product_text stays in the schema (Phase 2 fills it from the sheet)
     // — we just don't ask the customer for it.
+    gwarr_mark('insert: start');
     $id = GWARR_DB::insert([
         'user_id'           => get_current_user_id(),
         'marketplace'       => $marketplace,
@@ -267,6 +277,7 @@ function gwarr_handle_form_submission() {
         'marketing_consent' => $consent ? 1 : 0,
         'status'            => 'pending',
     ]);
+    gwarr_mark('insert: done');
 
     if (is_wp_error($id)) {
         if ($id->get_error_code() === 'gwarr_duplicate') {
@@ -287,6 +298,7 @@ function gwarr_handle_form_submission() {
             'marketplace' => $marketplace,
         ]);
     }
+    gwarr_mark('club notify: done');
 
     // Auto-approve if the order is in the local sheet cache. Cheap: this is
     // a primary-key lookup against wp_galado_warranty_sheet_cache, not a
@@ -295,7 +307,9 @@ function gwarr_handle_form_submission() {
     $auto_on    = !empty($settings['auto_approve']);
     $autoresult = false;
     if ($auto_on && class_exists('GWARR_Auto_Approve')) {
+        gwarr_mark('auto-approve: start');
         $autoresult = GWARR_Auto_Approve::try_for($id);
+        gwarr_mark('auto-approve: done (' . ($autoresult ? 'approved' : 'no match') . ')');
     }
 
     // If we didn't auto-approve, notify admin a pending registration arrived.

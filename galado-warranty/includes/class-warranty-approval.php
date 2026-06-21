@@ -27,15 +27,18 @@ class GWARR_Approval {
             return new WP_Error('gwarr_already_approved', 'This registration is already approved.');
         }
 
+        if (function_exists('gwarr_mark')) gwarr_mark('approve: coupon start');
         $coupon_code = GWARR_Coupon::create_for_registration($row);
         if (is_wp_error($coupon_code)) {
             return $coupon_code;
         }
+        if (function_exists('gwarr_mark')) gwarr_mark('approve: coupon done');
 
         $updated = GWARR_DB::approve($id, $purchase_date, $coupon_code, $admin_note);
         if (is_wp_error($updated)) {
             return $updated;
         }
+        if (function_exists('gwarr_mark')) gwarr_mark('approve: db approve done (club coverage lookup)');
 
         // Email + Klaviyo are slow (SMTP + 3 API calls) but the customer doesn't
         // need to wait on them — the coupon and warranty dates are already saved.
@@ -44,6 +47,7 @@ class GWARR_Approval {
             GWARR_Email::send_approved($updated);
             GWARR_Klaviyo::on_approval($updated);
         });
+        if (function_exists('gwarr_mark')) gwarr_mark('approve: deferred queued');
 
         return $updated;
     }

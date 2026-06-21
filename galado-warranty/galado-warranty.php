@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.3.7
+ * Version: 1.3.8
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.3.7');
+define('GWARR_VERSION', '1.3.8');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -191,10 +191,15 @@ class GWARR_Deferred {
     }
 
     public static function flush() {
+        $start   = isset($GLOBALS['timestart']) ? (float) $GLOBALS['timestart'] : microtime(true);
+        $t_flush = microtime(true);
+
         // Send the response now; keep working after the browser has it.
         if (function_exists('fastcgi_finish_request')) {
             @fastcgi_finish_request();
         }
+        $t_after_flush = microtime(true);
+
         $tasks       = self::$tasks;
         self::$tasks = [];
         foreach ($tasks as $task) {
@@ -204,7 +209,53 @@ class GWARR_Deferred {
                 error_log('[galado-warranty] deferred task failed: ' . $e->getMessage());
             }
         }
+
+        // Record timing so the diagnostics screen can show whether the early
+        // flush actually happened and how long the deferred work took.
+        update_option('gwarr_last_deferred_timing', [
+            'at'              => current_time('mysql'),
+            'task_count'      => count($tasks),
+            'before_flush_ms' => round(($t_flush - $start) * 1000, 1),
+            'deferred_ms'     => round((microtime(true) - $t_after_flush) * 1000, 1),
+            'fcr'             => function_exists('fastcgi_finish_request') ? 'yes' : 'no',
+        ], false);
     }
+}
+
+/**
+ * Lightweight waterfall instrumentation for the real registration path. Marks
+ * are collected per-request and persisted by gwarr_store_marks() so the
+ * diagnostics screen can show exactly which step of an actual submission was
+ * slow (the isolated diagnostics test can't reproduce orchestration cost).
+ */
+function gwarr_mark($label) {
+    if (!isset($GLOBALS['gwarr_marks'])) {
+        $GLOBALS['gwarr_marks'] = [];
+    }
+    $GLOBALS['gwarr_marks'][] = [$label, microtime(true)];
+}
+
+function gwarr_store_marks($extra = []) {
+    if (empty($GLOBALS['gwarr_marks'])) {
+        return;
+    }
+    $marks = $GLOBALS['gwarr_marks'];
+    $first = $marks[0][1];
+    $prev  = $first;
+    $rows  = [];
+    foreach ($marks as $m) {
+        $rows[] = [
+            'label'          => $m[0],
+            'since_prev_ms'  => round(($m[1] - $prev) * 1000, 1),
+            'since_start_ms' => round(($m[1] - $first) * 1000, 1),
+        ];
+        $prev = $m[1];
+    }
+    update_option('gwarr_last_submit_marks', array_merge([
+        'at'   => current_time('mysql'),
+        'rows' => $rows,
+    ], $extra), false);
+    $GLOBALS['gwarr_marks'] = [];
 }
 
 /**

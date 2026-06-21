@@ -361,6 +361,49 @@ function gwarr_render_diagnostics_results($diag) {
             </tbody>
         </table>
 
+        <?php
+        // Waterfall from the most recent REAL registration (instrumented path).
+        $marks    = get_option('gwarr_last_submit_marks', null);
+        $deferred = get_option('gwarr_last_deferred_timing', null);
+        if (is_array($marks) && !empty($marks['rows'])):
+        ?>
+            <h3 style="margin-bottom:4px;">Last real registration <span style="font-weight:400;color:#666;">(submitted <?php echo esc_html($marks['at'] ?? '?'); ?><?php echo isset($marks['ok']) ? ', ' . ($marks['ok'] ? 'success' : 'error/duplicate') : ''; ?>)</span></h3>
+            <table class="widefat striped" style="max-width:760px;margin-bottom:8px;">
+                <thead><tr><th>Step</th><th style="width:120px;">This step</th><th style="width:140px;">Cumulative</th></tr></thead>
+                <tbody>
+                    <?php foreach ($marks['rows'] as $r): ?>
+                        <?php $slow = ($r['since_prev_ms'] ?? 0) >= 3000; ?>
+                        <tr>
+                            <td><?php echo esc_html($r['label']); ?></td>
+                            <td style="<?php echo $slow ? 'color:#d63638;font-weight:700;' : ''; ?>"><?php echo esc_html(GWARR_Diagnostics::fmt((float) $r['since_prev_ms'])); ?></td>
+                            <td><?php echo esc_html(GWARR_Diagnostics::fmt((float) $r['since_start_ms'])); ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    <?php if (isset($marks['total_php_ms'])): ?>
+                        <tr>
+                            <td><strong>Total PHP request time</strong></td>
+                            <td colspan="2" style="<?php echo $marks['total_php_ms'] >= 5000 ? 'color:#d63638;font-weight:700;' : 'font-weight:700;'; ?>"><?php echo esc_html(GWARR_Diagnostics::fmt((float) $marks['total_php_ms'])); ?></td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+            <?php if (is_array($deferred)): ?>
+                <p class="description" style="max-width:760px;">
+                    <strong>Deferred work (after response flushed):</strong>
+                    fired <?php echo esc_html($deferred['at'] ?? '?'); ?> ·
+                    <?php echo (int) ($deferred['task_count'] ?? 0); ?> task(s) ·
+                    flush happened at <?php echo esc_html(GWARR_Diagnostics::fmt((float) ($deferred['before_flush_ms'] ?? 0))); ?> into the request ·
+                    deferred work took <?php echo esc_html(GWARR_Diagnostics::fmt((float) ($deferred['deferred_ms'] ?? 0))); ?> ·
+                    fastcgi_finish_request: <?php echo esc_html($deferred['fcr'] ?? '?'); ?>.
+                </p>
+            <?php endif; ?>
+            <p class="description" style="max-width:760px;color:#666;">
+                If "Total PHP request time" is small (a second or two) but the customer still waited a minute or more, the slowness is in the browser/network layer or the page they were redirected to — not this plugin's processing.
+            </p>
+        <?php else: ?>
+            <p class="description">No real registration recorded yet. Submit a test warranty, then re-run diagnostics to see the per-step waterfall of the actual submission.</p>
+        <?php endif; ?>
+
         <?php if (!empty($diag['notes'])): ?>
             <h3 style="margin-bottom:4px;">Notes</h3>
             <ul style="margin:0 0 4px 18px;list-style:disc;">
