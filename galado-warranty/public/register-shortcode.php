@@ -162,9 +162,31 @@ function gwarr_render_register_form($atts = []) {
             </p>
         </form>
     </div>
+
+    <?php gwarr_render_processing_overlay(); ?>
     <?php
 
     return ob_get_clean();
+}
+
+/**
+ * Full-screen "processing" overlay shown while the registration POST is in
+ * flight. The form uses POST → redirect → GET, so server-side work (Club
+ * webhook, sheet auto-approve lookup, emails) happens before the browser
+ * navigates — this gives the customer feedback during that wait instead of
+ * a page that looks frozen. JS in script.js reveals it on submit and cycles
+ * the status messages; the redirect to the result page tears it down.
+ */
+function gwarr_render_processing_overlay() {
+    ?>
+    <div id="gwarr-processing" class="gwarr-processing" hidden aria-hidden="true" role="status" aria-live="polite">
+        <div class="gwarr-processing-inner">
+            <div class="gwarr-spinner" aria-hidden="true"></div>
+            <p class="gwarr-processing-title">Submitting your registration…</p>
+            <p class="gwarr-processing-step" id="gwarr-processing-step">Sending your details securely</p>
+        </div>
+    </div>
+    <?php
 }
 
 /**

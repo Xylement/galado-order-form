@@ -25,6 +25,68 @@
             updateOrderPlaceholder();
         }
 
+        // Processing overlay — the registration form does a full POST → server
+        // work (Club webhook, sheet auto-approve, emails) → redirect. That wait
+        // can take a few seconds and otherwise looks frozen, so show an overlay
+        // with cycling status messages the moment a valid submit starts. We do
+        // NOT preventDefault: the native POST proceeds and the redirect tears
+        // the overlay down when the result page loads.
+        var $regForm = $('.gwarr-form');
+        var $overlay = $('#gwarr-processing');
+        if ($regForm.length && $overlay.length) {
+            var stepEl = document.getElementById('gwarr-processing-step');
+            var stepTimer = null;
+            var steps = [
+                'Sending your details securely',
+                'Verifying your order',
+                'Processing your warranty',
+                'Almost there'
+            ];
+
+            $regForm.on('submit', function () {
+                var formEl = this;
+
+                // The form is novalidate, but honour required fields so the
+                // overlay never shows for a submit the browser will reject.
+                if (typeof formEl.checkValidity === 'function' && !formEl.checkValidity()) {
+                    if (typeof formEl.reportValidity === 'function') {
+                        formEl.reportValidity();
+                    }
+                    return; // let native validation handle it; no overlay
+                }
+
+                // Guard against double submit.
+                $regForm.find('button[type="submit"]').prop('disabled', true);
+
+                $overlay.removeAttr('hidden').attr('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+
+                // Cycle the status line so it feels alive during the wait.
+                if (stepEl) {
+                    var i = 0;
+                    stepTimer = setInterval(function () {
+                        i = (i + 1) % steps.length;
+                        stepEl.style.opacity = '0';
+                        setTimeout(function () {
+                            stepEl.textContent = steps[i];
+                            stepEl.style.opacity = '1';
+                        }, 220);
+                    }, 1600);
+                }
+
+                // Let the native POST proceed (no preventDefault).
+            });
+
+            // If the customer comes back via the browser's back button (bfcache),
+            // the overlay can be left visible — hide it on pageshow.
+            window.addEventListener('pageshow', function () {
+                if (stepTimer) { clearInterval(stepTimer); stepTimer = null; }
+                $overlay.attr('hidden', 'hidden').attr('aria-hidden', 'true');
+                document.body.style.overflow = '';
+                $regForm.find('button[type="submit"]').prop('disabled', false);
+            });
+        }
+
         // Copy-coupon-to-clipboard convenience on the My Warranties view.
         $(document).on('click', '.gwarr-coupon-code', function () {
             var code = $(this).text().trim();
