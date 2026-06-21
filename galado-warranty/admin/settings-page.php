@@ -77,9 +77,19 @@ function gwarr_render_settings_page() {
         }
     }
 
+    // ---- Diagnostics ----
+    $diag = null;
+    if (isset($_POST['gwarr_diag_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_diag_nonce'])), 'gwarr_diag')) {
+        if (class_exists('GWARR_Diagnostics')) {
+            $diag = GWARR_Diagnostics::run();
+        }
+    }
+
     ?>
     <div class="wrap gwarr-admin">
         <h1>Warranty Settings</h1>
+
+        <?php if ($diag !== null) { gwarr_render_diagnostics_results($diag); } ?>
 
         <form method="post">
             <?php wp_nonce_field('gwarr_save', 'gwarr_save_nonce'); ?>
@@ -289,6 +299,19 @@ function gwarr_render_settings_page() {
 
         <hr style="margin:40px 0;">
 
+        <h2 class="title">Diagnostics</h2>
+        <p class="description" style="max-width:700px;">
+            Times each external call a registration makes (Club lookup, Club webhook, email, Klaviyo) and reports the environment,
+            so we can see exactly what's slow. Sends one test email to the site admin; otherwise read-only.
+        </p>
+        <form method="post" style="margin-top:8px;">
+            <?php wp_nonce_field('gwarr_diag', 'gwarr_diag_nonce'); ?>
+            <button type="submit" class="button">🩺 Run diagnostics</button>
+            <span class="description" style="margin-left:8px;">Takes a few seconds — it runs the real calls.</span>
+        </form>
+
+        <hr style="margin:40px 0;">
+
         <h2>Shortcodes</h2>
         <table class="widefat striped" style="max-width:700px;">
             <thead><tr><th>Shortcode</th><th>Where it goes</th></tr></thead>
@@ -297,6 +320,55 @@ function gwarr_render_settings_page() {
                 <tr><td><code>[galado_warranty_list]</code></td><td>The customer's "My Warranties" view. The same view also appears as a tab in WooCommerce My Account at <code>/my-account/warranties/</code>.</td></tr>
             </tbody>
         </table>
+    </div>
+    <?php
+}
+
+/**
+ * Render the results of a diagnostics run at the top of the settings page.
+ */
+function gwarr_render_diagnostics_results($diag) {
+    ?>
+    <div class="notice notice-info" style="padding:14px 16px;">
+        <h2 style="margin-top:0;">Diagnostics results</h2>
+
+        <h3 style="margin-bottom:4px;">Environment</h3>
+        <table class="widefat striped" style="max-width:760px;margin-bottom:16px;">
+            <tbody>
+                <?php foreach ($diag['env'] as $label => $value): ?>
+                    <tr>
+                        <td style="width:240px;"><strong><?php echo esc_html($label); ?></strong></td>
+                        <td><?php echo esc_html($value); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+        <h3 style="margin-bottom:4px;">Step timings</h3>
+        <table class="widefat striped" style="max-width:760px;margin-bottom:16px;">
+            <thead><tr><th style="width:280px;">Step</th><th style="width:110px;">Time</th><th>Result</th></tr></thead>
+            <tbody>
+                <?php foreach ($diag['timings'] as $t): ?>
+                    <?php $slow = $t['ms'] >= 3000; ?>
+                    <tr>
+                        <td><?php echo esc_html($t['label']); ?></td>
+                        <td style="<?php echo $slow ? 'color:#d63638;font-weight:700;' : ''; ?>">
+                            <?php echo esc_html(GWARR_Diagnostics::fmt($t['ms'])); ?>
+                        </td>
+                        <td><?php echo esc_html($t['result']); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+        <?php if (!empty($diag['notes'])): ?>
+            <h3 style="margin-bottom:4px;">Notes</h3>
+            <ul style="margin:0 0 4px 18px;list-style:disc;">
+                <?php foreach ($diag['notes'] as $note): ?>
+                    <li style="margin-bottom:6px;"><?php echo esc_html($note); ?></li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
     </div>
     <?php
 }
