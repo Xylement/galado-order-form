@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.3.4
+ * Version: 1.3.5
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.3.4');
+define('GWARR_VERSION', '1.3.5');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -349,6 +349,32 @@ add_action('wp_enqueue_scripts', function () {
         'nonce'   => wp_create_nonce('gwarr_auth'),
     ]);
 });
+
+// Never cache the warranty form / My Warranties pages — they render per-user
+// state (the just-registered confirmation, the customer's own warranty list).
+// A cached copy would swallow the post-submit success notice. Runs before
+// output so the no-cache headers actually take effect, and sets DONOTCACHEPAGE
+// which WP page-cache plugins honour.
+add_action('template_redirect', function () {
+    if (is_admin()) {
+        return;
+    }
+    $dynamic = function_exists('is_account_page') && is_account_page();
+    if (!$dynamic) {
+        global $post;
+        if ($post instanceof WP_Post) {
+            $dynamic = has_shortcode($post->post_content, 'galado_warranty_register')
+                || has_shortcode($post->post_content, 'galado_warranty_list');
+        }
+    }
+    if (!$dynamic) {
+        return;
+    }
+    if (!defined('DONOTCACHEPAGE')) {
+        define('DONOTCACHEPAGE', true);
+    }
+    nocache_headers();
+}, 1);
 
 // Admin assets — only on the plugin's screens.
 add_action('admin_enqueue_scripts', function ($hook) {

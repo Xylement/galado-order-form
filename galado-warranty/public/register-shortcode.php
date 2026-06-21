@@ -38,17 +38,26 @@ function gwarr_maybe_process_register_form() {
         return;
     }
 
-    $notice = gwarr_handle_form_submission();
-    if ($notice !== '') {
-        set_transient('gwarr_form_notice_' . get_current_user_id(), $notice, 60);
+    $result = gwarr_handle_form_submission();
+    if (!empty($result['notice'])) {
+        set_transient('gwarr_form_notice_' . get_current_user_id(), $result['notice'], 60);
     }
 
-    // Reload as a GET so refreshing doesn't re-submit and so the notice
-    // arrives via the transient on the next render.
-    $url = remove_query_arg(['gwarr_submit']);
-    if (!$url) {
-        $url = home_url(add_query_arg([], $_SERVER['REQUEST_URI'] ?? '/'));
+    if (!empty($result['ok'])) {
+        // Success → land them on My Warranties. That page is a WooCommerce
+        // account endpoint (never edge-cached) and LISTS the warranty they
+        // just registered, so they get unambiguous confirmation even if the
+        // transient notice were ever lost to caching. The same transient is
+        // popped + shown there too.
+        $url = gwarr_my_warranties_url();
+    } else {
+        // Error / duplicate → stay on the form so they can correct and retry.
+        $url = remove_query_arg(['gwarr_submit']);
+        if (!$url) {
+            $url = home_url(add_query_arg([], $_SERVER['REQUEST_URI'] ?? '/'));
+        }
     }
+
     wp_safe_redirect($url);
     exit;
 }
@@ -207,11 +216,21 @@ function gwarr_form_repost_values() {
 }
 
 /**
- * Process a posted registration. Returns a notice HTML string to render inline.
+ * Build the structured result the PRG handler branches on.
+ * @return array{ok:bool,notice:string}
+ */
+function gwarr_result($ok, $notice) {
+    return ['ok' => (bool) $ok, 'notice' => (string) $notice];
+}
+
+/**
+ * Process a posted registration.
+ * @return array{ok:bool,notice:string} ok=true means a row was registered
+ *         (pending or auto-approved); ok=false means error/duplicate.
  */
 function gwarr_handle_form_submission() {
     if (!is_user_logged_in()) {
-        return gwarr_notice('error', 'Please log in before submitting.');
+        return gwarr_result(false, gwarr_notice('error', 'Please log in before submitting.'));
     }
 
     $marketplace = isset($_POST['marketplace']) ? sanitize_key(wp_unslash($_POST['marketplace'])) : '';
@@ -230,7 +249,7 @@ function gwarr_handle_form_submission() {
         $errors[] = 'Order number is too long.';
     }
     if (!empty($errors)) {
-        return gwarr_notice('error', implode('<br>', array_map('esc_html', $errors)));
+        return gwarr_result(false, gwarr_notice('error', implode('<br>', array_map('esc_html', $errors))));
     }
 
     // product_text stays in the schema (Phase 2 fills it from the sheet)
@@ -247,9 +266,9 @@ function gwarr_handle_form_submission() {
 
     if (is_wp_error($id)) {
         if ($id->get_error_code() === 'gwarr_duplicate') {
-            return gwarr_render_duplicate_notice($id, $marketplace, $order);
+            return gwarr_result(false, gwarr_render_duplicate_notice($id, $marketplace, $order));
         }
-        return gwarr_notice('error', esc_html($id->get_error_message()));
+        return gwarr_result(false, gwarr_notice('error', esc_html($id->get_error_message())));
     }
 
     // Fire the GALADO Club welcome-pack webhook (Registered badge + Guardian
@@ -300,15 +319,14 @@ function gwarr_handle_form_submission() {
         if ($row && $row->warranty_ends) {
             $msg .= 'Your warranty is now covered until <strong>' . esc_html(mysql2date('F j, Y', $row->warranty_ends)) . '</strong>. ';
         }
-        $msg .= 'We\'ve emailed you your welcome coupon. ';
-        $msg .= 'See full details on <a href="' . esc_url(gwarr_my_warranties_url()) . '">My Warranties</a>.';
-        return gwarr_notice('success', $msg);
+        $msg .= 'We\'ve emailed you your welcome coupon. Your warranty is shown below.';
+        return gwarr_result(true, gwarr_notice('success', $msg));
     }
 
     $msg  = '<strong>Thanks — we got your registration.</strong> ';
     $msg .= 'We\'ll verify your order against our records and email you when your warranty is approved (usually within 1 business day). ';
-    $msg .= 'You can check status any time on <a href="' . esc_url(gwarr_my_warranties_url()) . '">My Warranties</a>.';
-    return gwarr_notice('success', $msg);
+    $msg .= 'Your registration is shown below.';
+    return gwarr_result(true, gwarr_notice('success', $msg));
 }
 
 /**

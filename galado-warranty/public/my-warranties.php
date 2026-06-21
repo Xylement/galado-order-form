@@ -64,6 +64,16 @@ function gwarr_render_my_warranties() {
         return;
     }
 
+    // Pop any submission notice stashed by the registration handler. After a
+    // successful registration the customer is redirected here, so show the
+    // "thanks/registered" confirmation above their warranty list.
+    $notice_key = 'gwarr_form_notice_' . get_current_user_id();
+    $stashed    = get_transient($notice_key);
+    if (is_string($stashed) && $stashed !== '') {
+        echo $stashed; // already escaped HTML built by gwarr_notice()
+        delete_transient($notice_key);
+    }
+
     $rows = GWARR_DB::for_user(get_current_user_id());
 
     if (empty($rows)) {
