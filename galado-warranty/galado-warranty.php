@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.3.3
+ * Version: 1.3.4
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.3.3');
+define('GWARR_VERSION', '1.3.4');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -335,8 +335,13 @@ add_action('wp_enqueue_scripts', function () {
     if (!$needs_assets) {
         return;
     }
-    wp_enqueue_style('galado-warranty', GWARR_URL . 'public/style.css', [], GWARR_VERSION);
-    wp_enqueue_script('galado-warranty', GWARR_URL . 'public/script.js', ['jquery'], GWARR_VERSION, true);
+    // Version the assets by file mtime, not the plugin version, so every deploy
+    // (git-sync rewrites the files) gets a fresh ?ver= and busts browser/CDN
+    // caches automatically — no manual version bump or cache purge needed.
+    $css_ver = gwarr_asset_version('public/style.css');
+    $js_ver  = gwarr_asset_version('public/script.js');
+    wp_enqueue_style('galado-warranty', GWARR_URL . 'public/style.css', [], $css_ver);
+    wp_enqueue_script('galado-warranty', GWARR_URL . 'public/script.js', ['jquery'], $js_ver, true);
 
     // Make the AJAX endpoint + nonce available to the auth modal.
     wp_localize_script('galado-warranty', 'gwarrAuth', [
@@ -350,8 +355,19 @@ add_action('admin_enqueue_scripts', function ($hook) {
     if (strpos($hook, 'galado-warranty') === false) {
         return;
     }
-    wp_enqueue_style('galado-warranty-admin', GWARR_URL . 'admin/style.css', [], GWARR_VERSION);
+    wp_enqueue_style('galado-warranty-admin', GWARR_URL . 'admin/style.css', [], gwarr_asset_version('admin/style.css'));
 });
+
+/**
+ * Cache-busting version string for a bundled asset — its file mtime, falling
+ * back to the plugin version if the file can't be stat'd. Changing the file
+ * (every deploy does) changes the ?ver=, forcing browsers/CDNs to refetch.
+ */
+function gwarr_asset_version($relpath) {
+    $full = GWARR_PATH . ltrim($relpath, '/');
+    $mtime = @filemtime($full);
+    return $mtime ? (string) $mtime : GWARR_VERSION;
+}
 
 // Register with the GALADO admin hub if the hub plugin is active.
 add_filter('galado_admin_hub_plugins', function ($plugins) {
