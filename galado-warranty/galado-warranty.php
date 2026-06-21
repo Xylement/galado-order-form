@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.2.0');
+define('GWARR_VERSION', '1.3.0');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -121,6 +121,45 @@ function gwarr_months_for_row($row) {
         return galado_warranty_months_for_email($user->user_email);
     }
     return max(1, (int) (get_option('gwarr_settings', [])['warranty_months'] ?? 6));
+}
+
+/**
+ * Notify GALADO Club that a warranty was registered → buyer earns the one-time
+ * welcome pack (Registered badge + Guardian pet + 50 G-Coins + welcome email,
+ * all granted/sent by the Club). The Club is idempotent (once per member,
+ * ever — keyed on the badge), so this is safe to call on every registration.
+ *
+ * Fire-and-forget (blocking => false): the customer never waits on the Club,
+ * and a Club hiccup simply means no pack that time — it never blocks or
+ * breaks the registration. Reuses GALADO_CLUB_URL + GALADO_CLUB_BRIDGE_SECRET
+ * already defined in wp-config for the bridge plugin / Black-warranty lookup.
+ */
+function galado_club_notify_warranty($email, $warranty_id, $args = array()) {
+    if (!defined('GALADO_CLUB_URL') || !defined('GALADO_CLUB_BRIDGE_SECRET')) {
+        return;
+    }
+    $email = strtolower(trim((string) $email));
+    if ($email === '' || (string) $warranty_id === '') {
+        return;
+    }
+
+    $body = wp_json_encode([
+        'email'       => $email,
+        'warranty_id' => (string) $warranty_id,
+        'order_id'    => isset($args['order_id'])    ? $args['order_id']    : null,
+        'serial'      => isset($args['serial'])      ? $args['serial']      : null,
+        'marketplace' => isset($args['marketplace']) ? $args['marketplace'] : null,
+    ]);
+
+    wp_remote_post(rtrim(GALADO_CLUB_URL, '/') . '/webhooks/warranty', [
+        'timeout'  => 4,
+        'blocking' => false, // fire-and-forget; the customer never waits on the Club
+        'headers'  => [
+            'content-type'         => 'application/json',
+            'x-club-bridge-secret' => GALADO_CLUB_BRIDGE_SECRET,
+        ],
+        'body'     => $body,
+    ]);
 }
 
 /**

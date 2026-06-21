@@ -230,6 +230,19 @@ function gwarr_handle_form_submission() {
         return gwarr_notice('error', esc_html($id->get_error_message()));
     }
 
+    // Fire the GALADO Club welcome-pack webhook (Registered badge + Guardian
+    // pet + 50 G-Coins + branded welcome email, all granted by the Club).
+    // Fire-and-forget + idempotent per member, so it's safe on every
+    // registration and never blocks the customer. Keyed on the logged-in
+    // user's email (the form requires login, so this is always present).
+    if (function_exists('galado_club_notify_warranty')) {
+        $club_email = wp_get_current_user()->user_email;
+        galado_club_notify_warranty($club_email, $id, [
+            'order_id'    => $order,
+            'marketplace' => $marketplace,
+        ]);
+    }
+
     // Auto-approve if the order is in the local sheet cache. Cheap: this is
     // a primary-key lookup against wp_galado_warranty_sheet_cache, not a
     // network call. The Sheets API is only ever hit by the WP-Cron sync.
