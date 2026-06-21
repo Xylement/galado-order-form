@@ -191,8 +191,12 @@ function gwarr_render_processing_overlay() {
     <div id="gwarr-processing" class="gwarr-processing" hidden aria-hidden="true" role="status" aria-live="polite">
         <div class="gwarr-processing-inner">
             <div class="gwarr-spinner" aria-hidden="true"></div>
-            <p class="gwarr-processing-title">Submitting your registration…</p>
+            <p class="gwarr-processing-title">Registering your warranty…</p>
             <p class="gwarr-processing-step" id="gwarr-processing-step">Sending your details securely</p>
+            <div class="gwarr-progress" aria-hidden="true">
+                <div class="gwarr-progress-fill" id="gwarr-progress-fill"></div>
+            </div>
+            <p class="gwarr-processing-hint">This can take a minute or two — please keep this page open and don't refresh.</p>
         </div>
     </div>
     <?php

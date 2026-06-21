@@ -35,13 +35,18 @@
         var $overlay = $('#gwarr-processing');
         if ($regForm.length && $overlay.length) {
             var stepEl = document.getElementById('gwarr-processing-step');
+            var fillEl = document.getElementById('gwarr-progress-fill');
             var stepTimer = null;
             var submitting = false;
+            // Slower, calmer cadence — registration can take up to a couple of
+            // minutes, so the copy reassures rather than implying it's stuck.
             var steps = [
                 'Sending your details securely',
-                'Verifying your order',
-                'Processing your warranty',
-                'Almost there'
+                'Verifying your order against our records',
+                'This can take a minute or two — hang tight',
+                'Setting up your warranty coverage',
+                'Preparing your welcome coupon',
+                'Almost there — finalising your registration'
             ];
 
             $regForm.on('submit', function (e) {
@@ -70,7 +75,22 @@
                 $overlay.removeAttr('hidden').attr('aria-hidden', 'false');
                 document.body.style.overflow = 'hidden';
 
-                // Cycle the status line so it feels alive during the wait.
+                // Estimated progress bar. We can't get real progress from a
+                // synchronous POST, so ease toward ~95% over ~110s (the slow
+                // end of the observed 1–2 min wait): it shoots up early then
+                // crawls, so it never looks finished-but-frozen. The redirect
+                // to My Warranties tears the overlay down whenever the real
+                // work actually completes — fast OR slow, the bar adapts.
+                if (fillEl) {
+                    fillEl.style.transition = 'none';
+                    fillEl.style.width = '0%';
+                    // force reflow so the 0% sticks before we animate
+                    void fillEl.offsetWidth;
+                    fillEl.style.transition = 'width 110s cubic-bezier(0.05, 0.7, 0.05, 1)';
+                    fillEl.style.width = '95%';
+                }
+
+                // Cycle the status line, slower so it reads as calm progress.
                 if (stepEl) {
                     var i = 0;
                     stepTimer = setInterval(function () {
@@ -79,8 +99,8 @@
                         setTimeout(function () {
                             stepEl.textContent = steps[i];
                             stepEl.style.opacity = '1';
-                        }, 220);
-                    }, 1600);
+                        }, 260);
+                    }, 4500);
                 }
 
                 // Let the native POST proceed (no preventDefault) — the button's
@@ -92,6 +112,7 @@
             window.addEventListener('pageshow', function () {
                 if (stepTimer) { clearInterval(stepTimer); stepTimer = null; }
                 submitting = false;
+                if (fillEl) { fillEl.style.transition = 'none'; fillEl.style.width = '0%'; }
                 $overlay.attr('hidden', 'hidden').attr('aria-hidden', 'true');
                 document.body.style.overflow = '';
             });
