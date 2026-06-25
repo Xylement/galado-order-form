@@ -314,17 +314,24 @@ function gwarr_render_settings_page() {
             It runs in the background in small batches and is safe to re-run (each item is added only once).
         </p>
         <?php
+        $bf_running = false;
         if (class_exists('GWARR_Orders')) {
+            // Drive one batch per page load while running, so progress never
+            // depends on WP-Cron (which is unreliable on shared hosts). The
+            // page auto-refreshes below, advancing the backfill to completion.
+            if (GWARR_Orders::get_backfill_state()['status'] === 'running') {
+                GWARR_Orders::run_backfill_batch();
+            }
             $bf = GWARR_Orders::get_backfill_state();
-            $running = $bf['status'] === 'running';
-            if ($running) {
-                echo '<meta http-equiv="refresh" content="6">';
+            $bf_running = $bf['status'] === 'running';
+            if ($bf_running) {
+                echo '<meta http-equiv="refresh" content="3">';
             }
             echo '<p style="margin:6px 0;">';
             if ($bf['status'] === 'idle') {
                 echo '<em>Not run yet.</em>';
-            } elseif ($running) {
-                echo '<strong style="color:#dba617;">Running…</strong> processed ' . (int) $bf['processed'] . ' order(s), created ' . (int) $bf['created'] . ' warranty row(s) so far. <em>(page auto-refreshes)</em>';
+            } elseif ($bf_running) {
+                echo '<strong style="color:#dba617;">Running…</strong> processed ' . (int) $bf['processed'] . ' order(s), created ' . (int) $bf['created'] . ' warranty row(s) so far. <em>Keep this page open — it advances automatically.</em>';
             } elseif ($bf['status'] === 'done') {
                 echo '<strong style="color:#00a32a;">Done</strong> — processed ' . (int) $bf['processed'] . ' order(s), created ' . (int) $bf['created'] . ' warranty row(s). Finished ' . esc_html($bf['finished']) . '.';
             }
@@ -333,8 +340,8 @@ function gwarr_render_settings_page() {
         ?>
         <form method="post" style="margin-top:8px;">
             <?php wp_nonce_field('gwarr_backfill', 'gwarr_backfill_nonce'); ?>
-            <button type="submit" class="button" <?php disabled(class_exists('GWARR_Orders') && GWARR_Orders::get_backfill_state()['status'] === 'running'); ?>>📦 Backfill recent website orders</button>
-            <span class="description" style="margin-left:8px;">Runs in the background via WP-Cron. Safe to re-run.</span>
+            <button type="submit" class="button"><?php echo $bf_running ? '🔄 Restart backfill' : '📦 Backfill recent website orders'; ?></button>
+            <span class="description" style="margin-left:8px;">Advances automatically while this page is open. Safe to re-run (idempotent).</span>
         </form>
 
         <hr style="margin:40px 0;">

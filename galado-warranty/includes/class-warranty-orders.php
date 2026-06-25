@@ -171,34 +171,39 @@ class GWARR_Orders {
     }
 
     /**
-     * Kick off (or restart) the recent-orders backfill.
+     * Kick off (or restart) the recent-orders backfill from a clean slate.
+     *
+     * The backfill is driven by the settings page itself (one batch per auto-
+     * refresh — see run_backfill_batch) rather than WP-Cron, because shared
+     * hosts often don't fire scheduled events reliably, which would leave the
+     * run stuck "running". We still try a cron tick as a bonus, but the page
+     * keeps it moving regardless. Any stale scheduled event is cleared first.
      */
     public static function start_backfill() {
+        wp_clear_scheduled_hook(self::BACKFILL_HOOK);
+
         update_option(self::BACKFILL_STATE, array_merge(self::default_backfill_state(), [
             'status'  => 'running',
             'started' => current_time('mysql'),
         ]), false);
-
-        if (!wp_next_scheduled(self::BACKFILL_HOOK)) {
-            wp_schedule_single_event(time(), self::BACKFILL_HOOK);
-        }
-        if (function_exists('spawn_cron')) {
-            spawn_cron();
-        }
     }
 
     /**
-     * Process one batch of recent orders, then reschedule until done. Time-
-     * boxed by batch size; each item insert is idempotent so partial runs and
-     * retries are harmless.
+     * Process a single batch of recent orders and advance the cursor. Called
+     * once per settings-page load while the backfill is running (the page auto-
+     * refreshes), so progress never depends on WP-Cron. Time-boxed by batch
+     * size; each item insert is idempotent so partial runs and retries — and
+     * the occasional double-call — are harmless.
+     *
+     * @return bool true while more batches remain, false once done/idle.
      */
     public static function run_backfill_batch() {
         if (!function_exists('wc_get_orders')) {
-            return;
+            return false;
         }
         $state = self::get_backfill_state();
         if ($state['status'] !== 'running') {
-            return;
+            return false;
         }
 
         $after = gmdate('Y-m-d', strtotime('-' . self::BACKFILL_MONTHS . ' months'));
@@ -217,7 +222,7 @@ class GWARR_Orders {
             $state['status']   = 'done';
             $state['finished'] = current_time('mysql');
             update_option(self::BACKFILL_STATE, $state, false);
-            return;
+            return false;
         }
 
         foreach ($orders as $order) {
@@ -226,11 +231,6 @@ class GWARR_Orders {
         }
         $state['page']++;
         update_option(self::BACKFILL_STATE, $state, false);
-
-        // Queue the next batch.
-        wp_schedule_single_event(time() + 5, self::BACKFILL_HOOK);
-        if (function_exists('spawn_cron')) {
-            spawn_cron();
-        }
+        return true;
     }
 }
