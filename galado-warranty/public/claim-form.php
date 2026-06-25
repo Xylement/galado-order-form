@@ -47,6 +47,7 @@ function gwarr_handle_claim_submission() {
     $user_id      = get_current_user_id();
     $warranty_id  = isset($_POST['warranty_id']) ? (int) $_POST['warranty_id'] : 0;
     $issue        = isset($_POST['issue_description']) ? trim(sanitize_textarea_field(wp_unslash($_POST['issue_description']))) : '';
+    $item_label   = isset($_POST['claim_item']) ? trim(sanitize_text_field(wp_unslash($_POST['claim_item']))) : '';
 
     // The warranty must belong to this user and be claimable (active, not expired/claimed).
     $warranty = GWARR_DB::find($warranty_id);
@@ -63,6 +64,17 @@ function gwarr_handle_claim_submission() {
         return gwarr_notice('error', 'Please describe the issue so we can help.');
     }
 
+    // When the warranty covers multiple items, the customer must pick which one
+    // the claim is for; validate it against the actual items on the warranty.
+    $items = gwarr_parse_product_items($warranty->product_text);
+    if (count($items) > 1) {
+        if ($item_label === '' || !in_array($item_label, $items, true)) {
+            return gwarr_notice('error', 'Please select which item this claim is for.');
+        }
+    } else {
+        $item_label = $items ? $items[0] : ''; // single-item: implied
+    }
+
     // Handle uploads (photos[] + optional video). Caps are enforced here; the
     // host's php.ini limits apply on top — if exceeded, $_FILES arrives empty.
     $media = gwarr_handle_claim_uploads();
@@ -73,6 +85,7 @@ function gwarr_handle_claim_submission() {
     $claim_id = GWARR_Claims::insert([
         'warranty_id'       => $warranty_id,
         'user_id'           => $user_id,
+        'item_label'        => $item_label,
         'issue_description' => $issue,
         'media_ids'         => $media,
     ]);
@@ -231,12 +244,25 @@ function gwarr_warranty_is_claimable($warranty) {
  * click via <details>. Shown only for claimable warranties without an open claim.
  */
 function gwarr_render_claim_form($warranty) {
+    $items = gwarr_parse_product_items($warranty->product_text);
     ?>
     <details class="gwarr-claim">
         <summary class="gwarr-claim-toggle">Submit a warranty claim</summary>
         <form method="post" enctype="multipart/form-data" class="gwarr-claim-form">
             <?php wp_nonce_field('gwarr_claim', 'gwarr_claim_nonce'); ?>
             <input type="hidden" name="warranty_id" value="<?php echo (int) $warranty->id; ?>">
+
+            <?php if (count($items) > 1): ?>
+                <label class="gwarr-field">
+                    <span class="gwarr-label">Which item is this claim for?</span>
+                    <select name="claim_item" required>
+                        <option value="">Select the item…</option>
+                        <?php foreach ($items as $item): ?>
+                            <option value="<?php echo esc_attr($item); ?>"><?php echo esc_html($item); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+            <?php endif; ?>
 
             <label class="gwarr-field">
                 <span class="gwarr-label">What's wrong?</span>

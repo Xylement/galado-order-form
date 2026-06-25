@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.6.0
+ * Version: 1.6.1
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.6.0');
+define('GWARR_VERSION', '1.6.1');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -259,26 +259,34 @@ function gwarr_store_marks($extra = []) {
 }
 
 /**
+ * Parse a product_text value (which may contain multi-line "1) … 2) …" lists
+ * from the sheet/order) into a clean array of individual item names. The
+ * numeric "n)" prefixes are stripped and blank lines dropped. Used both for
+ * display and for the per-item claim selector.
+ */
+function gwarr_parse_product_items($text) {
+    $text = trim((string) $text);
+    if ($text === '') return [];
+
+    $lines = preg_split('/\r?\n/', $text);
+    $items = array_map(function ($line) {
+        return trim(preg_replace('/^\s*\d+\)\s*/', '', (string) $line));
+    }, $lines);
+
+    return array_values(array_filter($items, 'strlen'));
+}
+
+/**
  * Render a product_text value (which may contain multi-line "1) … 2) …" lists
  * from the sheet) as HTML for a web page (My Warranties, admin, etc.).
  * Single-item strings stay inline; multi-item lists become a <ul>.
  */
 function gwarr_format_product_html($text) {
-    $text = trim((string) $text);
-    if ($text === '') return '';
+    $items = gwarr_parse_product_items($text);
+    if (empty($items)) return '';
 
-    $lines = preg_split('/\r?\n/', $text);
-    $clean = function ($line) {
-        return trim(preg_replace('/^\s*\d+\)\s*/', '', (string) $line));
-    };
-
-    if (count($lines) === 1) {
-        return esc_html($clean($lines[0]));
-    }
-
-    $items = array_filter(array_map($clean, $lines), 'strlen');
-    if (count($items) <= 1) {
-        return esc_html(reset($items) ?: $text);
+    if (count($items) === 1) {
+        return esc_html($items[0]);
     }
 
     $html = '<ul class="gwarr-product-list">';
@@ -294,21 +302,11 @@ function gwarr_format_product_html($text) {
  * that strip <style> blocks (Gmail, Outlook, Apple Mail).
  */
 function gwarr_format_product_email($text) {
-    $text = trim((string) $text);
-    if ($text === '') return '';
+    $items = gwarr_parse_product_items($text);
+    if (empty($items)) return '';
 
-    $lines = preg_split('/\r?\n/', $text);
-    $clean = function ($line) {
-        return trim(preg_replace('/^\s*\d+\)\s*/', '', (string) $line));
-    };
-
-    if (count($lines) === 1) {
-        return esc_html($clean($lines[0]));
-    }
-
-    $items = array_filter(array_map($clean, $lines), 'strlen');
-    if (count($items) <= 1) {
-        return esc_html(reset($items) ?: $text);
+    if (count($items) === 1) {
+        return esc_html($items[0]);
     }
 
     $html = '<ul style="margin:6px 0 0;padding:0 0 0 20px;font-size:15px;line-height:1.6;color:#1a1a1a;">';
@@ -513,7 +511,7 @@ function gwarr_install_table() {
     $table   = $wpdb->prefix . GWARR_TABLE;
     $charset = $wpdb->get_charset_collate();
 
-    // Columns added in v1.6.0 (source/wc_order_id/wc_item_id/claimed_at) are
+    // Columns added in v1.6.1 (source/wc_order_id/wc_item_id/claimed_at) are
     // appended by dbDelta on existing installs — the UNIQUE KEY is left
     // untouched. Website (WooCommerce) rows stay unique per line item by
     // storing order_number as "{orderId}#{itemId}", which the existing
@@ -568,13 +566,14 @@ function gwarr_install_table() {
         KEY idx_synced (synced_at)
     ) {$charset};";
 
-    // Warranty claims (v1.6.0) — one row per customer claim against a warranty.
+    // Warranty claims (v1.6.1) — one row per customer claim against a warranty.
     // media_ids holds a JSON array of WP attachment IDs (photos + 1 video).
     $claims_table = $wpdb->prefix . 'galado_warranty_claims';
     $sql_claims = "CREATE TABLE {$claims_table} (
         id BIGINT UNSIGNED AUTO_INCREMENT,
         warranty_id BIGINT UNSIGNED NOT NULL,
         user_id BIGINT UNSIGNED NOT NULL,
+        item_label VARCHAR(255) NULL,
         issue_description TEXT NOT NULL,
         media_ids TEXT NULL,
         status VARCHAR(16) NOT NULL DEFAULT 'submitted',

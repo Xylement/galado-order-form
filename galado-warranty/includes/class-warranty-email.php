@@ -375,7 +375,10 @@ class GWARR_Email {
         $order      = ($is_website && !empty($warranty->wc_order_id)) ? '#' . $warranty->wc_order_id : $warranty->order_number;
 
         $rows = [];
-        if (!empty($warranty->product_text)) {
+        // When the claim names a specific item (multi-item order), lead with it.
+        if (!empty($claim->item_label)) {
+            $rows['Item'] = esc_html($claim->item_label);
+        } elseif (!empty($warranty->product_text)) {
             $rows['Product'] = gwarr_format_product_email($warranty->product_text);
         }
         $rows['Where']  = esc_html(GWARR_Marketplaces::label($warranty->marketplace));

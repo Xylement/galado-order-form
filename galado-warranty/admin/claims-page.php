@@ -85,7 +85,14 @@ function gwarr_render_claim_admin_row($row) {
             <small><?php echo esc_html($row->user_email ?: '—'); ?></small>
         </td>
         <td>
-            <?php echo $row->product_text ? gwarr_format_product_email($row->product_text) : '<span style="color:#999;">—</span>'; ?>
+            <?php if (!empty($row->item_label)): ?>
+                <strong class="gwarr-claim-item"><?php echo esc_html($row->item_label); ?></strong>
+                <?php if ($row->product_text && count(gwarr_parse_product_items($row->product_text)) > 1): ?>
+                    <br><small style="color:#888;">of <?php echo (int) count(gwarr_parse_product_items($row->product_text)); ?> items on this order</small>
+                <?php endif; ?>
+            <?php else: ?>
+                <?php echo $row->product_text ? gwarr_format_product_email($row->product_text) : '<span style="color:#999;">—</span>'; ?>
+            <?php endif; ?>
             <br><small><?php echo esc_html(GWARR_Marketplaces::label($row->marketplace)); ?> · <code><?php echo esc_html($order); ?></code></small>
         </td>
         <td>

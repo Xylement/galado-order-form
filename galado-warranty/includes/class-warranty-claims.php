@@ -27,6 +27,7 @@ class GWARR_Claims {
         $row = wp_parse_args($args, [
             'warranty_id'       => 0,
             'user_id'           => 0,
+            'item_label'        => '',
             'issue_description' => '',
             'media_ids'         => [],
         ]);
@@ -45,11 +46,12 @@ class GWARR_Claims {
             [
                 'warranty_id'       => (int) $row['warranty_id'],
                 'user_id'           => (int) $row['user_id'],
+                'item_label'        => (string) $row['item_label'] ?: null,
                 'issue_description' => (string) $row['issue_description'],
                 'media_ids'         => wp_json_encode($media),
                 'status'            => 'submitted',
             ],
-            ['%d', '%d', '%s', '%s', '%s']
+            ['%d', '%d', '%s', '%s', '%s', '%s']
         );
 
         if ($ok === false) {

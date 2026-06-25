@@ -1,13 +1,53 @@
-/* GALADO Warranty — public styles */
+/* GALADO Warranty — public styles (GALADO Club theme) */
+
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap');
+
+:root {
+    --gw-bg: #fff6ee;
+    --gw-card: #ffffff;
+    --gw-border: #f3ddd2;
+    --gw-ink: #46302e;
+    --gw-ink-soft: #8a6f6c;
+    --gw-coral: #f25d6f;
+    --gw-coral-light: #ff7e8a;
+    --gw-gold: #f5b83d;
+    --gw-gold-deep: #d99a23;
+    --gw-green: #3fa66f;
+    --gw-radius: 16px;
+    --gw-pill: 999px;
+    --gw-shadow: 0 6px 20px rgba(70, 48, 46, .08);
+    --gw-font-head: 'Baloo 2', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --gw-font-body: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Scope the Club typography to the warranty surfaces only. */
+.gwarr-card,
+.gwarr-my-list,
+.gwarr-coverage-note,
+.gwarr-modal-dialog,
+.gwarr-processing-inner {
+    font-family: var(--gw-font-body);
+    color: var(--gw-ink);
+}
+.gwarr-card h3,
+.gwarr-warranty-head .gwarr-marketplace,
+.gwarr-modal-title,
+.gwarr-processing-title,
+.gwarr-coupon-code,
+.gwarr-btn,
+.gwarr-btn-secondary,
+.gwarr-claim-toggle {
+    font-family: var(--gw-font-head);
+}
 
 .gwarr-card {
-    background: #fff;
-    border: 1px solid #e5e5e5;
-    border-radius: 12px;
-    padding: 24px 28px;
+    background: var(--gw-card);
+    border: 1px solid var(--gw-border);
+    border-radius: var(--gw-radius);
+    padding: 26px 30px;
     max-width: 680px;
     margin: 24px 0;
-    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    box-shadow: var(--gw-shadow);
 }
 
 .gwarr-card-login { text-align: center; }
@@ -75,8 +115,8 @@
 .gwarr-field select:focus,
 .gwarr-field textarea:focus {
     outline: none;
-    border-color: #1a1a1a;
-    box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+    border-color: var(--gw-coral);
+    box-shadow: 0 0 0 3px rgba(242, 93, 111, .15);
 }
 
 .gwarr-help { display: block; font-size: 12px; color: #777; margin-top: 4px; }
@@ -95,18 +135,23 @@
 
 .gwarr-actions { display: flex; gap: 14px; align-items: center; margin: 4px 0 0; }
 .gwarr-btn {
-    background: #1a1a1a !important;
+    background: linear-gradient(135deg, var(--gw-coral-light), var(--gw-coral)) !important;
     color: #fff !important;
     border: none !important;
-    padding: 12px 22px !important;
-    font-size: 14px !important;
-    font-weight: 600 !important;
-    border-radius: 8px !important;
+    padding: 13px 26px !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    border-radius: var(--gw-pill) !important;
     cursor: pointer;
     text-decoration: none !important;
+    box-shadow: 0 6px 16px rgba(242, 93, 111, .32) !important;
+    transition: transform .15s ease, box-shadow .15s ease !important;
 }
-.gwarr-btn:hover { background: #000 !important; }
-.gwarr-link { font-size: 13px; color: #666; }
+.gwarr-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 9px 22px rgba(242, 93, 111, .42) !important;
+}
+.gwarr-link { font-size: 13px; color: var(--gw-ink-soft); }
 
 .gwarr-fineprint { font-size: 12px; color: #888; line-height: 1.5; }
 
@@ -127,10 +172,11 @@
 .gwarr-my-list { display: grid; gap: 14px; }
 
 .gwarr-warranty-card {
-    background: #fff;
-    border: 1px solid #e5e5e5;
-    border-radius: 10px;
-    padding: 16px 20px;
+    background: var(--gw-card);
+    border: 1px solid var(--gw-border);
+    border-radius: var(--gw-radius);
+    padding: 18px 22px;
+    box-shadow: var(--gw-shadow);
 }
 
 .gwarr-warranty-head {
@@ -143,25 +189,25 @@
     margin-bottom: 10px;
 }
 
-.gwarr-marketplace { font-weight: 600; color: #1a1a1a; }
+.gwarr-marketplace { font-weight: 700; color: var(--gw-ink); }
 .gwarr-order { font-family: monospace; }
 
 .gwarr-badge {
     display: inline-block;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 800;
     text-transform: uppercase;
     letter-spacing: .04em;
-    padding: 3px 8px;
-    border-radius: 4px;
+    padding: 4px 10px;
+    border-radius: var(--gw-pill);
 }
-.gwarr-badge-ok      { background: #00a32a; color: #fff; }
+.gwarr-badge-ok      { background: var(--gw-green); color: #fff; }
 .gwarr-badge-run,
-.gwarr-badge-pending { background: #dba617; color: #fff; }
+.gwarr-badge-pending { background: var(--gw-gold); color: #5a3d0a; }
 .gwarr-badge-err,
-.gwarr-badge-rejected{ background: #d63638; color: #fff; }
-.gwarr-badge-expired { background: #b0b0b0; color: #fff; }
-.gwarr-badge-claimed { background: #6b7280; color: #fff; }
+.gwarr-badge-rejected{ background: #e3585f; color: #fff; }
+.gwarr-badge-expired { background: #c3b1aa; color: #fff; }
+.gwarr-badge-claimed { background: #9a8478; color: #fff; }
 
 /* Spent warranties (expired or claimed) render muted/greyed. */
 .gwarr-warranty-card--inactive {
@@ -254,10 +300,10 @@
 .gwarr-meta dd { margin: 0; }
 
 .gwarr-coupon {
-    background: #fff8e7;
-    border: 1px dashed #d6b656;
-    border-radius: 10px;
-    padding: 14px 16px;
+    background: #fff8ec;
+    border: 1px dashed var(--gw-gold);
+    border-radius: 14px;
+    padding: 16px;
     text-align: center;
 }
 .gwarr-coupon-label {
@@ -265,50 +311,53 @@
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: .06em;
-    color: #876d2e;
+    color: var(--gw-gold-deep);
+    font-weight: 700;
     margin-bottom: 4px;
 }
 .gwarr-coupon-code {
     font-size: 22px;
-    font-weight: 700;
-    font-family: monospace;
-    color: #1a1a1a;
+    font-weight: 800;
+    color: var(--gw-ink);
     display: inline-block;
-    padding: 4px 8px;
+    padding: 4px 12px;
     background: #fff;
-    border-radius: 4px;
+    border-radius: var(--gw-pill);
+    border: 1px solid var(--gw-border);
 }
 .gwarr-coupon-perks {
     font-size: 14px;
-    font-weight: 600;
-    color: #1a1a1a;
+    font-weight: 700;
+    color: var(--gw-ink);
     margin: 8px 0 2px;
 }
-.gwarr-coupon-help { font-size: 12px; color: #876d2e; margin: 4px 0 0; }
+.gwarr-coupon-help { font-size: 12px; color: var(--gw-gold-deep); margin: 4px 0 0; }
 
 .gwarr-coverage-note {
-    margin: 14px 0 0;
-    padding: 12px 14px;
-    background: #f6f7f7;
-    border-radius: 8px;
+    margin: 0 0 14px;
+    padding: 12px 16px;
+    background: var(--gw-bg);
+    border: 1px solid var(--gw-border);
+    border-radius: var(--gw-radius);
     font-size: 13px;
-    color: #555;
+    color: var(--gw-ink-soft);
 }
 .gwarr-coverage-note a {
-    color: #1a1a1a;
-    font-weight: 600;
-    text-decoration: underline;
+    color: var(--gw-coral);
+    font-weight: 700;
+    text-decoration: none;
+    border-bottom: 1px solid currentColor;
 }
 
 .gwarr-pending-msg,
-.gwarr-rejected-msg { font-size: 13px; color: #555; margin: 0; }
+.gwarr-rejected-msg { font-size: 13px; color: var(--gw-ink-soft); margin: 0; }
 
 .gwarr-empty {
     text-align: center;
     padding: 32px 16px;
-    border: 1px dashed #ddd;
-    border-radius: 10px;
-    color: #666;
+    border: 1px dashed var(--gw-border);
+    border-radius: var(--gw-radius);
+    color: var(--gw-ink-soft);
 }
 
 /* ============================================================================
@@ -317,16 +366,16 @@
 
 .gwarr-btn-secondary {
     background: #fff !important;
-    color: #1a1a1a !important;
-    border: 1px solid #d4d4d4 !important;
-    padding: 12px 22px !important;
-    font-size: 14px !important;
-    font-weight: 600 !important;
-    border-radius: 8px !important;
+    color: var(--gw-coral) !important;
+    border: 1.5px solid var(--gw-coral) !important;
+    padding: 12px 24px !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    border-radius: var(--gw-pill) !important;
     cursor: pointer;
     margin-left: 8px;
 }
-.gwarr-btn-secondary:hover { background: #f6f7f7 !important; }
+.gwarr-btn-secondary:hover { background: var(--gw-bg) !important; }
 
 .gwarr-modal {
     position: fixed;
@@ -395,7 +444,7 @@
     color: #555;
     cursor: pointer;
 }
-.gwarr-modal-tab.is-active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.gwarr-modal-tab.is-active { background: #fff; color: var(--gw-coral); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 
 .gwarr-modal-title {
     margin: 0 0 18px;
@@ -497,8 +546,8 @@
     width: 52px;
     height: 52px;
     margin: 0 auto 22px;
-    border: 4px solid rgba(0, 0, 0, 0.1);
-    border-top-color: #1a1a1a;
+    border: 4px solid rgba(242, 93, 111, 0.18);
+    border-top-color: var(--gw-coral);
     border-radius: 50%;
     animation: gwarr-spin 0.8s linear infinite;
 }
@@ -534,7 +583,7 @@
 .gwarr-progress-fill {
     height: 100%;
     width: 0;
-    background: #1a1a1a;
+    background: linear-gradient(135deg, var(--gw-coral-light), var(--gw-coral));
     border-radius: 999px;
 }
 
