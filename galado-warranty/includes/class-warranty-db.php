@@ -101,11 +101,22 @@ class GWARR_DB {
     }
 
     /**
-     * Insert (or no-op if it already exists) a per-item warranty row for a
-     * WooCommerce order line item. Idempotent on wc_item_id so re-firing the
-     * order hook or running the backfill never duplicates. These rows are
-     * created already-active ('approved') — a paid Woo order is self-verifying.
+     * Insert (or no-op if it already exists) a per-component warranty row for a
+     * WooCommerce order line item. A line item yields one row for the product
+     * plus one row per paid add-on product (e.g. a "Mini Wrist Strap (RM59)"
+     * sold via Product Add-Ons), so each is claimable independently.
      *
+     * Idempotency is keyed on the full order_number ("{orderId}#{itemId}" for
+     * the base product, "{orderId}#{itemId}#a1" for add-ons) which the existing
+     * (marketplace, order_number) unique key enforces — so re-firing the hook
+     * or re-running the backfill never duplicates. When a row already exists its
+     * product_text is refreshed (in case the capture logic improved) but its
+     * status / dates / any claim are left untouched. Rows are created already-
+     * active ('approved') — a paid Woo order is self-verifying.
+     *
+     * @param array $args user_id, wc_order_id, wc_item_id, product_text,
+     *                    purchase_date, warranty_ends, and optional 'suffix'
+     *                    (e.g. 'a1') that distinguishes an add-on row.
      * @return int|false New row id on insert, 0 if it already existed
      *                   (idempotent no-op), or false on failure.
      */
@@ -116,6 +127,7 @@ class GWARR_DB {
             'user_id'       => 0,
             'wc_order_id'   => 0,
             'wc_item_id'    => 0,
+            'suffix'        => '',
             'product_text'  => '',
             'purchase_date' => null,
             'warranty_ends' => null,
@@ -126,13 +138,27 @@ class GWARR_DB {
             return false;
         }
 
-        if (self::find_by_wc_item($wc_item_id)) {
-            return 0; // already captured — idempotent no-op (not counted as new)
+        // wc_order_id holds the clean number; order_number is the unique key.
+        $order_number = (int) $row['wc_order_id'] . '#' . $wc_item_id;
+        $suffix       = preg_replace('/[^a-z0-9]/i', '', (string) $row['suffix']);
+        if ($suffix !== '') {
+            $order_number .= '#' . $suffix;
         }
 
-        // order_number stays unique under the existing (marketplace, order_number)
-        // key by encoding the line item; wc_order_id holds the clean number.
-        $order_number = (int) $row['wc_order_id'] . '#' . $wc_item_id;
+        $existing = self::find_by_order('website', $order_number);
+        if ($existing) {
+            // Refresh the label only; never disturb status / dates / claims.
+            if ((string) $existing->product_text !== (string) $row['product_text']) {
+                $wpdb->update(
+                    self::table(),
+                    ['product_text' => (string) $row['product_text']],
+                    ['id' => (int) $existing->id],
+                    ['%s'],
+                    ['%d']
+                );
+            }
+            return 0; // already captured — not counted as new
+        }
 
         $ok = $wpdb->insert(
             self::table(),

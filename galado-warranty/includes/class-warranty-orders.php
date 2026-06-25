@@ -63,39 +63,48 @@ class GWARR_Orders {
                 continue;
             }
 
-            $id = GWARR_DB::insert_website_item([
+            $parts  = self::components($item);
+            $common = [
                 'user_id'       => $user_id,
                 'wc_order_id'   => (int) $order_id,
                 'wc_item_id'    => (int) $item_id,
-                'product_text'  => self::item_label($item),
                 'purchase_date' => $purchase,
                 'warranty_ends' => $ends,
-            ]);
-            if ($id) {
+            ];
+
+            // The base product is its own warranty row …
+            if (GWARR_DB::insert_website_item($common + ['product_text' => $parts['base']])) {
                 $count++;
+            }
+            // … and each paid add-on product gets its own independently-
+            // claimable row, distinguished by a 'a{n}' order_number suffix.
+            foreach ($parts['addons'] as $i => $addon) {
+                if (GWARR_DB::insert_website_item($common + ['suffix' => 'a' . ($i + 1), 'product_text' => $addon])) {
+                    $count++;
+                }
             }
         }
         return $count;
     }
 
     /**
-     * Full label for a line item: the product name plus any visible add-on /
-     * customization meta (WCPA name/number fields, variation attributes, gift
-     * options) appended inline, e.g.
-     *   "Impact Pro Case — iPhone 17 Pro Max (Name: JOHN, Number: 10)".
+     * Split a line item into its claimable components:
+     *   - 'base'   : the product name plus any free option meta appended inline
+     *                (variation attributes, "Colour: …", customization fields),
+     *                e.g. "Clear MagSafe - iPhone 12 Pro Max (Colour: Midnight Blue)".
+     *   - 'addons' : names of any PAID add-on products (meta values carrying an
+     *                "RM…" price, e.g. a "Mini Wrist Strap (RM59.00)" sold via
+     *                Product Add-Ons) — each becomes its own warranty so it can
+     *                be claimed independently.
      *
-     * Kept to a single line so the per-item claim parser still treats one line
-     * item as one claimable item — add-ons describe the item, they aren't
-     * separately warrantable. Values are tag-stripped, collapsed, and length-
-     * capped so a long custom text or a file-upload URL can't bloat the record.
+     * Values are tag-stripped, newline-flattened and length-capped so a long
+     * custom text or a file-upload URL can't bloat the record.
      */
-    private static function item_label($item) {
-        $name   = (string) $item->get_name();
-        $extras = [];
+    private static function components($item) {
+        $name        = (string) $item->get_name();
+        $descriptors = [];
+        $addons      = [];
 
-        // get_formatted_meta_data hides internal (_-prefixed) meta and returns
-        // the customer-visible add-on / attribute lines WooCommerce would print
-        // on the order. Available on WC_Order_Item since WC 3.0.
         if (method_exists($item, 'get_formatted_meta_data')) {
             foreach ($item->get_formatted_meta_data('_', false) as $meta) {
                 $key = trim(wp_strip_all_tags((string) $meta->display_key));
@@ -104,22 +113,41 @@ class GWARR_Orders {
                     continue;
                 }
                 $val = trim(preg_replace('/\s+/', ' ', $val)); // flatten newlines
-                if (function_exists('mb_strlen') && mb_strlen($val) > 80) {
-                    $val = mb_substr($val, 0, 77) . '…';
-                } elseif (strlen($val) > 80) {
-                    $val = substr($val, 0, 77) . '…';
-                }
-                $extras[] = $key . ': ' . $val;
-                if (count($extras) >= 6) { // cap noise from add-on-heavy products
-                    break;
+
+                // A price marker ("RM59.00", "+RM59", "(RM 59.00)") signals a
+                // paid add-on product → its own claimable warranty.
+                if (preg_match('/\+?\s*RM\s?[\d][\d.,]*/i', $val)) {
+                    $clean = trim(preg_replace('/\(?\s*\+?\s*RM\s?[\d][\d.,]*\s*\)?/i', '', $val));
+                    $clean = trim($clean, " -–—:()");
+                    if (function_exists('mb_strlen') ? mb_strlen($clean) < 2 : strlen($clean) < 2) {
+                        $clean = $key; // value was essentially just the price / "Yes"
+                    }
+                    $addons[] = self::cap($clean);
+                } else {
+                    $descriptors[] = $key . ': ' . self::cap($val);
+                    if (count($descriptors) >= 6) { // cap noise from option-heavy products
+                        break;
+                    }
                 }
             }
         }
 
-        if ($extras) {
-            $name .= ' (' . implode(', ', $extras) . ')';
+        $base = $name;
+        if ($descriptors) {
+            $base .= ' (' . implode(', ', $descriptors) . ')';
         }
-        return trim(preg_replace('/\s+/', ' ', $name));
+        return [
+            'base'   => trim(preg_replace('/\s+/', ' ', $base)),
+            'addons' => $addons,
+        ];
+    }
+
+    /** Length-cap a label fragment so one field can't bloat the record. */
+    private static function cap($s) {
+        if (function_exists('mb_strlen')) {
+            return mb_strlen($s) > 80 ? mb_substr($s, 0, 77) . '…' : $s;
+        }
+        return strlen($s) > 80 ? substr($s, 0, 77) . '…' : $s;
     }
 
     // -------------------------------------------------------------------------
