@@ -63,12 +63,11 @@ class GWARR_Orders {
                 continue;
             }
 
-            $name = $item->get_name(); // includes variation attributes
-            $id   = GWARR_DB::insert_website_item([
+            $id = GWARR_DB::insert_website_item([
                 'user_id'       => $user_id,
                 'wc_order_id'   => (int) $order_id,
                 'wc_item_id'    => (int) $item_id,
-                'product_text'  => $name,
+                'product_text'  => self::item_label($item),
                 'purchase_date' => $purchase,
                 'warranty_ends' => $ends,
             ]);
@@ -77,6 +76,50 @@ class GWARR_Orders {
             }
         }
         return $count;
+    }
+
+    /**
+     * Full label for a line item: the product name plus any visible add-on /
+     * customization meta (WCPA name/number fields, variation attributes, gift
+     * options) appended inline, e.g.
+     *   "Impact Pro Case — iPhone 17 Pro Max (Name: JOHN, Number: 10)".
+     *
+     * Kept to a single line so the per-item claim parser still treats one line
+     * item as one claimable item — add-ons describe the item, they aren't
+     * separately warrantable. Values are tag-stripped, collapsed, and length-
+     * capped so a long custom text or a file-upload URL can't bloat the record.
+     */
+    private static function item_label($item) {
+        $name   = (string) $item->get_name();
+        $extras = [];
+
+        // get_formatted_meta_data hides internal (_-prefixed) meta and returns
+        // the customer-visible add-on / attribute lines WooCommerce would print
+        // on the order. Available on WC_Order_Item since WC 3.0.
+        if (method_exists($item, 'get_formatted_meta_data')) {
+            foreach ($item->get_formatted_meta_data('_', false) as $meta) {
+                $key = trim(wp_strip_all_tags((string) $meta->display_key));
+                $val = trim(wp_strip_all_tags((string) $meta->display_value));
+                if ($key === '' || $val === '') {
+                    continue;
+                }
+                $val = trim(preg_replace('/\s+/', ' ', $val)); // flatten newlines
+                if (function_exists('mb_strlen') && mb_strlen($val) > 80) {
+                    $val = mb_substr($val, 0, 77) . '…';
+                } elseif (strlen($val) > 80) {
+                    $val = substr($val, 0, 77) . '…';
+                }
+                $extras[] = $key . ': ' . $val;
+                if (count($extras) >= 6) { // cap noise from add-on-heavy products
+                    break;
+                }
+            }
+        }
+
+        if ($extras) {
+            $name .= ' (' . implode(', ', $extras) . ')';
+        }
+        return trim(preg_replace('/\s+/', ' ', $name));
     }
 
     // -------------------------------------------------------------------------
