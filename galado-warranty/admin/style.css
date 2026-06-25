@@ -36,6 +36,12 @@
 .gwarr-badge-approved { background: #00a32a; }
 .gwarr-badge-rejected { background: #d63638; }
 .gwarr-badge-expired  { background: #8c8f94; }
+.gwarr-badge-claimed  { background: #6b7280; }
+
+/* Claim review queue */
+.gwarr-claim-issue { white-space: normal; max-width: 360px; }
+.gwarr-claim-media { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+.gwarr-claim-media img { display: block; border: 1px solid #ddd; }
 
 .gwarr-row-actions summary {
     cursor: pointer;

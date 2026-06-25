@@ -281,6 +281,109 @@ class GWARR_Email {
     }
 
     // ============================================================
+    // Warranty claims (Phase 2)
+    // ============================================================
+
+    /**
+     * Confirmation to the customer that we received their claim.
+     */
+    public static function send_claim_received($claim) {
+        $user     = get_userdata((int) $claim->user_id);
+        $warranty = class_exists('GWARR_DB') ? GWARR_DB::find((int) $claim->warranty_id) : null;
+        if (!$user) return false;
+
+        $content  = self::heading('Hi ' . esc_html(self::first_name($user)) . ',');
+        $content .= self::paragraph('Thanks — we\'ve received your warranty claim and our team will review it shortly.');
+        $content .= self::definition_table(self::claim_rows($warranty, $claim));
+        $content .= self::callout('info', 'We\'ll email you as soon as there\'s an update. You can also track the status under <strong>My Warranties</strong> in your account.');
+        $content .= self::signoff();
+
+        return self::send($user->user_email, 'We\'ve received your warranty claim', self::email_layout($content));
+    }
+
+    /**
+     * Customer notification that their claim was approved.
+     */
+    public static function send_claim_approved($claim) {
+        $user     = get_userdata((int) $claim->user_id);
+        $warranty = class_exists('GWARR_DB') ? GWARR_DB::find((int) $claim->warranty_id) : null;
+        if (!$user) return false;
+
+        $content  = self::heading('Good news, ' . esc_html(self::first_name($user)) . '!');
+        $content .= self::paragraph('Your warranty claim has been <strong>approved</strong>. Our team will be in touch with the next steps to get this sorted for you.');
+        $content .= self::definition_table(self::claim_rows($warranty, $claim));
+        if (!empty($claim->admin_note)) {
+            $content .= self::callout('info', esc_html($claim->admin_note));
+        }
+        $content .= self::signoff();
+
+        return self::send($user->user_email, 'Your warranty claim is approved ✦', self::email_layout($content));
+    }
+
+    /**
+     * Customer notification that their claim was declined (they may re-file).
+     */
+    public static function send_claim_rejected($claim) {
+        $user     = get_userdata((int) $claim->user_id);
+        $warranty = class_exists('GWARR_DB') ? GWARR_DB::find((int) $claim->warranty_id) : null;
+        if (!$user) return false;
+
+        $content  = self::heading('Hi ' . esc_html(self::first_name($user)) . ',');
+        $content .= self::paragraph('Thanks for submitting your warranty claim. After reviewing it, we\'re unable to approve it at this time.');
+        $content .= self::definition_table(self::claim_rows($warranty, $claim));
+        $content .= self::callout('warning',
+            (!empty($claim->admin_note) ? '<em>' . esc_html($claim->admin_note) . '</em><br><br>' : '')
+            . 'If you have more details or photos, you\'re welcome to reply to this email or submit a new claim from My Warranties.'
+        );
+        $content .= self::signoff();
+
+        return self::send($user->user_email, 'An update on your warranty claim', self::email_layout($content));
+    }
+
+    /**
+     * Admin alert when a customer submits a new claim.
+     */
+    public static function send_admin_claim_alert($claim) {
+        $admin_email = get_option('admin_email');
+        if (!$admin_email) return false;
+
+        $user     = get_userdata((int) $claim->user_id);
+        $warranty = class_exists('GWARR_DB') ? GWARR_DB::find((int) $claim->warranty_id) : null;
+        $media    = class_exists('GWARR_Claims') ? GWARR_Claims::media_ids($claim) : [];
+
+        $rows = self::claim_rows($warranty, $claim);
+        $rows['Customer'] = esc_html($user ? $user->display_name : 'unknown') . ' &lt;' . esc_html($user ? $user->user_email : '—') . '&gt;';
+        $rows['Issue']    = nl2br(esc_html($claim->issue_description));
+        $rows['Media']    = $media ? (count($media) . ' file(s) attached') : 'none';
+
+        $content  = self::heading('New warranty claim', 'h3');
+        $content .= self::paragraph('A customer has submitted a warranty claim for review.');
+        $content .= self::definition_table($rows);
+        $content .= self::button('Review claim →', admin_url('admin.php?page=galado-warranty-claims'));
+
+        return self::send($admin_email, '[GALADO] New warranty claim pending review', self::email_layout($content));
+    }
+
+    /**
+     * Shared definition rows describing the warranty a claim is against.
+     */
+    private static function claim_rows($warranty, $claim) {
+        if (!$warranty) {
+            return ['Claim' => '#' . (int) $claim->id];
+        }
+        $is_website = isset($warranty->source) && $warranty->source === 'website';
+        $order      = ($is_website && !empty($warranty->wc_order_id)) ? '#' . $warranty->wc_order_id : $warranty->order_number;
+
+        $rows = [];
+        if (!empty($warranty->product_text)) {
+            $rows['Product'] = gwarr_format_product_email($warranty->product_text);
+        }
+        $rows['Where']  = esc_html(GWARR_Marketplaces::label($warranty->marketplace));
+        $rows['Order']  = '<code style="font-family:monospace;">' . esc_html($order) . '</code>';
+        return $rows;
+    }
+
+    // ============================================================
     // Layout building blocks (inline-styled for email-client safety)
     // ============================================================
 

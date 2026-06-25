@@ -74,7 +74,8 @@ function gwarr_render_my_warranties() {
         delete_transient($notice_key);
     }
 
-    $rows = GWARR_DB::for_user(get_current_user_id());
+    $rows       = GWARR_DB::for_user(get_current_user_id());
+    $claim_map  = class_exists('GWARR_Claims') ? GWARR_Claims::map_for_user(get_current_user_id()) : [];
 
     if (empty($rows)) {
         $register_url = gwarr_register_page_url();
@@ -95,13 +96,13 @@ function gwarr_render_my_warranties() {
     </p>
     <div class="gwarr-my-list">
         <?php foreach ($rows as $row): ?>
-            <?php gwarr_render_my_warranty_card($row); ?>
+            <?php gwarr_render_my_warranty_card($row, $claim_map[(int) $row->id] ?? null); ?>
         <?php endforeach; ?>
     </div>
     <?php
 }
 
-function gwarr_render_my_warranty_card($row) {
+function gwarr_render_my_warranty_card($row, $claim = null) {
     $marketplace_label = GWARR_Marketplaces::label($row->marketplace);
     $status            = $row->status;
     $is_approved       = $status === 'approved';
@@ -170,6 +171,22 @@ function gwarr_render_my_warranty_card($row) {
                         <p class="gwarr-coupon-help">Apply this code at checkout on galado.com.my. Single use, customer-specific.</p>
                     </div>
                 <?php endif; ?>
+
+                <?php
+                // Claim controls only on an active (approved, non-expired) warranty.
+                if ($is_approved && !$is_expired && function_exists('gwarr_render_claim_form')) {
+                    $claim_status = $claim ? $claim->status : '';
+                    if ($claim_status === 'submitted') {
+                        echo '<p class="gwarr-claim-status gwarr-claim-status--review">⏳ Your claim is under review — we\'ll email you with the next steps.</p>';
+                    } else {
+                        if ($claim_status === 'rejected' && !empty($claim->admin_note)) {
+                            echo '<p class="gwarr-claim-status gwarr-claim-status--declined">Your previous claim was declined: <em>'
+                                . esc_html($claim->admin_note) . '</em> You can submit a new claim below.</p>';
+                        }
+                        gwarr_render_claim_form($row);
+                    }
+                }
+                ?>
 
             <?php elseif ($is_pending): ?>
                 <p class="gwarr-pending-msg">

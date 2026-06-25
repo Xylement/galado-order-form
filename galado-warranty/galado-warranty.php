@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.5.0
+ * Version: 1.6.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.5.0');
+define('GWARR_VERSION', '1.6.0');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -358,14 +358,17 @@ add_action('plugins_loaded', function () {
         require_once GWARR_PATH . 'includes/class-warranty-sheet-sync.php';
         require_once GWARR_PATH . 'includes/class-warranty-auto-approve.php';
         require_once GWARR_PATH . 'includes/class-warranty-orders.php';
+        require_once GWARR_PATH . 'includes/class-warranty-claims.php';
         require_once GWARR_PATH . 'includes/class-warranty-diagnostics.php';
         require_once GWARR_PATH . 'public/register-shortcode.php';
         require_once GWARR_PATH . 'public/my-warranties.php';
+        require_once GWARR_PATH . 'public/claim-form.php';
         require_once GWARR_PATH . 'public/auth-ajax.php';
 
         if (is_admin()) {
             require_once GWARR_PATH . 'admin/list-table.php';
             require_once GWARR_PATH . 'admin/settings-page.php';
+            require_once GWARR_PATH . 'admin/claims-page.php';
         }
 
         // Background sheet sync — hourly. Cron hook is registered here so
@@ -475,6 +478,19 @@ add_action('admin_menu', function () {
             'gwarr_render_registrations_page'
         );
     }
+    if (function_exists('gwarr_render_claims_page')) {
+        $counts = class_exists('GWARR_Claims') ? GWARR_Claims::status_counts() : ['submitted' => 0];
+        $pending = (int) ($counts['submitted'] ?? 0);
+        $label  = 'Warranty Claims' . ($pending ? ' <span class="awaiting-mod">' . $pending . '</span>' : '');
+        add_submenu_page(
+            $parent,
+            'Warranty Claims',
+            $label,
+            'manage_woocommerce',
+            'galado-warranty-claims',
+            'gwarr_render_claims_page'
+        );
+    }
     if (function_exists('gwarr_render_settings_page')) {
         add_submenu_page(
             $parent,
@@ -497,7 +513,7 @@ function gwarr_install_table() {
     $table   = $wpdb->prefix . GWARR_TABLE;
     $charset = $wpdb->get_charset_collate();
 
-    // Columns added in v1.5.0 (source/wc_order_id/wc_item_id/claimed_at) are
+    // Columns added in v1.6.0 (source/wc_order_id/wc_item_id/claimed_at) are
     // appended by dbDelta on existing installs — the UNIQUE KEY is left
     // untouched. Website (WooCommerce) rows stay unique per line item by
     // storing order_number as "{orderId}#{itemId}", which the existing
@@ -552,9 +568,31 @@ function gwarr_install_table() {
         KEY idx_synced (synced_at)
     ) {$charset};";
 
+    // Warranty claims (v1.6.0) — one row per customer claim against a warranty.
+    // media_ids holds a JSON array of WP attachment IDs (photos + 1 video).
+    $claims_table = $wpdb->prefix . 'galado_warranty_claims';
+    $sql_claims = "CREATE TABLE {$claims_table} (
+        id BIGINT UNSIGNED AUTO_INCREMENT,
+        warranty_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        issue_description TEXT NOT NULL,
+        media_ids TEXT NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'submitted',
+        admin_note TEXT NULL,
+        resolved_by BIGINT UNSIGNED NULL,
+        resolved_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY  (id),
+        KEY idx_warranty (warranty_id),
+        KEY idx_user (user_id),
+        KEY idx_status (status)
+    ) {$charset};";
+
     require_once ABSPATH . 'wp-admin/includes/upgrade.php';
     dbDelta($sql_main);
     dbDelta($sql_cache);
+    dbDelta($sql_claims);
 }
 
 register_activation_hook(__FILE__, function () {
