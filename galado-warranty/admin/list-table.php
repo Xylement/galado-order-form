@@ -211,12 +211,12 @@ function gwarr_render_admin_row_actions($row) {
         if (!empty($row->coupon_code))   echo 'Coupon <code>' . esc_html($row->coupon_code) . '</code>';
         echo '</small>';
         // Mark as claimed — only meaningful on an active (approved) warranty.
-        gwarr_render_claim_form($row, 'mark');
+        gwarr_render_admin_claim_button($row, 'mark');
     } elseif ($row->status === 'claimed') {
         echo '<small>Claimed';
         if (!empty($row->claimed_at)) echo ' ' . esc_html(mysql2date('M j, Y', $row->claimed_at));
         echo '</small>';
-        gwarr_render_claim_form($row, 'unmark');
+        gwarr_render_admin_claim_button($row, 'unmark');
     } elseif ($row->status === 'rejected') {
         if (!empty($row->admin_note)) {
             echo '<small><em>' . esc_html($row->admin_note) . '</em></small>';
@@ -231,7 +231,7 @@ function gwarr_render_admin_row_actions($row) {
  * Mark-as-claimed (on approved rows) / Unmark (on claimed rows) button.
  * Phase 1 manual control; Phase 2 will drive this from customer claim approvals.
  */
-function gwarr_render_claim_form($row, $mode) {
+function gwarr_render_admin_claim_button($row, $mode) {
     $is_mark = ($mode === 'mark');
     $confirm = $is_mark
         ? 'Mark this warranty as claimed? It will grey out in the customer\'s My Warranties.'
