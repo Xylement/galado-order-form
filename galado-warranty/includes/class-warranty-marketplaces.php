@@ -43,6 +43,11 @@ class GWARR_Marketplaces {
     }
 
     public static function label($slug) {
+        // 'website' is not a registerable marketplace (not in all()), but
+        // WooCommerce-captured rows use it — label it nicely everywhere.
+        if ($slug === 'website') {
+            return 'Website Order';
+        }
         $all = self::all();
         return $all[$slug] ?? ucfirst((string) $slug);
     }

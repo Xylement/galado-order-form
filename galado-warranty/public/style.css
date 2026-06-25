@@ -161,6 +161,26 @@
 .gwarr-badge-err,
 .gwarr-badge-rejected{ background: #d63638; color: #fff; }
 .gwarr-badge-expired { background: #b0b0b0; color: #fff; }
+.gwarr-badge-claimed { background: #6b7280; color: #fff; }
+
+/* Spent warranties (expired or claimed) render muted/greyed. */
+.gwarr-warranty-card--inactive {
+    background: #f7f7f8;
+    border-color: #e5e5e7;
+}
+.gwarr-warranty-card--inactive .gwarr-product,
+.gwarr-warranty-card--inactive .gwarr-meta,
+.gwarr-warranty-card--inactive .gwarr-marketplace,
+.gwarr-warranty-card--inactive .gwarr-order {
+    opacity: 0.6;
+    filter: grayscale(100%);
+}
+.gwarr-claimed-msg {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #6b7280;
+}
 
 .gwarr-product { margin: 6px 0 14px; font-size: 16px; font-weight: 600; color: #1a1a1a; }
 .gwarr-product-list {

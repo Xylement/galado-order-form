@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.4.0
+ * Version: 1.5.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.4.0');
+define('GWARR_VERSION', '1.5.0');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -357,6 +357,7 @@ add_action('plugins_loaded', function () {
         require_once GWARR_PATH . 'includes/class-warranty-sheet-api.php';
         require_once GWARR_PATH . 'includes/class-warranty-sheet-sync.php';
         require_once GWARR_PATH . 'includes/class-warranty-auto-approve.php';
+        require_once GWARR_PATH . 'includes/class-warranty-orders.php';
         require_once GWARR_PATH . 'includes/class-warranty-diagnostics.php';
         require_once GWARR_PATH . 'public/register-shortcode.php';
         require_once GWARR_PATH . 'public/my-warranties.php';
@@ -371,6 +372,9 @@ add_action('plugins_loaded', function () {
         // even git-sync deploys (which skip activation) keep the sync alive.
         add_action(GWARR_Sheet_Sync::CRON_HOOK, ['GWARR_Sheet_Sync', 'run']);
         GWARR_Sheet_Sync::ensure_scheduled();
+
+        // Auto-capture WooCommerce orders as per-item warranties.
+        GWARR_Orders::init();
     } catch (Throwable $e) {
         error_log('[galado-warranty] module load failed: ' . $e->getMessage());
     }
@@ -493,11 +497,20 @@ function gwarr_install_table() {
     $table   = $wpdb->prefix . GWARR_TABLE;
     $charset = $wpdb->get_charset_collate();
 
+    // Columns added in v1.5.0 (source/wc_order_id/wc_item_id/claimed_at) are
+    // appended by dbDelta on existing installs — the UNIQUE KEY is left
+    // untouched. Website (WooCommerce) rows stay unique per line item by
+    // storing order_number as "{orderId}#{itemId}", which the existing
+    // (marketplace, order_number) key already enforces; wc_order_id holds the
+    // clean order number for display.
     $sql_main = "CREATE TABLE {$table} (
         id BIGINT UNSIGNED AUTO_INCREMENT,
         user_id BIGINT UNSIGNED NOT NULL,
+        source VARCHAR(16) NOT NULL DEFAULT 'marketplace',
         marketplace VARCHAR(32) NOT NULL,
         order_number VARCHAR(64) NOT NULL,
+        wc_order_id BIGINT UNSIGNED NULL,
+        wc_item_id BIGINT UNSIGNED NULL,
         product_text TEXT NOT NULL,
         notes TEXT NULL,
         marketing_consent TINYINT(1) NOT NULL DEFAULT 1,
@@ -508,12 +521,15 @@ function gwarr_install_table() {
         admin_note TEXT NULL,
         approved_by BIGINT UNSIGNED NULL,
         approved_at DATETIME NULL,
+        claimed_at DATETIME NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY  (id),
         UNIQUE KEY uniq_marketplace_order (marketplace, order_number),
         KEY idx_user (user_id),
         KEY idx_status (status),
+        KEY idx_source (source),
+        KEY idx_wc_item (wc_item_id),
         KEY idx_created (created_at)
     ) {$charset};";
 

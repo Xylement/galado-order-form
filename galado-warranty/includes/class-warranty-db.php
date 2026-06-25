@@ -100,6 +100,112 @@ class GWARR_DB {
         return (int) $wpdb->insert_id;
     }
 
+    /**
+     * Insert (or no-op if it already exists) a per-item warranty row for a
+     * WooCommerce order line item. Idempotent on wc_item_id so re-firing the
+     * order hook or running the backfill never duplicates. These rows are
+     * created already-active ('approved') — a paid Woo order is self-verifying.
+     *
+     * @return int|false New row id on insert, 0 if it already existed
+     *                   (idempotent no-op), or false on failure.
+     */
+    public static function insert_website_item($args) {
+        global $wpdb;
+
+        $row = wp_parse_args($args, [
+            'user_id'       => 0,
+            'wc_order_id'   => 0,
+            'wc_item_id'    => 0,
+            'product_text'  => '',
+            'purchase_date' => null,
+            'warranty_ends' => null,
+        ]);
+
+        $wc_item_id = (int) $row['wc_item_id'];
+        if ($wc_item_id <= 0) {
+            return false;
+        }
+
+        if (self::find_by_wc_item($wc_item_id)) {
+            return 0; // already captured — idempotent no-op (not counted as new)
+        }
+
+        // order_number stays unique under the existing (marketplace, order_number)
+        // key by encoding the line item; wc_order_id holds the clean number.
+        $order_number = (int) $row['wc_order_id'] . '#' . $wc_item_id;
+
+        $ok = $wpdb->insert(
+            self::table(),
+            [
+                'user_id'           => (int) $row['user_id'],
+                'source'            => 'website',
+                'marketplace'       => 'website',
+                'order_number'      => $order_number,
+                'wc_order_id'       => (int) $row['wc_order_id'],
+                'wc_item_id'        => $wc_item_id,
+                'product_text'      => (string) $row['product_text'],
+                'marketing_consent' => 0,
+                'status'            => 'approved',
+                'purchase_date'     => $row['purchase_date'] ?: null,
+                'warranty_ends'     => $row['warranty_ends'] ?: null,
+                'approved_at'       => current_time('mysql'),
+            ],
+            ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%s']
+        );
+
+        if ($ok === false) {
+            return false;
+        }
+        return (int) $wpdb->insert_id;
+    }
+
+    public static function find_by_wc_item($wc_item_id) {
+        global $wpdb;
+        return $wpdb->get_row(
+            $wpdb->prepare(
+                'SELECT * FROM ' . self::table() . ' WHERE wc_item_id = %d LIMIT 1',
+                (int) $wc_item_id
+            )
+        );
+    }
+
+    /**
+     * Mark an approved warranty as claimed (greys out in customer + admin
+     * views). Reversible via unclaim().
+     */
+    public static function mark_claimed($id) {
+        global $wpdb;
+        $ok = $wpdb->update(
+            self::table(),
+            ['status' => 'claimed', 'claimed_at' => current_time('mysql')],
+            ['id' => (int) $id],
+            ['%s', '%s'],
+            ['%d']
+        );
+        if ($ok === false) {
+            return new WP_Error('gwarr_update_failed', $wpdb->last_error ?: 'Database update failed.');
+        }
+        return self::find($id);
+    }
+
+    /**
+     * Revert a claimed warranty back to approved/active.
+     */
+    public static function unclaim($id) {
+        global $wpdb;
+        $ok = $wpdb->update(
+            self::table(),
+            ['status' => 'approved', 'claimed_at' => null],
+            ['id' => (int) $id],
+            ['%s', '%s'],
+            ['%d']
+        );
+        if ($ok === false) {
+            return new WP_Error('gwarr_update_failed', $wpdb->last_error ?: 'Database update failed.');
+        }
+        return self::find($id);
+    }
+
     public static function find($id) {
         global $wpdb;
         return $wpdb->get_row(
@@ -367,7 +473,7 @@ class GWARR_DB {
     public static function status_counts() {
         global $wpdb;
         $rows = $wpdb->get_results('SELECT status, COUNT(*) AS n FROM ' . self::table() . ' GROUP BY status', ARRAY_A);
-        $out  = ['pending' => 0, 'approved' => 0, 'rejected' => 0, 'all' => 0];
+        $out  = ['pending' => 0, 'approved' => 0, 'claimed' => 0, 'rejected' => 0, 'all' => 0];
         foreach ((array) $rows as $r) {
             $out[$r['status']] = (int) $r['n'];
             $out['all']      += (int) $r['n'];

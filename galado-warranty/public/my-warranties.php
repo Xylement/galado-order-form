@@ -107,23 +107,36 @@ function gwarr_render_my_warranty_card($row) {
     $is_approved       = $status === 'approved';
     $is_rejected       = $status === 'rejected';
     $is_pending        = $status === 'pending';
+    $is_claimed        = $status === 'claimed';
 
     $warranty_ends = $row->warranty_ends ? mysql2date(get_option('date_format'), $row->warranty_ends) : null;
-    $is_expired    = $is_approved && $row->warranty_ends && strtotime($row->warranty_ends) < strtotime(current_time('Y-m-d'));
+    $is_expired    = ($is_approved || $is_claimed) && $row->warranty_ends
+        && strtotime($row->warranty_ends) < strtotime(current_time('Y-m-d'));
+
+    // Both expired and claimed warranties are "spent" — render them greyed.
+    $is_inactive = $is_expired || $is_claimed;
+    $has_coverage = $is_approved || $is_claimed; // rows that carry purchase/coverage dates
 
     $badge_class = 'gwarr-badge ';
     $badge_text  = ucfirst($status);
-    if ($is_approved && !$is_expired) { $badge_class .= 'gwarr-badge-ok'; }
-    if ($is_approved && $is_expired)  { $badge_class .= 'gwarr-badge-expired'; $badge_text = 'Expired'; }
-    if ($is_pending)                  { $badge_class .= 'gwarr-badge-run'; $badge_text = 'Pending review'; }
-    if ($is_rejected)                 { $badge_class .= 'gwarr-badge-err'; }
+    if ($is_claimed)                  { $badge_class .= 'gwarr-badge-claimed'; $badge_text = 'Claimed'; }
+    elseif ($is_approved && $is_expired) { $badge_class .= 'gwarr-badge-expired'; $badge_text = 'Expired'; }
+    elseif ($is_approved)             { $badge_class .= 'gwarr-badge-ok'; $badge_text = 'Active'; }
+    elseif ($is_pending)              { $badge_class .= 'gwarr-badge-run'; $badge_text = 'Pending review'; }
+    elseif ($is_rejected)             { $badge_class .= 'gwarr-badge-err'; }
 
+    // Website rows store order_number as "{orderId}#{itemId}" for dedup; show
+    // the clean order number from wc_order_id instead.
+    $is_website     = isset($row->source) && $row->source === 'website';
+    $display_order  = ($is_website && !empty($row->wc_order_id)) ? '#' . $row->wc_order_id : $row->order_number;
+
+    $card_class = 'gwarr-warranty-card' . ($is_inactive ? ' gwarr-warranty-card--inactive' : '');
     ?>
-    <article class="gwarr-warranty-card">
+    <article class="<?php echo esc_attr($card_class); ?>">
         <header class="gwarr-warranty-head">
             <span class="<?php echo esc_attr($badge_class); ?>"><?php echo esc_html($badge_text); ?></span>
             <span class="gwarr-marketplace"><?php echo esc_html($marketplace_label); ?></span>
-            <span class="gwarr-order">Order <?php echo esc_html($row->order_number); ?></span>
+            <span class="gwarr-order">Order <?php echo esc_html($display_order); ?></span>
         </header>
 
         <div class="gwarr-warranty-body">
@@ -131,13 +144,23 @@ function gwarr_render_my_warranty_card($row) {
                 <div class="gwarr-product"><?php echo gwarr_format_product_html($row->product_text); ?></div>
             <?php endif; ?>
 
-            <?php if ($is_approved): ?>
+            <?php if ($has_coverage): ?>
                 <dl class="gwarr-meta">
-                    <dt>Purchased</dt>
-                    <dd><?php echo esc_html(mysql2date(get_option('date_format'), $row->purchase_date)); ?></dd>
+                    <?php if (!empty($row->purchase_date)): ?>
+                        <dt>Purchased</dt>
+                        <dd><?php echo esc_html(mysql2date(get_option('date_format'), $row->purchase_date)); ?></dd>
+                    <?php endif; ?>
                     <dt>Warranty <?php echo $is_expired ? 'expired on' : 'covered until'; ?></dt>
                     <dd><?php echo esc_html($warranty_ends); ?></dd>
+                    <?php if ($is_claimed && !empty($row->claimed_at)): ?>
+                        <dt>Claimed on</dt>
+                        <dd><?php echo esc_html(mysql2date(get_option('date_format'), $row->claimed_at)); ?></dd>
+                    <?php endif; ?>
                 </dl>
+
+                <?php if ($is_claimed): ?>
+                    <p class="gwarr-claimed-msg">This item's warranty has been claimed and is now closed.</p>
+                <?php endif; ?>
 
                 <?php if (!empty($row->coupon_code)): ?>
                     <div class="gwarr-coupon">

@@ -77,6 +77,14 @@ function gwarr_render_settings_page() {
         }
     }
 
+    // ---- Website-order backfill ----
+    if (isset($_POST['gwarr_backfill_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_backfill_nonce'])), 'gwarr_backfill')) {
+        if (class_exists('GWARR_Orders')) {
+            GWARR_Orders::start_backfill();
+            echo '<div class="notice notice-success"><p>Backfill started — it runs in the background. Refresh this page to watch progress.</p></div>';
+        }
+    }
+
     // ---- Diagnostics ----
     $diag = null;
     if (isset($_POST['gwarr_diag_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_diag_nonce'])), 'gwarr_diag')) {
@@ -295,6 +303,38 @@ function gwarr_render_settings_page() {
             <?php wp_nonce_field('gwarr_sync', 'gwarr_sync_nonce'); ?>
             <button type="submit" class="button">🔄 Sync sheet now</button>
             <span class="description" style="margin-left:8px;">Manually pulls fresh data from the sheet and re-checks pending registrations.</span>
+        </form>
+
+        <hr style="margin:40px 0;">
+
+        <h2 class="title">Website Orders</h2>
+        <p class="description" style="max-width:760px;">
+            New WooCommerce orders (Processing or Completed) are auto-added as per-item warranties automatically.
+            Use this one-time backfill to also capture orders from the last <?php echo (int) (class_exists('GWARR_Orders') ? GWARR_Orders::BACKFILL_MONTHS : 12); ?> months.
+            It runs in the background in small batches and is safe to re-run (each item is added only once).
+        </p>
+        <?php
+        if (class_exists('GWARR_Orders')) {
+            $bf = GWARR_Orders::get_backfill_state();
+            $running = $bf['status'] === 'running';
+            if ($running) {
+                echo '<meta http-equiv="refresh" content="6">';
+            }
+            echo '<p style="margin:6px 0;">';
+            if ($bf['status'] === 'idle') {
+                echo '<em>Not run yet.</em>';
+            } elseif ($running) {
+                echo '<strong style="color:#dba617;">Running…</strong> processed ' . (int) $bf['processed'] . ' order(s), created ' . (int) $bf['created'] . ' warranty row(s) so far. <em>(page auto-refreshes)</em>';
+            } elseif ($bf['status'] === 'done') {
+                echo '<strong style="color:#00a32a;">Done</strong> — processed ' . (int) $bf['processed'] . ' order(s), created ' . (int) $bf['created'] . ' warranty row(s). Finished ' . esc_html($bf['finished']) . '.';
+            }
+            echo '</p>';
+        }
+        ?>
+        <form method="post" style="margin-top:8px;">
+            <?php wp_nonce_field('gwarr_backfill', 'gwarr_backfill_nonce'); ?>
+            <button type="submit" class="button" <?php disabled(class_exists('GWARR_Orders') && GWARR_Orders::get_backfill_state()['status'] === 'running'); ?>>📦 Backfill recent website orders</button>
+            <span class="description" style="margin-left:8px;">Runs in the background via WP-Cron. Safe to re-run.</span>
         </form>
 
         <hr style="margin:40px 0;">

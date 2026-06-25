@@ -55,6 +55,7 @@ function gwarr_render_registrations_page() {
                 ''         => ['label' => 'All',      'count' => $counts['all']],
                 'pending'  => ['label' => 'Pending',  'count' => $counts['pending']],
                 'approved' => ['label' => 'Approved', 'count' => $counts['approved']],
+                'claimed'  => ['label' => 'Claimed',  'count' => $counts['claimed']],
                 'rejected' => ['label' => 'Rejected', 'count' => $counts['rejected']],
             ];
             $links = [];
@@ -132,7 +133,14 @@ function gwarr_render_admin_row($row) {
             $status_class = 'gwarr-badge gwarr-badge-expired';
             $status_text  = 'Approved (expired)';
         }
+    } elseif ($row->status === 'claimed') {
+        $status_class = 'gwarr-badge gwarr-badge-claimed';
+        $status_text  = 'Claimed';
     }
+
+    // Website rows store order_number as "{orderId}#{itemId}"; show clean id.
+    $is_website    = isset($row->source) && $row->source === 'website';
+    $display_order = ($is_website && !empty($row->wc_order_id)) ? '#' . $row->wc_order_id : $row->order_number;
     ?>
     <tr>
         <td><span class="<?php echo $status_class; ?>"><?php echo esc_html($status_text); ?></span></td>
@@ -141,7 +149,7 @@ function gwarr_render_admin_row($row) {
             <small><?php echo esc_html($row->user_email ?: '—'); ?></small>
         </td>
         <td><?php echo esc_html(GWARR_Marketplaces::label($row->marketplace)); ?></td>
-        <td><code><?php echo esc_html($row->order_number); ?></code></td>
+        <td><code><?php echo esc_html($display_order); ?></code></td>
         <td>
             <?php if (!empty($row->product_text)): ?>
                 <?php echo nl2br(esc_html($row->product_text)); ?>
@@ -197,9 +205,18 @@ function gwarr_render_admin_row_actions($row) {
         </details>
         <?php
     } elseif ($row->status === 'approved') {
-        echo '<small>Purchased ' . esc_html(mysql2date('M j, Y', $row->purchase_date)) . '<br>';
-        echo 'Until ' . esc_html(mysql2date('M j, Y', $row->warranty_ends)) . '<br>';
-        echo 'Coupon <code>' . esc_html($row->coupon_code) . '</code></small>';
+        echo '<small>';
+        if (!empty($row->purchase_date)) echo 'Purchased ' . esc_html(mysql2date('M j, Y', $row->purchase_date)) . '<br>';
+        if (!empty($row->warranty_ends)) echo 'Until ' . esc_html(mysql2date('M j, Y', $row->warranty_ends)) . '<br>';
+        if (!empty($row->coupon_code))   echo 'Coupon <code>' . esc_html($row->coupon_code) . '</code>';
+        echo '</small>';
+        // Mark as claimed — only meaningful on an active (approved) warranty.
+        gwarr_render_claim_form($row, 'mark');
+    } elseif ($row->status === 'claimed') {
+        echo '<small>Claimed';
+        if (!empty($row->claimed_at)) echo ' ' . esc_html(mysql2date('M j, Y', $row->claimed_at));
+        echo '</small>';
+        gwarr_render_claim_form($row, 'unmark');
     } elseif ($row->status === 'rejected') {
         if (!empty($row->admin_note)) {
             echo '<small><em>' . esc_html($row->admin_note) . '</em></small>';
@@ -208,6 +225,26 @@ function gwarr_render_admin_row_actions($row) {
 
     gwarr_render_edit_panel($row);
     gwarr_render_delete_form($row);
+}
+
+/**
+ * Mark-as-claimed (on approved rows) / Unmark (on claimed rows) button.
+ * Phase 1 manual control; Phase 2 will drive this from customer claim approvals.
+ */
+function gwarr_render_claim_form($row, $mode) {
+    $is_mark = ($mode === 'mark');
+    $confirm = $is_mark
+        ? 'Mark this warranty as claimed? It will grey out in the customer\'s My Warranties.'
+        : 'Re-open this warranty (undo claimed)?';
+    ?>
+    <form method="post" style="margin-top:6px;" onsubmit="return confirm('<?php echo esc_attr($confirm); ?>');">
+        <?php wp_nonce_field('gwarr_admin_action', 'gwarr_admin_nonce'); ?>
+        <input type="hidden" name="gwarr_id" value="<?php echo (int) $row->id; ?>">
+        <button type="submit" name="gwarr_action" value="<?php echo $is_mark ? 'claim' : 'unclaim'; ?>" class="button button-small">
+            <?php echo $is_mark ? 'Mark as claimed' : 'Undo claimed'; ?>
+        </button>
+    </form>
+    <?php
 }
 
 /**
@@ -370,6 +407,22 @@ function gwarr_handle_admin_post() {
             return gwarr_admin_notice('error', 'Registration #' . $id . ' not found or already deleted.');
         }
         return gwarr_admin_notice('success', 'Registration #' . $id . ' deleted. Any associated coupon remains active — manage from WooCommerce → Coupons if needed.');
+    }
+
+    if ($action === 'claim') {
+        $result = GWARR_DB::mark_claimed($id);
+        if (is_wp_error($result)) {
+            return gwarr_admin_notice('error', 'Could not mark claimed: ' . esc_html($result->get_error_message()));
+        }
+        return gwarr_admin_notice('success', 'Registration #' . $id . ' marked as claimed.');
+    }
+
+    if ($action === 'unclaim') {
+        $result = GWARR_DB::unclaim($id);
+        if (is_wp_error($result)) {
+            return gwarr_admin_notice('error', 'Could not re-open: ' . esc_html($result->get_error_message()));
+        }
+        return gwarr_admin_notice('success', 'Registration #' . $id . ' re-opened (no longer claimed).');
     }
 
     return '';
