@@ -57,31 +57,38 @@ class GWARR_Orders {
 
         $count = 0;
         foreach ($order->get_items() as $item_id => $item) {
-            $product = $item->get_product();
-            // Skip non-physical / virtual items — no warranty on those.
-            if ($product && $product->is_virtual()) {
-                continue;
-            }
+            // Isolate each line item: a single malformed item/product can't
+            // abort the order (which, during backfill, would otherwise discard
+            // the whole batch's progress and retry the same failing one).
+            try {
+                $product = $item->get_product();
+                // Skip non-physical / virtual items — no warranty on those.
+                if ($product && $product->is_virtual()) {
+                    continue;
+                }
 
-            $parts  = self::components($item);
-            $common = [
-                'user_id'       => $user_id,
-                'wc_order_id'   => (int) $order_id,
-                'wc_item_id'    => (int) $item_id,
-                'purchase_date' => $purchase,
-                'warranty_ends' => $ends,
-            ];
+                $parts  = self::components($item);
+                $common = [
+                    'user_id'       => $user_id,
+                    'wc_order_id'   => (int) $order_id,
+                    'wc_item_id'    => (int) $item_id,
+                    'purchase_date' => $purchase,
+                    'warranty_ends' => $ends,
+                ];
 
-            // The base product is its own warranty row …
-            if (GWARR_DB::insert_website_item($common + ['product_text' => $parts['base']])) {
-                $count++;
-            }
-            // … and each paid add-on product gets its own independently-
-            // claimable row, distinguished by a 'a{n}' order_number suffix.
-            foreach ($parts['addons'] as $i => $addon) {
-                if (GWARR_DB::insert_website_item($common + ['suffix' => 'a' . ($i + 1), 'product_text' => $addon])) {
+                // The base product is its own warranty row …
+                if (GWARR_DB::insert_website_item($common + ['product_text' => $parts['base']])) {
                     $count++;
                 }
+                // … and each paid add-on product gets its own independently-
+                // claimable row, distinguished by a 'a{n}' order_number suffix.
+                foreach ($parts['addons'] as $i => $addon) {
+                    if (GWARR_DB::insert_website_item($common + ['suffix' => 'a' . ($i + 1), 'product_text' => $addon])) {
+                        $count++;
+                    }
+                }
+            } catch (\Throwable $e) {
+                error_log('[galado-warranty] capture item ' . $item_id . ' of order ' . $order_id . ' failed: ' . $e->getMessage());
             }
         }
         return $count;
@@ -208,15 +215,24 @@ class GWARR_Orders {
 
         $after = gmdate('Y-m-d', strtotime('-' . self::BACKFILL_MONTHS . ' months'));
 
-        $orders = wc_get_orders([
-            'limit'        => self::BACKFILL_BATCH,
-            'page'         => (int) $state['page'],
-            'orderby'      => 'date',
-            'order'        => 'ASC',
-            'status'       => ['wc-processing', 'wc-completed'],
-            'date_created' => '>=' . $after,
-            'return'       => 'objects',
-        ]);
+        try {
+            $orders = wc_get_orders([
+                'limit'        => self::BACKFILL_BATCH,
+                'page'         => (int) $state['page'],
+                'orderby'      => 'date',
+                'order'        => 'ASC',
+                'status'       => ['wc-processing', 'wc-completed'],
+                'date_created' => '>=' . $after,
+                'return'       => 'objects',
+            ]);
+        } catch (\Throwable $e) {
+            // Don't get stuck on a page that won't load — log, skip past it.
+            error_log('[galado-warranty] backfill page ' . $state['page'] . ' query failed: ' . $e->getMessage());
+            $orders = [];
+            $state['page']++;
+            update_option(self::BACKFILL_STATE, $state, false);
+            return true;
+        }
 
         if (empty($orders)) {
             $state['status']   = 'done';
@@ -226,7 +242,13 @@ class GWARR_Orders {
         }
 
         foreach ($orders as $order) {
-            $state['created'] += (int) self::capture_order($order->get_id());
+            // capture_order is already item-isolated, but guard the order level
+            // too so one unreadable order can never stall the whole backfill.
+            try {
+                $state['created'] += (int) self::capture_order($order->get_id());
+            } catch (\Throwable $e) {
+                error_log('[galado-warranty] backfill order ' . $order->get_id() . ' failed: ' . $e->getMessage());
+            }
             $state['processed']++;
         }
         $state['page']++;
