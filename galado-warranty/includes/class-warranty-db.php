@@ -128,6 +128,7 @@ class GWARR_DB {
             'wc_order_id'   => 0,
             'wc_item_id'    => 0,
             'suffix'        => '',
+            'billing_email' => '',
             'product_text'  => '',
             'purchase_date' => null,
             'warranty_ends' => null,
@@ -138,6 +139,8 @@ class GWARR_DB {
             return false;
         }
 
+        $email = strtolower(trim((string) $row['billing_email']));
+
         // wc_order_id holds the clean number; order_number is the unique key.
         $order_number = (int) $row['wc_order_id'] . '#' . $wc_item_id;
         $suffix       = preg_replace('/[^a-z0-9]/i', '', (string) $row['suffix']);
@@ -147,15 +150,21 @@ class GWARR_DB {
 
         $existing = self::find_by_order('website', $order_number);
         if ($existing) {
-            // Refresh the label only; never disturb status / dates / claims.
+            // Refresh label / link to an account, but never disturb status /
+            // dates / claims. Only ever fill in a real owner (never blank one).
+            $set = [];
+            $fmt = [];
             if ((string) $existing->product_text !== (string) $row['product_text']) {
-                $wpdb->update(
-                    self::table(),
-                    ['product_text' => (string) $row['product_text']],
-                    ['id' => (int) $existing->id],
-                    ['%s'],
-                    ['%d']
-                );
+                $set['product_text'] = (string) $row['product_text']; $fmt[] = '%s';
+            }
+            if ((int) $row['user_id'] > 0 && (int) $existing->user_id !== (int) $row['user_id']) {
+                $set['user_id'] = (int) $row['user_id']; $fmt[] = '%d';
+            }
+            if ($email !== '' && (string) $existing->billing_email !== $email) {
+                $set['billing_email'] = $email; $fmt[] = '%s';
+            }
+            if ($set) {
+                $wpdb->update(self::table(), $set, ['id' => (int) $existing->id], $fmt, ['%d']);
             }
             return 0; // already captured — not counted as new
         }
@@ -169,6 +178,7 @@ class GWARR_DB {
                 'order_number'      => $order_number,
                 'wc_order_id'       => (int) $row['wc_order_id'],
                 'wc_item_id'        => $wc_item_id,
+                'billing_email'     => $email ?: null,
                 'product_text'      => (string) $row['product_text'],
                 'marketing_consent' => 0,
                 'status'            => 'approved',
@@ -176,7 +186,7 @@ class GWARR_DB {
                 'warranty_ends'     => $row['warranty_ends'] ?: null,
                 'approved_at'       => current_time('mysql'),
             ],
-            ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%s', '%s']
+            ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s']
         );
 
         if ($ok === false) {
@@ -191,6 +201,31 @@ class GWARR_DB {
             $wpdb->prepare(
                 'SELECT * FROM ' . self::table() . ' WHERE wc_item_id = %d LIMIT 1',
                 (int) $wc_item_id
+            )
+        );
+    }
+
+    /**
+     * Attach orphaned guest-checkout website warranties (user_id = 0) to a
+     * customer account by matching the billing email. Called when a customer
+     * logs in or registers, so an order placed as a guest surfaces in their
+     * My Warranties once they have an account.
+     *
+     * @return int rows linked
+     */
+    public static function link_website_orphans($email, $user_id) {
+        global $wpdb;
+        $email   = strtolower(trim((string) $email));
+        $user_id = (int) $user_id;
+        if ($email === '' || $user_id <= 0) {
+            return 0;
+        }
+        return (int) $wpdb->query(
+            $wpdb->prepare(
+                'UPDATE ' . self::table() . " SET user_id = %d
+                 WHERE source = 'website' AND user_id = 0 AND billing_email = %s",
+                $user_id,
+                $email
             )
         );
     }

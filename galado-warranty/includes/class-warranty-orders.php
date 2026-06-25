@@ -42,8 +42,19 @@ class GWARR_Orders {
             return 0;
         }
 
+        $email   = strtolower(trim((string) $order->get_billing_email()));
         $user_id = (int) $order->get_user_id(); // 0 for guest checkouts
-        $email   = (string) $order->get_billing_email();
+
+        // Guest checkout? Attach to an existing account with the same email so
+        // the warranty isn't orphaned (a logged-in/registered customer then
+        // sees it). If no account yet, it stays user_id=0 and is linked later
+        // on login/registration via GWARR_DB::link_website_orphans().
+        if ($user_id === 0 && $email !== '' && function_exists('get_user_by')) {
+            $u = get_user_by('email', $email);
+            if ($u) {
+                $user_id = (int) $u->ID;
+            }
+        }
 
         // Tier-aware coverage (Black Club = 12, else configured standard).
         $months = function_exists('galado_warranty_months_for_email')
@@ -72,6 +83,7 @@ class GWARR_Orders {
                     'user_id'       => $user_id,
                     'wc_order_id'   => (int) $order_id,
                     'wc_item_id'    => (int) $item_id,
+                    'billing_email' => $email,
                     'purchase_date' => $purchase,
                     'warranty_ends' => $ends,
                 ];
