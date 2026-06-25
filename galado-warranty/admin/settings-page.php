@@ -316,22 +316,27 @@ function gwarr_render_settings_page() {
         <?php
         $bf_running = false;
         if (class_exists('GWARR_Orders')) {
-            // Drive one batch per page load while running, so progress never
-            // depends on WP-Cron (which is unreliable on shared hosts). The
-            // page auto-refreshes below, advancing the backfill to completion.
-            if (GWARR_Orders::get_backfill_state()['status'] === 'running') {
-                GWARR_Orders::run_backfill_batch();
-            }
             $bf = GWARR_Orders::get_backfill_state();
             $bf_running = $bf['status'] === 'running';
+
             if ($bf_running) {
-                echo '<meta http-equiv="refresh" content="3">';
+                // Auto-advance: the page reloads every few seconds, and each load
+                // processes one batch AFTER the response is flushed (no WP-Cron,
+                // no blocking the render). Deferring past the response means a
+                // slow per-order Club lookup can never stall or break this page.
+                echo '<meta http-equiv="refresh" content="5">';
+                if (class_exists('GWARR_Deferred')) {
+                    GWARR_Deferred::add(function () { GWARR_Orders::run_backfill_batch(); });
+                } else {
+                    GWARR_Orders::run_backfill_batch();
+                }
             }
+
             echo '<p style="margin:6px 0;">';
             if ($bf['status'] === 'idle') {
                 echo '<em>Not run yet.</em>';
             } elseif ($bf_running) {
-                echo '<strong style="color:#dba617;">Running…</strong> processed ' . (int) $bf['processed'] . ' order(s), created ' . (int) $bf['created'] . ' warranty row(s) so far. <em>Keep this page open — it advances automatically.</em>';
+                echo '<strong style="color:#dba617;">Running…</strong> processed ' . (int) $bf['processed'] . ' order(s), created ' . (int) $bf['created'] . ' warranty row(s) so far. <em>Keep this page open — it advances automatically every few seconds.</em>';
             } elseif ($bf['status'] === 'done') {
                 echo '<strong style="color:#00a32a;">Done</strong> — processed ' . (int) $bf['processed'] . ' order(s), created ' . (int) $bf['created'] . ' warranty row(s). Finished ' . esc_html($bf['finished']) . '.';
             }
