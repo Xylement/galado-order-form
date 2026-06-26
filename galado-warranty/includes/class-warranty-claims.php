@@ -166,9 +166,15 @@ class GWARR_Claims {
     }
 
     /**
-     * Approve a claim → flips the underlying warranty to 'claimed'.
+     * Approve a claim → flips the underlying warranty to 'claimed'. When a
+     * replacement-shipping fee is supplied (> 0), a pending WooCommerce order
+     * for that amount is created under the customer's account so they can pay
+     * online (WooCommerce verifies the payment); the order id is stored on the
+     * claim and the approval email links to it.
      */
-    public static function approve($id, $admin_note = '') {
+    public static function approve($id, $admin_note = '', $shipping_fee = 0) {
+        global $wpdb;
+
         $claim = self::find($id);
         if (!$claim) {
             return new WP_Error('gwarr_claim_not_found', 'Claim not found.');
@@ -180,7 +186,60 @@ class GWARR_Claims {
         if (class_exists('GWARR_DB')) {
             GWARR_DB::mark_claimed((int) $claim->warranty_id);
         }
+
+        $fee = round((float) $shipping_fee, 2);
+        if ($fee > 0) {
+            $order_id = self::create_shipping_order($claim, $fee);
+            $wpdb->update(
+                self::table(),
+                ['shipping_fee' => $fee, 'shipping_order_id' => $order_id ?: null],
+                ['id' => (int) $id],
+                ['%f', '%d'],
+                ['%d']
+            );
+            $updated = self::find($id);
+        }
+
         return $updated;
+    }
+
+    /**
+     * Create a pending WooCommerce order for a warranty-claim shipping fee,
+     * assigned to the customer. Returns the order id, or 0 on failure (the
+     * approval still succeeds — the email just falls back to "we'll send a
+     * payment link"). Tax is disabled so the customer pays exactly the fee.
+     */
+    private static function create_shipping_order($claim, $fee) {
+        if (!function_exists('wc_create_order') || !class_exists('WC_Order_Item_Fee')) {
+            return 0;
+        }
+        try {
+            $user  = get_userdata((int) $claim->user_id);
+            $label = !empty($claim->item_label) ? (string) $claim->item_label : 'warranty replacement';
+
+            $order = wc_create_order(['customer_id' => (int) $claim->user_id]);
+
+            $fee_item = new WC_Order_Item_Fee();
+            $fee_item->set_name('Replacement shipping — ' . $label);
+            $fee_item->set_amount((string) $fee);
+            $fee_item->set_total((string) $fee);
+            $fee_item->set_tax_status('none');
+            $order->add_item($fee_item);
+
+            if ($user && $user->user_email) {
+                $order->set_billing_email($user->user_email);
+            }
+            $order->set_created_via('galado-warranty');
+            $order->add_order_note('Auto-created for warranty claim #' . (int) $claim->id . ' (replacement shipping fee).');
+            $order->calculate_totals();
+            $order->update_status('pending', 'Awaiting warranty-replacement shipping payment.');
+            $order->save();
+
+            return (int) $order->get_id();
+        } catch (\Throwable $e) {
+            error_log('[galado-warranty] shipping order for claim ' . (int) $claim->id . ' failed: ' . $e->getMessage());
+            return 0;
+        }
     }
 
     public static function reject($id, $admin_note = '') {

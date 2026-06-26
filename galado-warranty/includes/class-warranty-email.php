@@ -297,7 +297,24 @@ class GWARR_Email {
         $warranty = class_exists('GWARR_DB') ? GWARR_DB::find((int) $claim->warranty_id) : null;
         if (!$user) return false;
         $note = !empty($claim->admin_note) ? esc_html($claim->admin_note) : '';
-        $m = self::render_claim_email('approved', self::claim_ctx($user, $warranty, $claim, $note));
+        $ctx  = self::claim_ctx($user, $warranty, $claim, $note);
+
+        // Replacement-shipping fee → pay-online button (WooCommerce order).
+        $fee = isset($claim->shipping_fee) ? (float) $claim->shipping_fee : 0;
+        if ($fee > 0) {
+            $ctx['shipping_fee'] = $fee;
+            if (!empty($claim->shipping_order_id) && function_exists('wc_get_order')) {
+                $order = wc_get_order((int) $claim->shipping_order_id);
+                if ($order) {
+                    $ctx['shipping_paid'] = $order->is_paid();
+                    if ($order->needs_payment()) {
+                        $ctx['pay_url'] = $order->get_checkout_payment_url();
+                    }
+                }
+            }
+        }
+
+        $m = self::render_claim_email('approved', $ctx);
         return self::send($user->user_email, $m['subject'], $m['html']);
     }
 
@@ -378,11 +395,16 @@ class GWARR_Email {
 
         $variants = [
             'received' => '',
-            'approved' => esc_html("We'll ship a replacement strap to you this week — no charge."),
+            'approved' => esc_html('We\'ve approved a replacement strap — just the delivery fee below and we\'ll ship it out.'),
             'rejected' => esc_html('The photos show impact damage, which falls outside the satisfaction guarantee.'),
         ];
         foreach ($variants as $state => $note) {
-            $m = self::render_claim_email($state, ['name' => 'Sherlyn', 'warranties_url' => $url, 'meta' => $meta, 'note' => $note]);
+            $ctx = ['name' => 'Sherlyn', 'warranties_url' => $url, 'meta' => $meta, 'note' => $note];
+            if ($state === 'approved') { // demo the pay-shipping button
+                $ctx['shipping_fee'] = 8.00;
+                $ctx['pay_url']      = home_url('/checkout/order-pay/12901/?pay_for_order=true&key=wc_order_SAMPLE');
+            }
+            $m = self::render_claim_email($state, $ctx);
             if (self::send($to, '[SAMPLE] ' . $m['subject'], $m['html'])) $sent++;
         }
 
@@ -542,6 +564,9 @@ class GWARR_Email {
         $note = trim((string) ($ctx['note'] ?? '')); // already escaped by caller
         $meta = $ctx['meta'] ?? [];
 
+        $cta_u     = $url;   // CTA target (approved-with-fee overrides to the pay URL)
+        $secondary = '';     // optional quiet link below the CTA
+
         if ($state === 'approved') {
             $subject = 'Your warranty claim is approved ✦';
             $pre     = 'Good news — your GALADO warranty claim is approved.';
@@ -550,7 +575,25 @@ class GWARR_Email {
             $inner   = self::club_paragraph('Your warranty claim has been <strong style="color:#46302e;">approved</strong>. Our team will reach out with the next steps to get this sorted for you.')
                      . self::club_meta($meta)
                      . ($note !== '' ? self::club_callout('success', $note) : '');
+
             $cta_l = 'View my warranties';
+
+            // Replacement shipping fee handling.
+            $fee = (float) ($ctx['shipping_fee'] ?? 0);
+            $pay = (string) ($ctx['pay_url'] ?? '');
+            if ($fee > 0) {
+                $fee_str = 'RM ' . number_format($fee, 2);
+                if ($pay !== '') {
+                    $inner .= self::club_callout('info', 'A delivery fee of <strong style="color:#46302e;">' . $fee_str . '</strong> applies for shipping your replacement. Tap below to pay securely — we\'ll ship as soon as it\'s received.');
+                    $cta_l = 'Pay ' . $fee_str . ' shipping';
+                    $cta_u = $pay;
+                    $secondary = '<a href="' . esc_url($url) . '" style="color:#8a6f6c;text-decoration:underline;font-weight:700;">View my warranties</a>';
+                } elseif (!empty($ctx['shipping_paid'])) {
+                    $inner .= self::club_callout('success', 'Your ' . $fee_str . ' delivery fee is paid — your replacement is on the way. Thank you!');
+                } else {
+                    $inner .= self::club_callout('info', 'A delivery fee of <strong style="color:#46302e;">' . $fee_str . '</strong> applies for shipping your replacement — we\'ll send you a secure payment link shortly.');
+                }
+            }
         } elseif ($state === 'rejected') {
             $subject = 'An update on your warranty claim';
             $pre     = 'An update on your GALADO warranty claim.';
@@ -575,7 +618,7 @@ class GWARR_Email {
             'pill' => 'WARRANTY', 'preheader' => $pre,
             'icon' => $icon, 'icon_from' => $ifrom, 'icon_to' => $ito, 'icon_border' => $ib,
             'heading' => $head, 'inner' => $inner,
-            'cta_label' => $cta_l, 'cta_url' => $url,
+            'cta_label' => $cta_l, 'cta_url' => $cta_u, 'secondary' => $secondary,
         ]);
         return ['subject' => $subject, 'html' => $html];
     }
@@ -636,6 +679,7 @@ class GWARR_Email {
         $inner  = (string) ($a['inner'] ?? '');
         $cta_l  = (string) ($a['cta_label'] ?? '');
         $cta_u  = esc_url($a['cta_url'] ?? '');
+        $secnd  = (string) ($a['secondary'] ?? '');
         $shop   = esc_url(home_url('/'));
 
         $h  = '<!DOCTYPE html><html lang="en"><head>';
@@ -676,6 +720,9 @@ class GWARR_Email {
 
         if ($cta_l !== '' && $cta_u !== '') {
             $h .= '<a href="' . $cta_u . '" target="_blank" rel="noopener" style="display:inline-block;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:16px;line-height:1;color:#ffffff;text-decoration:none;padding:15px 32px;border-radius:999px;background-color:#f25d6f;background-image:linear-gradient(135deg,#ff7e8a,#f25d6f);box-shadow:0 6px 16px rgba(242,93,111,0.35);margin-top:4px;">' . esc_html($cta_l) . ' &rarr;</a>';
+        }
+        if ($secnd !== '') {
+            $h .= '<p style="margin:16px 0 0;font-family:\'Nunito\',sans-serif;font-weight:700;font-size:13px;color:#8a6f6c;">' . $secnd . '</p>';
         }
 
         $h .= '</td></tr>';

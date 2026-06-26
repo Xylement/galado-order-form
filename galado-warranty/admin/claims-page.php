@@ -135,6 +135,16 @@ function gwarr_render_claim_admin_actions($row) {
         if (!empty($row->admin_note)) {
             echo '<small><em>' . esc_html($row->admin_note) . '</em></small><br>';
         }
+        // Shipping-fee order status, if one was created on approval.
+        if (!empty($row->shipping_order_id) && function_exists('wc_get_order')) {
+            $o = wc_get_order((int) $row->shipping_order_id);
+            if ($o) {
+                $fee  = $row->shipping_fee !== null ? 'RM ' . number_format((float) $row->shipping_fee, 2) : '';
+                $paid = $o->is_paid();
+                echo '<small>Shipping ' . esc_html($fee) . ' — <strong style="color:' . ($paid ? '#00a32a' : '#dba617') . ';">' . ($paid ? 'Paid' : 'Unpaid') . '</strong> '
+                    . '(<a href="' . esc_url($o->get_edit_order_url()) . '">order #' . (int) $row->shipping_order_id . '</a>)</small><br>';
+            }
+        }
         echo '<small>Resolved ' . esc_html(mysql2date('M j, Y', $row->resolved_at)) . '</small>';
         return;
     }
@@ -146,8 +156,12 @@ function gwarr_render_claim_admin_actions($row) {
                 <?php wp_nonce_field('gwarr_claim_admin', 'gwarr_claim_admin_nonce'); ?>
                 <input type="hidden" name="claim_id" value="<?php echo (int) $row->id; ?>">
                 <label>Note to customer <small>(optional)</small><br>
-                    <input type="text" name="admin_note" maxlength="300" placeholder="e.g. We'll ship a replacement strap today.">
+                    <input type="text" name="admin_note" maxlength="300" placeholder="e.g. We'll ship a replacement strap once delivery is paid.">
                 </label>
+                <label>Replacement shipping fee (RM) <small>(optional)</small><br>
+                    <input type="number" name="shipping_fee" min="0" step="0.01" placeholder="e.g. 8.00" style="width:120px;">
+                </label>
+                <p class="description" style="margin:4px 0 8px;max-width:280px;">If set, a pending WooCommerce order is created for the customer and the approval email includes a <strong>Pay shipping</strong> button. Leave blank for free shipping.</p>
                 <p><button type="submit" name="gwarr_claim_action" value="approve" class="button button-primary">Approve claim</button></p>
             </form>
 
@@ -199,20 +213,27 @@ function gwarr_handle_claim_admin_post() {
     $claim_id = isset($_POST['claim_id']) ? (int) $_POST['claim_id'] : 0;
     $action   = sanitize_key($_POST['gwarr_claim_action']);
     $note     = isset($_POST['admin_note']) ? sanitize_text_field(wp_unslash($_POST['admin_note'])) : '';
+    $fee      = isset($_POST['shipping_fee']) ? max(0, round((float) $_POST['shipping_fee'], 2)) : 0;
 
     if ($claim_id <= 0) {
         return gwarr_admin_notice('error', 'Missing claim ID.');
     }
 
     if ($action === 'approve') {
-        $result = GWARR_Claims::approve($claim_id, $note);
+        $result = GWARR_Claims::approve($claim_id, $note, $fee);
         if (is_wp_error($result)) {
             return gwarr_admin_notice('error', 'Approval failed: ' . esc_html($result->get_error_message()));
         }
         if (class_exists('GWARR_Email')) {
             GWARR_Email::send_claim_approved($result);
         }
-        return gwarr_admin_notice('success', 'Claim #' . $claim_id . ' approved — warranty marked as claimed and the customer notified.');
+        $msg = 'Claim #' . $claim_id . ' approved — warranty marked as claimed and the customer notified.';
+        if ($fee > 0) {
+            $msg .= !empty($result->shipping_order_id)
+                ? ' A RM ' . number_format($fee, 2) . ' shipping order (#' . (int) $result->shipping_order_id . ') was created with a pay link in the email.'
+                : ' (Shipping fee set, but the WooCommerce order could not be created — check the log.)';
+        }
+        return gwarr_admin_notice('success', $msg);
     }
 
     if ($action === 'reject') {
