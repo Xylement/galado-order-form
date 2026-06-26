@@ -284,84 +284,116 @@ class GWARR_Email {
     // Warranty claims (Phase 2)
     // ============================================================
 
-    /**
-     * Confirmation to the customer that we received their claim.
-     */
     public static function send_claim_received($claim) {
         $user     = get_userdata((int) $claim->user_id);
         $warranty = class_exists('GWARR_DB') ? GWARR_DB::find((int) $claim->warranty_id) : null;
         if (!$user) return false;
-
-        $content  = self::heading('Hi ' . esc_html(self::first_name($user)) . ',');
-        $content .= self::paragraph('Thanks — we\'ve received your warranty claim and our team will review it shortly.');
-        $content .= self::definition_table(self::claim_rows($warranty, $claim));
-        $content .= self::callout('info', 'We\'ll email you as soon as there\'s an update. You can also track the status under <strong>My Warranties</strong> in your account.');
-        $content .= self::signoff();
-
-        return self::send($user->user_email, 'We\'ve received your warranty claim', self::email_layout($content));
+        $m = self::render_claim_email('received', self::claim_ctx($user, $warranty, $claim, ''));
+        return self::send($user->user_email, $m['subject'], $m['html']);
     }
 
-    /**
-     * Customer notification that their claim was approved.
-     */
     public static function send_claim_approved($claim) {
         $user     = get_userdata((int) $claim->user_id);
         $warranty = class_exists('GWARR_DB') ? GWARR_DB::find((int) $claim->warranty_id) : null;
         if (!$user) return false;
-
-        $content  = self::heading('Good news, ' . esc_html(self::first_name($user)) . '!');
-        $content .= self::paragraph('Your warranty claim has been <strong>approved</strong>. Our team will be in touch with the next steps to get this sorted for you.');
-        $content .= self::definition_table(self::claim_rows($warranty, $claim));
-        if (!empty($claim->admin_note)) {
-            $content .= self::callout('info', esc_html($claim->admin_note));
-        }
-        $content .= self::signoff();
-
-        return self::send($user->user_email, 'Your warranty claim is approved ✦', self::email_layout($content));
+        $note = !empty($claim->admin_note) ? esc_html($claim->admin_note) : '';
+        $m = self::render_claim_email('approved', self::claim_ctx($user, $warranty, $claim, $note));
+        return self::send($user->user_email, $m['subject'], $m['html']);
     }
 
-    /**
-     * Customer notification that their claim was declined (they may re-file).
-     */
     public static function send_claim_rejected($claim) {
         $user     = get_userdata((int) $claim->user_id);
         $warranty = class_exists('GWARR_DB') ? GWARR_DB::find((int) $claim->warranty_id) : null;
         if (!$user) return false;
-
-        $content  = self::heading('Hi ' . esc_html(self::first_name($user)) . ',');
-        $content .= self::paragraph('Thanks for submitting your warranty claim. After reviewing it, we\'re unable to approve it at this time.');
-        $content .= self::definition_table(self::claim_rows($warranty, $claim));
-        $content .= self::callout('warning',
-            (!empty($claim->admin_note) ? '<em>' . esc_html($claim->admin_note) . '</em><br><br>' : '')
-            . 'If you have more details or photos, you\'re welcome to reply to this email or submit a new claim from My Warranties.'
-        );
-        $content .= self::signoff();
-
-        return self::send($user->user_email, 'An update on your warranty claim', self::email_layout($content));
+        $note = !empty($claim->admin_note) ? esc_html($claim->admin_note) : '';
+        $m = self::render_claim_email('rejected', self::claim_ctx($user, $warranty, $claim, $note));
+        return self::send($user->user_email, $m['subject'], $m['html']);
     }
 
     /**
-     * Admin alert when a customer submits a new claim.
+     * Alert the warranty inbox that a customer submitted a new claim. Recipient
+     * comes from settings (claim_notify_email), defaulting to warranty@galado.com.my.
      */
     public static function send_admin_claim_alert($claim) {
-        $admin_email = get_option('admin_email');
-        if (!$admin_email) return false;
+        $to = self::claim_notify_email();
+        if (!$to) return false;
 
         $user     = get_userdata((int) $claim->user_id);
         $warranty = class_exists('GWARR_DB') ? GWARR_DB::find((int) $claim->warranty_id) : null;
         $media    = class_exists('GWARR_Claims') ? GWARR_Claims::media_ids($claim) : [];
 
         $rows = self::claim_rows($warranty, $claim);
-        $rows['Customer'] = esc_html($user ? $user->display_name : 'unknown') . ' &lt;' . esc_html($user ? $user->user_email : '—') . '&gt;';
-        $rows['Issue']    = nl2br(esc_html($claim->issue_description));
-        $rows['Media']    = $media ? (count($media) . ' file(s) attached') : 'none';
+        $rows['Customer'] = esc_html(($user ? $user->display_name : 'unknown') . ' (' . ($user ? $user->user_email : '—') . ')');
+        $rows['Issue']    = nl2br(esc_html((string) $claim->issue_description));
+        $rows['Media']    = $media ? esc_html(count($media) . ' file(s) attached') : 'none';
 
-        $content  = self::heading('New warranty claim', 'h3');
-        $content .= self::paragraph('A customer has submitted a warranty claim for review.');
-        $content .= self::definition_table($rows);
-        $content .= self::button('Review claim →', admin_url('admin.php?page=galado-warranty-claims'));
+        $m = self::render_admin_claim_email($rows);
+        return self::send($to, $m['subject'], $m['html']);
+    }
 
-        return self::send($admin_email, '[GALADO] New warranty claim pending review', self::email_layout($content));
+    /** Where claim-submission alerts go (settings → fallback warranty@galado.com.my). */
+    private static function claim_notify_email() {
+        $s = get_option('gwarr_settings', []);
+        $e = strtolower(trim((string) ($s['claim_notify_email'] ?? '')));
+        return ($e !== '' && is_email($e)) ? $e : 'warranty@galado.com.my';
+    }
+
+    private static function claim_ctx($user, $warranty, $claim, $note) {
+        return [
+            'name'           => self::first_name($user),
+            'warranties_url' => self::warranties_url(),
+            'meta'           => self::claim_rows($warranty, $claim),
+            'note'           => $note,
+        ];
+    }
+
+    private static function warranties_url() {
+        if (function_exists('gwarr_my_warranties_url')) {
+            $u = gwarr_my_warranties_url();
+            if ($u) return $u;
+        }
+        if (function_exists('wc_get_page_permalink')) {
+            return trailingslashit(wc_get_page_permalink('myaccount')) . 'warranties/';
+        }
+        return home_url('/my-account/');
+    }
+
+    /**
+     * Send the three customer claim emails + the admin alert as samples to an
+     * address, with placeholder data. Subjects are prefixed [SAMPLE]. Used by
+     * the settings "send sample emails" button.
+     *
+     * @return int emails sent
+     */
+    public static function send_sample_claim_emails($to) {
+        if (!is_email($to)) return 0;
+
+        $meta = [
+            'Item'  => esc_html('Mini Wrist Strap'),
+            'Where' => esc_html('Website Order'),
+            'Order' => '<code style="font-family:monospace;">#12877</code>',
+        ];
+        $url  = self::warranties_url();
+        $sent = 0;
+
+        $variants = [
+            'received' => '',
+            'approved' => esc_html("We'll ship a replacement strap to you this week — no charge."),
+            'rejected' => esc_html('The photos show impact damage, which falls outside the satisfaction guarantee.'),
+        ];
+        foreach ($variants as $state => $note) {
+            $m = self::render_claim_email($state, ['name' => 'Sherlyn', 'warranties_url' => $url, 'meta' => $meta, 'note' => $note]);
+            if (self::send($to, '[SAMPLE] ' . $m['subject'], $m['html'])) $sent++;
+        }
+
+        $rows = $meta;
+        $rows['Customer'] = esc_html('Sherlyn Tan (sherlyn@galado.com.my)');
+        $rows['Issue']    = esc_html('The strap clip snapped after about 3 weeks of normal use.');
+        $rows['Media']    = esc_html('2 file(s) attached');
+        $am = self::render_admin_claim_email($rows);
+        if (self::send($to, '[SAMPLE] ' . $am['subject'], $am['html'])) $sent++;
+
+        return $sent;
     }
 
     /**
@@ -494,6 +526,165 @@ class GWARR_Email {
             if (!empty($parts[0])) return $parts[0];
         }
         return $user->user_login;
+    }
+
+    // ============================================================
+    // GALADO Club-styled shell for claim emails (cream/coral, Baloo 2 + Nunito)
+    // ============================================================
+
+    /**
+     * Build a customer claim email (received | approved | rejected).
+     * @return array{subject:string,html:string}
+     */
+    private static function render_claim_email($state, $ctx) {
+        $name = esc_html(($ctx['name'] ?? '') !== '' ? $ctx['name'] : 'there');
+        $url  = $ctx['warranties_url'] ?? home_url('/my-account/');
+        $note = trim((string) ($ctx['note'] ?? '')); // already escaped by caller
+        $meta = $ctx['meta'] ?? [];
+
+        if ($state === 'approved') {
+            $subject = 'Your warranty claim is approved ✦';
+            $pre     = 'Good news — your GALADO warranty claim is approved.';
+            $icon    = '&#127881;'; $ifrom = '#eef7f0'; $ito = '#bfe6cd'; $ib = '#3fa66f';
+            $head    = 'Good news, ' . $name . '!';
+            $inner   = self::club_paragraph('Your warranty claim has been <strong style="color:#46302e;">approved</strong>. Our team will reach out with the next steps to get this sorted for you.')
+                     . self::club_meta($meta)
+                     . ($note !== '' ? self::club_callout('success', $note) : '');
+            $cta_l = 'View my warranties';
+        } elseif ($state === 'rejected') {
+            $subject = 'An update on your warranty claim';
+            $pre     = 'An update on your GALADO warranty claim.';
+            $icon    = '&#9993;&#65039;'; $ifrom = '#fff3cd'; $ito = '#f7d98f'; $ib = '#d99a23';
+            $head    = 'An update on your claim';
+            $inner   = self::club_paragraph('Hi ' . $name . ', thanks for submitting your warranty claim. After reviewing it, we\'re unable to approve it this time.')
+                     . self::club_meta($meta)
+                     . self::club_callout('warning', ($note !== '' ? '<strong style="color:#46302e;">Reason:</strong> ' . $note . '<br><br>' : '') . 'Have more details or photos? Just reply to this email, or submit a new claim from My Warranties.');
+            $cta_l = 'Go to my warranties';
+        } else { // received
+            $subject = 'We\'ve received your warranty claim';
+            $pre     = 'We\'ve received your GALADO warranty claim.';
+            $icon    = '&#128736;&#65039;'; $ifrom = '#fff3cd'; $ito = '#f7d98f'; $ib = '#d99a23';
+            $head    = 'Claim received, ' . $name . '!';
+            $inner   = self::club_paragraph('Thanks &mdash; we\'ve received your warranty claim and our team will review it shortly.')
+                     . self::club_meta($meta)
+                     . self::club_callout('info', 'We\'ll email you the moment there\'s an update. You can track the status any time under <strong style="color:#46302e;">My Warranties</strong>.');
+            $cta_l = 'Track my claim';
+        }
+
+        $html = self::club_shell([
+            'pill' => 'WARRANTY', 'preheader' => $pre,
+            'icon' => $icon, 'icon_from' => $ifrom, 'icon_to' => $ito, 'icon_border' => $ib,
+            'heading' => $head, 'inner' => $inner,
+            'cta_label' => $cta_l, 'cta_url' => $url,
+        ]);
+        return ['subject' => $subject, 'html' => $html];
+    }
+
+    private static function render_admin_claim_email($rows) {
+        $inner = self::club_paragraph('A customer has submitted a warranty claim for review.')
+               . self::club_meta($rows);
+        $html = self::club_shell([
+            'pill' => 'NEW CLAIM', 'preheader' => 'A new warranty claim is awaiting review.',
+            'icon' => '&#128276;', 'icon_from' => '#fff3cd', 'icon_to' => '#f7d98f', 'icon_border' => '#d99a23',
+            'heading' => 'New warranty claim', 'inner' => $inner,
+            'cta_label' => 'Review claim', 'cta_url' => admin_url('admin.php?page=galado-warranty-claims'),
+        ]);
+        return ['subject' => '[GALADO] New warranty claim pending review', 'html' => $html];
+    }
+
+    private static function club_paragraph($html) {
+        return '<p style="margin:0 0 18px;font-family:\'Nunito\',sans-serif;font-weight:600;font-size:15px;line-height:1.6;color:#8a6f6c;">' . $html . '</p>';
+    }
+
+    /** Left-aligned cream detail box (label/value rows). Values may be HTML. */
+    private static function club_meta($pairs) {
+        if (empty($pairs)) return '';
+        $rows = '';
+        foreach ($pairs as $label => $value) {
+            $rows .= '<tr>'
+                . '<td style="padding:4px 14px 4px 0;font-family:\'Nunito\',sans-serif;font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:#b8a6a1;white-space:nowrap;vertical-align:top;">' . esc_html($label) . '</td>'
+                . '<td style="padding:4px 0;font-family:\'Baloo 2\',sans-serif;font-weight:700;font-size:14px;line-height:1.5;color:#46302e;">' . $value . '</td>'
+                . '</tr>';
+        }
+        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;"><tr>'
+            . '<td style="background-color:#fff6ee;border:1px solid #f3ddd2;border-radius:14px;padding:14px 18px;text-align:left;">'
+            . '<table role="presentation" cellpadding="0" cellspacing="0" border="0">' . $rows . '</table>'
+            . '</td></tr></table>';
+    }
+
+    private static function club_callout($variant, $html) {
+        $p = [
+            'success' => ['#eef7f0', '#cfe8d6', '#3fa66f'],
+            'warning' => ['#fff8ec', '#e3b341', '#9a6a12'],
+            'info'    => ['#fff6ee', '#f3ddd2', '#8a6f6c'],
+        ];
+        $c = $p[$variant] ?? $p['info'];
+        return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;"><tr>'
+            . '<td style="background-color:' . $c[0] . ';border:1px solid ' . $c[1] . ';border-radius:14px;padding:14px 18px;text-align:left;font-family:\'Nunito\',sans-serif;font-weight:600;font-size:14px;line-height:1.55;color:' . $c[2] . ';">' . $html . '</td>'
+            . '</tr></table>';
+    }
+
+    /** The full Club-branded email document (header + card + footer). */
+    private static function club_shell($a) {
+        $pill   = esc_html($a['pill'] ?? 'WARRANTY');
+        $pre    = (string) ($a['preheader'] ?? '');
+        $icon   = $a['icon'] ?? '&#128737;&#65039;';
+        $ifrom  = $a['icon_from'] ?? '#fff3cd';
+        $ito    = $a['icon_to'] ?? '#f5b83d';
+        $ib     = $a['icon_border'] ?? '#d99a23';
+        $head   = (string) ($a['heading'] ?? '');
+        $inner  = (string) ($a['inner'] ?? '');
+        $cta_l  = (string) ($a['cta_label'] ?? '');
+        $cta_u  = esc_url($a['cta_url'] ?? '');
+        $shop   = esc_url(home_url('/'));
+
+        $h  = '<!DOCTYPE html><html lang="en"><head>';
+        $h .= '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
+        $h .= '<meta name="color-scheme" content="light only"><title>GALADO</title>';
+        $h .= '<style>';
+        $h .= "@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap');";
+        $h .= 'body{margin:0;padding:0;background:#fff6ee;}';
+        $h .= '@media (max-width:520px){.gc-card{padding:30px 22px !important;}}';
+        $h .= '</style></head>';
+        $h .= '<body style="margin:0;padding:0;background-color:#fff6ee;">';
+        if ($pre !== '') {
+            $h .= '<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#fff6ee;">' . esc_html($pre) . '</div>';
+        }
+        $h .= '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fff6ee;">';
+        $h .= '<tr><td align="center" style="padding:36px 16px;">';
+        $h .= '<table role="presentation" width="480" cellpadding="0" cellspacing="0" border="0" style="width:480px;max-width:100%;">';
+
+        // Wordmark + pill
+        $h .= '<tr><td align="center" style="padding-bottom:22px;">';
+        $h .= '<span style="font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:24px;color:#46302e;letter-spacing:0.02em;vertical-align:middle;">GALADO</span>';
+        $h .= '<span style="display:inline-block;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:12px;letter-spacing:0.08em;color:#ffffff;background-color:#f25d6f;background-image:linear-gradient(135deg,#ff7e8a,#f25d6f);padding:4px 10px;border-radius:8px;margin-left:7px;vertical-align:middle;">' . $pill . '</span>';
+        $h .= '</td></tr>';
+
+        // Card
+        $h .= '<tr><td class="gc-card" style="background-color:#ffffff;border:1px solid #f3ddd2;border-radius:28px;padding:38px 34px;text-align:center;box-shadow:0 6px 18px rgba(70,48,46,0.08);">';
+
+        // Icon circle
+        $h .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 18px;"><tr>';
+        $h .= '<td align="center" valign="middle" width="64" height="64" style="width:64px;height:64px;border-radius:50%;background-color:' . $ito . ';background-image:radial-gradient(circle at 35% 30%,' . $ifrom . ',' . $ito . ' 70%);border:3px solid ' . $ib . ';font-size:30px;">' . $icon . '</td>';
+        $h .= '</tr></table>';
+
+        if ($head !== '') {
+            $h .= '<h1 style="margin:0 0 16px;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:23px;line-height:1.15;color:#46302e;">' . $head . '</h1>';
+        }
+
+        $h .= $inner;
+
+        if ($cta_l !== '' && $cta_u !== '') {
+            $h .= '<a href="' . $cta_u . '" target="_blank" rel="noopener" style="display:inline-block;font-family:\'Baloo 2\',sans-serif;font-weight:800;font-size:16px;line-height:1;color:#ffffff;text-decoration:none;padding:15px 32px;border-radius:999px;background-color:#f25d6f;background-image:linear-gradient(135deg,#ff7e8a,#f25d6f);box-shadow:0 6px 16px rgba(242,93,111,0.35);margin-top:4px;">' . esc_html($cta_l) . ' &rarr;</a>';
+        }
+
+        $h .= '</td></tr>';
+
+        // Footer
+        $h .= '<tr><td style="padding:18px 18px 0;text-align:center;font-family:\'Nunito\',sans-serif;font-size:11px;color:#b8a6a1;">GALADO &middot; <a href="' . $shop . '" style="color:#b8a6a1;text-decoration:underline;">galado.com.my</a></td></tr>';
+
+        $h .= '</table></td></tr></table></body></html>';
+        return $h;
     }
 
     // ============================================================

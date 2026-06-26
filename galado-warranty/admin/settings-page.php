@@ -35,6 +35,7 @@ function gwarr_render_settings_page() {
             'warranty_months'      => max(1, min(36, (int) ($_POST['warranty_months'] ?? 6))),
             'from_name'            => sanitize_text_field($_POST['from_name'] ?? 'GALADO'),
             'from_email'           => sanitize_email($_POST['from_email'] ?? ''),
+            'claim_notify_email'   => sanitize_email($_POST['claim_notify_email'] ?? ''),
             'page_register_url'    => esc_url_raw($_POST['page_register_url'] ?? ''),
             'support_coverage_url' => esc_url_raw($_POST['support_coverage_url'] ?? ''),
             'sheet_id'             => sanitize_text_field($_POST['sheet_id'] ?? ''),
@@ -82,6 +83,20 @@ function gwarr_render_settings_page() {
         if (class_exists('GWARR_Orders')) {
             GWARR_Orders::start_backfill();
             echo '<div class="notice notice-success"><p>Backfill started — it runs in the background. Refresh this page to watch progress.</p></div>';
+        }
+    }
+
+    // ---- Send sample claim emails ----
+    if (isset($_POST['gwarr_sample_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_sample_nonce'])), 'gwarr_sample')) {
+        $to = sanitize_email($_POST['gwarr_sample_to'] ?? '');
+        if (!is_email($to)) {
+            echo '<div class="notice notice-error"><p>Please enter a valid email address for the sample.</p></div>';
+        } elseif (class_exists('GWARR_Email')) {
+            $n = GWARR_Email::send_sample_claim_emails($to);
+            echo '<div class="notice notice-' . ($n ? 'success' : 'error') . '"><p>'
+                . ($n ? 'Sent ' . (int) $n . ' sample email(s) to ' . esc_html($to) . ' (received, approved, declined + the admin alert). Check the inbox — and spam, just in case.'
+                      : 'Could not send — wp_mail returned false. Check your site\'s email/SMTP setup.')
+                . '</p></div>';
         }
     }
 
@@ -193,6 +208,13 @@ function gwarr_render_settings_page() {
                     <td>
                         <input type="email" name="from_email" value="<?php echo esc_attr($settings['from_email']); ?>" class="regular-text" placeholder="<?php echo esc_attr(get_option('admin_email')); ?>">
                         <p class="description">Leave blank to use the site admin email.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Claim notification email</th>
+                    <td>
+                        <input type="email" name="claim_notify_email" value="<?php echo esc_attr($settings['claim_notify_email'] ?? ''); ?>" class="regular-text" placeholder="warranty@galado.com.my">
+                        <p class="description">Where new warranty-<strong>claim</strong> submissions are sent for review. Defaults to warranty@galado.com.my.</p>
                     </td>
                 </tr>
             </table>
@@ -347,6 +369,20 @@ function gwarr_render_settings_page() {
             <?php wp_nonce_field('gwarr_backfill', 'gwarr_backfill_nonce'); ?>
             <button type="submit" class="button"><?php echo $bf_running ? '🔄 Restart backfill' : '📦 Backfill recent website orders'; ?></button>
             <span class="description" style="margin-left:8px;">Advances automatically while this page is open. Safe to re-run (idempotent).</span>
+        </form>
+
+        <hr style="margin:40px 0;">
+
+        <h2 class="title">Sample Emails</h2>
+        <p class="description" style="max-width:760px;">
+            Sends the three customer claim emails (received, approved, declined) plus the internal admin alert — all in the
+            GALADO Club style — to an address so you can preview them in a real inbox. Subjects are prefixed <code>[SAMPLE]</code>.
+        </p>
+        <form method="post" style="margin-top:8px;">
+            <?php wp_nonce_field('gwarr_sample', 'gwarr_sample_nonce'); ?>
+            <input type="email" name="gwarr_sample_to" value="clement@galado.com.my" class="regular-text" style="max-width:280px;">
+            <button type="submit" class="button">✉️ Send sample emails</button>
+            <span class="description" style="margin-left:8px;">Sends 4 emails via the site's normal mailer.</span>
         </form>
 
         <hr style="margin:40px 0;">
