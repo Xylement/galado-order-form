@@ -306,8 +306,14 @@ class GWARR_Claims {
             }
             return $oid;
         } catch (\Throwable $e) {
-            self::$last_order_error = $e->getMessage();
-            error_log('[galado-warranty] shipping order for claim ' . (int) $claim->id . ' failed: ' . $e->getMessage());
+            // Pinpoint the exact failing call so we can see whether it's WC core
+            // or a third-party hook (and which one), not just the message.
+            self::$last_order_error = $e->getMessage()
+                . ' [' . get_class($e) . ' @ ' . basename($e->getFile()) . ':' . $e->getLine() . ']';
+            error_log('[galado-warranty] shipping order for claim ' . (int) $claim->id
+                . ' failed (v' . (defined('GWARR_VERSION') ? GWARR_VERSION : '?') . '): '
+                . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine()
+                . "\n" . $e->getTraceAsString());
             return 0;
         }
     }
