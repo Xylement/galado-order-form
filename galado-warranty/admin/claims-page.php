@@ -161,12 +161,25 @@ function gwarr_render_claim_admin_actions($row) {
                 echo '<small style="color:#888;">Approval email: status not recorded (approved before logging was added).</small><br>';
             }
             ?>
-            <form method="post" style="margin-top:4px;" onsubmit="return confirm('Re-send the approval email (with the pay-shipping button) to <?php echo esc_attr($row->user_email); ?>?');">
+            <form method="post" style="margin-top:4px;" onsubmit="return confirm('Re-send the approval email<?php echo empty($row->shipping_order_id) ? '' : ' (with the pay-shipping button)'; ?> to <?php echo esc_attr($row->user_email); ?>?');">
                 <?php wp_nonce_field('gwarr_claim_admin', 'gwarr_claim_admin_nonce'); ?>
                 <input type="hidden" name="claim_id" value="<?php echo (int) $row->id; ?>">
                 <button type="submit" name="gwarr_claim_action" value="resend_approved" class="button button-small">✉️ Resend approval email</button>
             </form>
             <?php
+            // No pay order yet → let the admin add a fee and send a pay link now.
+            if (empty($row->shipping_order_id)) {
+                ?>
+                <form method="post" style="margin-top:6px;" onsubmit="return confirm('Create a shipping order and email a pay link to <?php echo esc_attr($row->user_email); ?>?');">
+                    <?php wp_nonce_field('gwarr_claim_admin', 'gwarr_claim_admin_nonce'); ?>
+                    <input type="hidden" name="claim_id" value="<?php echo (int) $row->id; ?>">
+                    <label style="font-size:11px;color:#666;">Charge shipping fee (RM)<br>
+                        <input type="number" name="shipping_fee" min="0" step="0.01" placeholder="e.g. 8.00" style="width:100px;" required>
+                    </label>
+                    <button type="submit" name="gwarr_claim_action" value="charge_shipping" class="button button-small">💳 Create pay link &amp; email</button>
+                </form>
+                <?php
+            }
         }
         return;
     }
@@ -271,6 +284,22 @@ function gwarr_handle_claim_admin_post() {
         return gwarr_admin_notice($ok ? 'success' : 'error', $ok
             ? 'Approval email re-sent for claim #' . $claim_id . '. If it still doesn\'t arrive, it\'s almost certainly mail delivery — check spam and your SMTP setup (try the “Send sample emails” button in Warranty Settings).'
             : 'Resend failed — the mailer returned false. Your site can\'t send email right now; fix SMTP and try again.');
+    }
+
+    if ($action === 'charge_shipping') {
+        $claim = GWARR_Claims::find($claim_id);
+        if (!$claim || $claim->status !== 'approved') {
+            return gwarr_admin_notice('error', 'Shipping can only be charged on an approved claim.');
+        }
+        $result = GWARR_Claims::set_shipping_fee($claim_id, $fee);
+        if (is_wp_error($result)) {
+            return gwarr_admin_notice('error', 'Could not add shipping fee: ' . esc_html($result->get_error_message()));
+        }
+        $ok = class_exists('GWARR_Email') ? (bool) GWARR_Email::send_claim_approved($result) : false;
+        gwarr_record_claim_email_status($claim_id, $ok);
+        $msg = 'Shipping order #' . (int) $result->shipping_order_id . ' (RM ' . number_format($fee, 2) . ') created for claim #' . $claim_id . '.';
+        $msg .= $ok ? ' The approval email with the pay button was sent.' : ' <strong style="color:#d63638;">⚠ But the email could not be sent — check your SMTP setup, then use Resend.</strong>';
+        return gwarr_admin_notice($ok ? 'success' : 'error', $msg);
     }
 
     if ($action === 'reject') {

@@ -204,6 +204,43 @@ class GWARR_Claims {
     }
 
     /**
+     * Attach (or re-use) a replacement-shipping fee + WooCommerce pay order to
+     * an already-approved claim — for when the fee was missed at approval, or
+     * the claim was approved before the pay flow existed. Creates the order
+     * only if one isn't already linked.
+     *
+     * @return object|WP_Error the refreshed claim row
+     */
+    public static function set_shipping_fee($id, $fee) {
+        global $wpdb;
+        $fee   = round((float) $fee, 2);
+        $claim = self::find($id);
+        if (!$claim) {
+            return new WP_Error('gwarr_claim_not_found', 'Claim not found.');
+        }
+        if ($fee <= 0) {
+            return new WP_Error('gwarr_bad_fee', 'Please enter a shipping fee greater than 0.');
+        }
+
+        $order_id = !empty($claim->shipping_order_id)
+            ? (int) $claim->shipping_order_id
+            : self::create_shipping_order($claim, $fee);
+
+        if (!$order_id) {
+            return new WP_Error('gwarr_order_failed', 'Could not create the WooCommerce shipping order — check the error log.');
+        }
+
+        $wpdb->update(
+            self::table(),
+            ['shipping_fee' => $fee, 'shipping_order_id' => $order_id],
+            ['id' => (int) $id],
+            ['%f', '%d'],
+            ['%d']
+        );
+        return self::find($id);
+    }
+
+    /**
      * Create a pending WooCommerce order for a warranty-claim shipping fee,
      * assigned to the customer. Returns the order id, or 0 on failure (the
      * approval still succeeds — the email just falls back to "we'll send a
