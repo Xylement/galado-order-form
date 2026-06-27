@@ -281,6 +281,7 @@ class GWARR_Claims {
             $fee_item->set_amount((string) $fee);
             $fee_item->set_total((string) $fee);
             $fee_item->set_tax_status('none');
+            $fee_item->set_total_tax(0);
             $order->add_item($fee_item);
 
             if ($user && $user->user_email) {
@@ -288,7 +289,13 @@ class GWARR_Claims {
             }
             $order->set_created_via('galado-warranty');
             $order->add_order_note('Auto-created for warranty claim #' . (int) $claim->id . ' (replacement shipping fee).');
-            $order->calculate_totals();
+
+            // Set the total directly instead of calculate_totals(): the fee is a
+            // fixed, tax-free amount, and calculate_totals() runs WooCommerce's
+            // tax/session/customer machinery which is null on an admin request
+            // ("Call to a member function get() on null").
+            $order->set_cart_tax(0);
+            $order->set_total((float) $fee);
             $order->update_status('pending', 'Awaiting warranty-replacement shipping payment.');
             $order->save();
 
