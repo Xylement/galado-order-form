@@ -144,8 +144,30 @@ function gwarr_render_claim_admin_actions($row) {
                 echo '<small>Shipping ' . esc_html($fee) . ' — <strong style="color:' . ($paid ? '#00a32a' : '#dba617') . ';">' . ($paid ? 'Paid' : 'Unpaid') . '</strong> '
                     . '(<a href="' . esc_url($o->get_edit_order_url()) . '">order #' . (int) $row->shipping_order_id . '</a>)</small><br>';
             }
+        } elseif ($row->status === 'approved' && $row->shipping_fee !== null && (float) $row->shipping_fee > 0) {
+            echo '<small style="color:#d63638;">Shipping fee RM ' . number_format((float) $row->shipping_fee, 2) . ' set, but no WooCommerce order was created — the email has no pay button. Check the error log.</small><br>';
         }
         echo '<small>Resolved ' . esc_html(mysql2date('M j, Y', $row->resolved_at)) . '</small>';
+
+        // Approval-email send status + resend (approved claims only).
+        if ($row->status === 'approved') {
+            $log = get_option('gwarr_claim_email_' . (int) $row->id, []);
+            echo '<br>';
+            if (!empty($log['at'])) {
+                $ok = !empty($log['ok']);
+                echo '<small>Approval email: <strong style="color:' . ($ok ? '#00a32a' : '#d63638') . ';">' . ($ok ? 'sent' : 'FAILED') . '</strong> '
+                    . esc_html(mysql2date('M j, g:i a', $log['at'])) . ' &rarr; ' . esc_html($row->user_email) . '</small><br>';
+            } else {
+                echo '<small style="color:#888;">Approval email: status not recorded (approved before logging was added).</small><br>';
+            }
+            ?>
+            <form method="post" style="margin-top:4px;" onsubmit="return confirm('Re-send the approval email (with the pay-shipping button) to <?php echo esc_attr($row->user_email); ?>?');">
+                <?php wp_nonce_field('gwarr_claim_admin', 'gwarr_claim_admin_nonce'); ?>
+                <input type="hidden" name="claim_id" value="<?php echo (int) $row->id; ?>">
+                <button type="submit" name="gwarr_claim_action" value="resend_approved" class="button button-small">✉️ Resend approval email</button>
+            </form>
+            <?php
+        }
         return;
     }
     ?>
@@ -224,16 +246,31 @@ function gwarr_handle_claim_admin_post() {
         if (is_wp_error($result)) {
             return gwarr_admin_notice('error', 'Approval failed: ' . esc_html($result->get_error_message()));
         }
-        if (class_exists('GWARR_Email')) {
-            GWARR_Email::send_claim_approved($result);
-        }
-        $msg = 'Claim #' . $claim_id . ' approved — warranty marked as claimed and the customer notified.';
+        $ok = class_exists('GWARR_Email') ? (bool) GWARR_Email::send_claim_approved($result) : false;
+        gwarr_record_claim_email_status($claim_id, $ok);
+
+        $msg = 'Claim #' . $claim_id . ' approved — warranty marked as claimed.';
         if ($fee > 0) {
             $msg .= !empty($result->shipping_order_id)
                 ? ' A RM ' . number_format($fee, 2) . ' shipping order (#' . (int) $result->shipping_order_id . ') was created with a pay link in the email.'
-                : ' (Shipping fee set, but the WooCommerce order could not be created — check the log.)';
+                : ' <strong>Shipping fee set, but the WooCommerce order could not be created — the email has no pay button. Check the error log.</strong>';
         }
-        return gwarr_admin_notice('success', $msg);
+        $msg .= $ok
+            ? ' Approval email sent.'
+            : ' <strong style="color:#d63638;">⚠ The approval email could not be sent (mailer returned false) — check your SMTP/email setup, then use “Resend”.</strong>';
+        return gwarr_admin_notice($ok ? 'success' : 'error', $msg);
+    }
+
+    if ($action === 'resend_approved') {
+        $claim = GWARR_Claims::find($claim_id);
+        if (!$claim || $claim->status !== 'approved') {
+            return gwarr_admin_notice('error', 'That claim is not approved, so there is no approval email to resend.');
+        }
+        $ok = class_exists('GWARR_Email') ? (bool) GWARR_Email::send_claim_approved($claim) : false;
+        gwarr_record_claim_email_status($claim_id, $ok);
+        return gwarr_admin_notice($ok ? 'success' : 'error', $ok
+            ? 'Approval email re-sent for claim #' . $claim_id . '. If it still doesn\'t arrive, it\'s almost certainly mail delivery — check spam and your SMTP setup (try the “Send sample emails” button in Warranty Settings).'
+            : 'Resend failed — the mailer returned false. Your site can\'t send email right now; fix SMTP and try again.');
     }
 
     if ($action === 'reject') {
@@ -251,4 +288,16 @@ function gwarr_handle_claim_admin_post() {
     }
 
     return '';
+}
+
+/**
+ * Record whether a claim's approval email was handed off to the mailer, so the
+ * claims list can show "sent / FAILED" and we can tell deliverability issues
+ * apart from send failures. Stored per-claim as an option (no schema change).
+ */
+function gwarr_record_claim_email_status($claim_id, $ok) {
+    update_option('gwarr_claim_email_' . (int) $claim_id, [
+        'at' => current_time('mysql'),
+        'ok' => $ok ? 1 : 0,
+    ], false);
 }
