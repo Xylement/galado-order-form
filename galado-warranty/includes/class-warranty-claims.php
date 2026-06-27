@@ -266,6 +266,22 @@ class GWARR_Claims {
             return 0;
         }
         try {
+            // Order-save hooks (and WC internals) often reach for WC()->session,
+            // ->cart or ->customer, which are null on a wp-admin request →
+            // "Call to a member function get() on null". Initialise them first.
+            if (function_exists('WC')) {
+                if (null === WC()->session && class_exists('WC_Session_Handler')) {
+                    WC()->session = new WC_Session_Handler();
+                    WC()->session->init();
+                }
+                if (null === WC()->customer) {
+                    WC()->customer = new WC_Customer((int) $claim->user_id, true);
+                }
+                if (null === WC()->cart && class_exists('WC_Cart')) {
+                    WC()->cart = new WC_Cart();
+                }
+            }
+
             $user  = get_userdata((int) $claim->user_id);
             $label = !empty($claim->item_label) ? (string) $claim->item_label : 'warranty replacement';
 
