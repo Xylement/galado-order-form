@@ -227,7 +227,9 @@ class GWARR_Claims {
             : self::create_shipping_order($claim, $fee);
 
         if (!$order_id) {
-            return new WP_Error('gwarr_order_failed', 'Could not create the WooCommerce shipping order — check the error log.');
+            $why = self::last_order_error();
+            return new WP_Error('gwarr_order_failed',
+                'Could not create the WooCommerce shipping order' . ($why ? ': ' . $why : ' — check the error log.'));
         }
 
         $wpdb->update(
@@ -246,8 +248,21 @@ class GWARR_Claims {
      * approval still succeeds — the email just falls back to "we'll send a
      * payment link"). Tax is disabled so the customer pays exactly the fee.
      */
+    /** Last shipping-order failure reason, surfaced by set_shipping_fee(). */
+    private static $last_order_error = '';
+
+    public static function last_order_error() {
+        return self::$last_order_error;
+    }
+
     private static function create_shipping_order($claim, $fee) {
-        if (!function_exists('wc_create_order') || !class_exists('WC_Order_Item_Fee')) {
+        self::$last_order_error = '';
+        if (!function_exists('wc_create_order')) {
+            self::$last_order_error = 'WooCommerce is not active.';
+            return 0;
+        }
+        if (!class_exists('WC_Order_Item_Fee')) {
+            self::$last_order_error = 'WC_Order_Item_Fee class unavailable.';
             return 0;
         }
         try {
@@ -255,6 +270,11 @@ class GWARR_Claims {
             $label = !empty($claim->item_label) ? (string) $claim->item_label : 'warranty replacement';
 
             $order = wc_create_order(['customer_id' => (int) $claim->user_id]);
+            if (is_wp_error($order)) {
+                self::$last_order_error = $order->get_error_message();
+                error_log('[galado-warranty] wc_create_order failed for claim ' . (int) $claim->id . ': ' . $order->get_error_message());
+                return 0;
+            }
 
             $fee_item = new WC_Order_Item_Fee();
             $fee_item->set_name('Replacement shipping — ' . $label);
@@ -272,8 +292,14 @@ class GWARR_Claims {
             $order->update_status('pending', 'Awaiting warranty-replacement shipping payment.');
             $order->save();
 
-            return (int) $order->get_id();
+            $oid = (int) $order->get_id();
+            if ($oid <= 0) {
+                self::$last_order_error = 'Order saved but no ID was returned.';
+                return 0;
+            }
+            return $oid;
         } catch (\Throwable $e) {
+            self::$last_order_error = $e->getMessage();
             error_log('[galado-warranty] shipping order for claim ' . (int) $claim->id . ' failed: ' . $e->getMessage());
             return 0;
         }
