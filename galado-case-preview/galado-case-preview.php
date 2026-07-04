@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Live Case Preview
  * Plugin URI: https://galado.com.my
  * Description: Live text overlay on a dedicated mockup image. Customers see their name on the actual case as they type and select fonts — right next to the font selector, no gallery involvement.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: GALADO
  * Author URI: https://galado.com.my
  * Requires at least: 6.0
@@ -58,7 +58,7 @@ class GALADO_Case_Preview {
         $plugins['galado-case-preview'] = array(
             'name'    => 'Live Case Preview',
             'icon'    => '👁️',
-            'version' => '1.2.0',
+            'version' => '1.2.1',
         );
         return $plugins;
     }

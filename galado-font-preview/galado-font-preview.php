@@ -2,7 +2,7 @@
 /**
  * Plugin Name: GALADO Font Preview
  * Description: Adds a live font preview selector to selected WooCommerce products. Customers type their name, see it in custom fonts, and tap to select.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: GALADO
  * Requires Plugins: woocommerce
  * Text Domain: galado-font-preview
@@ -193,9 +193,9 @@ class Galado_Font_Preview {
             $font_css .= "@font-face { font-family: '{$name}'; src: url('{$url}') format('{$format}'); font-display: swap; }\n";
         }
 
-        wp_enqueue_style( 'galado-font-preview', $plugin_url . 'style.css', array(), '1.1.0' );
+        wp_enqueue_style( 'galado-font-preview', $plugin_url . 'style.css', array(), '1.1.1' );
         wp_add_inline_style( 'galado-font-preview', $font_css );
-        wp_enqueue_script( 'galado-font-preview', $plugin_url . 'script.js', array( 'jquery' ), '1.1.0', true );
+        wp_enqueue_script( 'galado-font-preview', $plugin_url . 'script.js', array( 'jquery' ), '1.1.1', true );
 
         wp_localize_script( 'galado-font-preview', 'galadoFonts', array(
             'fonts'       => $font_names,

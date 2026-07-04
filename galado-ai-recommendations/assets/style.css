@@ -12,7 +12,7 @@
 .gair-section__title {
     font-size: 22px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: #111111;
     margin: 0 0 4px;
 }
 
@@ -53,7 +53,7 @@
 .gair-product-card__image {
     display: block;
     position: relative;
-    background: #f9f9f9;
+    background: #f5f5f3;
 }
 
 .gair-product-card__image img {
@@ -66,7 +66,7 @@
     position: absolute;
     top: 8px;
     left: 8px;
-    background: #e53935;
+    background: #e4002b;
     color: #fff;
     font-size: 11px;
     font-weight: 600;
@@ -83,7 +83,7 @@
     display: block;
     font-size: 13px;
     font-weight: 500;
-    color: #1a1a1a;
+    color: #111111;
     text-decoration: none;
     line-height: 1.4;
     margin-bottom: 4px;
@@ -109,7 +109,7 @@
 .gair-product-card__price {
     font-size: 14px;
     font-weight: 600;
-    color: #1a1a1a;
+    color: #111111;
     margin-top: 4px;
 }
 
@@ -121,7 +121,7 @@
 
 .gair-product-card__price ins {
     text-decoration: none;
-    color: #e53935;
+    color: #e4002b;
 }
 
 /* Skeleton loading */
@@ -130,7 +130,7 @@
 }
 
 .gair-skeleton {
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background: linear-gradient(90deg, #f2f2f2 25%, #d9d9d9 50%, #f2f2f2 75%);
     background-size: 200% 100%;
     animation: gairShimmer 1.5s infinite;
     border-radius: 8px;

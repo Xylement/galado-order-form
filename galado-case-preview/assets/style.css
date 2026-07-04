@@ -57,12 +57,12 @@
 }
 
 .gcp-overlay-text[data-color="black"] {
-    color: #1a1a1a;
+    color: #111111;
     text-shadow: 0 1px 4px rgba(255,255,255,0.2);
 }
 
 /* ── Font selector active state ─────────────────────────────────────────── */
 .galado-fp-card.gcp-active {
-    outline: 3px solid #0071e3 !important;
+    outline: 3px solid #111111 !important;
     outline-offset: -3px;
 }

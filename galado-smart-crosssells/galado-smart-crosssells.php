@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Smart Cross-Sells
  * Plugin URI: https://galado.com.my
  * Description: Boost AOV with intelligent cross-sell recommendations on cart page, checkout, and post-purchase. Shows compatible accessories based on cart contents.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_CS_VERSION', '1.1.0');
+define('GALADO_CS_VERSION', '1.1.1');
 define('GALADO_CS_PATH', plugin_dir_path(__FILE__));
 define('GALADO_CS_URL', plugin_dir_url(__FILE__));
 
