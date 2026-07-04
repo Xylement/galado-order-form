@@ -140,7 +140,7 @@ function gwarr_render_register_form($atts = []) {
                 <label class="gwarr-field">
                     <span class="gwarr-label">Where did you buy from?</span>
                     <select name="marketplace" required>
-                        <option value="">— Select marketplace —</option>
+                        <option value="">Select marketplace</option>
                         <?php foreach ($marketplaces as $slug => $label): ?>
                             <option value="<?php echo esc_attr($slug); ?>"
                                     data-example="<?php echo esc_attr(GWARR_Marketplaces::order_example($slug)); ?>"
@@ -162,7 +162,7 @@ function gwarr_render_register_form($atts = []) {
             <label class="gwarr-field">
                 <span class="gwarr-label">Anything we should know? <span class="gwarr-optional">(optional)</span></span>
                 <textarea name="notes" rows="3" maxlength="500"
-                          placeholder="Optional notes — e.g. gift recipient, return concerns, etc."><?php echo esc_textarea($form_values['notes']); ?></textarea>
+                          placeholder="Optional notes, e.g. gift recipient or return concerns."><?php echo esc_textarea($form_values['notes']); ?></textarea>
             </label>
 
             <label class="gwarr-consent">
@@ -205,7 +205,7 @@ function gwarr_render_processing_overlay() {
             <div class="gwarr-progress" aria-hidden="true">
                 <div class="gwarr-progress-fill" id="gwarr-progress-fill"></div>
             </div>
-            <p class="gwarr-processing-hint">This can take a minute or two — please keep this page open and don't refresh.</p>
+            <p class="gwarr-processing-hint">This can take a minute or two. Please keep this page open and don't refresh.</p>
         </div>
     </div>
     <?php
@@ -333,7 +333,7 @@ function gwarr_handle_form_submission() {
 
     if ($autoresult) {
         $row = GWARR_DB::find($id);
-        $msg  = '<strong>You\'re all set — warranty extended.</strong> ';
+        $msg  = '<strong>You\'re all set. Warranty extended.</strong> ';
         if ($row && $row->warranty_ends) {
             $msg .= 'Your warranty is now covered until <strong>' . esc_html(mysql2date('F j, Y', $row->warranty_ends)) . '</strong>. ';
         }
@@ -341,7 +341,7 @@ function gwarr_handle_form_submission() {
         return gwarr_result(true, gwarr_notice('success', $msg));
     }
 
-    $msg  = '<strong>Thanks — we got your registration.</strong> ';
+    $msg  = '<strong>Thanks, we got your registration.</strong> ';
     $msg .= 'We\'ll verify your order against our records and email you when your warranty is approved (usually within 1 business day). ';
     $msg .= 'Your registration is shown below.';
     return gwarr_result(true, gwarr_notice('success', $msg));
@@ -361,7 +361,7 @@ function gwarr_render_login_prompt() {
             <button type="button" class="button gwarr-btn" data-gwarr-auth="register">Create an account</button>
             <button type="button" class="button gwarr-btn-secondary" data-gwarr-auth="login">Log in</button>
         </p>
-        <p class="gwarr-fineprint">No need to leave this page — your warranty registration form will appear right after you sign in.</p>
+        <p class="gwarr-fineprint">No need to leave this page. Your warranty registration form will appear right after you sign in.</p>
     </div>
 
     <?php gwarr_render_auth_modal(); ?>
@@ -476,7 +476,7 @@ function gwarr_render_duplicate_notice($wp_error, $marketplace, $order_number) {
 
     $msg  = '<strong>This order number is already registered to another account.</strong> ';
     $msg .= 'If you registered it under a different email, please log in with that account. ';
-    $msg .= 'If you believe this is a mistake, please contact us — we\'ve notified our team to look into it.';
+    $msg .= 'If you believe this is a mistake, please contact us. We\'ve notified our team to look into it.';
     return gwarr_notice('error', $msg);
 }
 

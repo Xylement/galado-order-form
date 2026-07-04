@@ -43,10 +43,10 @@
             var steps = [
                 'Sending your details securely',
                 'Verifying your order against our records',
-                'This can take a minute or two — hang tight',
+                'This can take a minute or two, hang tight',
                 'Setting up your warranty coverage',
                 'Preparing your welcome coupon',
-                'Almost there — finalising your registration'
+                'Almost there, finalising your registration'
             ];
 
             $regForm.on('submit', function (e) {
@@ -184,7 +184,7 @@
             var $submit = $form.find('.gwarr-modal-submit');
 
             if (typeof gwarrAuth === 'undefined') {
-                $err.text('Configuration error — please refresh the page.');
+                $err.text('Configuration error. Please refresh the page.');
                 return;
             }
 

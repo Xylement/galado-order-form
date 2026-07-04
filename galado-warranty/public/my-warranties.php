@@ -98,13 +98,15 @@ function gwarr_render_my_warranties() {
     }
 
     ?>
-    <p class="gwarr-coverage-note">
-        🛡 What's covered? See our <a href="<?php echo esc_url(gwarr_coverage_url()); ?>" target="_blank" rel="noopener">satisfaction guarantee details</a>.
-    </p>
-    <div class="gwarr-my-list">
-        <?php foreach ($rows as $row): ?>
-            <?php gwarr_render_my_warranty_card($row, $claim_map[(int) $row->id] ?? null); ?>
-        <?php endforeach; ?>
+    <div class="gwarr-my-wrap">
+        <p class="gwarr-coverage-note">
+            🛡 What's covered? See our <a href="<?php echo esc_url(gwarr_coverage_url()); ?>" target="_blank" rel="noopener">satisfaction guarantee details</a>.
+        </p>
+        <div class="gwarr-my-list">
+            <?php foreach ($rows as $row): ?>
+                <?php gwarr_render_my_warranty_card($row, $claim_map[(int) $row->id] ?? null); ?>
+            <?php endforeach; ?>
+        </div>
     </div>
     <?php
 }
@@ -184,7 +186,7 @@ function gwarr_render_my_warranty_card($row, $claim = null) {
                 if ($is_approved && !$is_expired && function_exists('gwarr_render_claim_form')) {
                     $claim_status = $claim ? $claim->status : '';
                     if ($claim_status === 'submitted') {
-                        echo '<p class="gwarr-claim-status gwarr-claim-status--review">⏳ Your claim is under review — we\'ll email you with the next steps.</p>';
+                        echo '<p class="gwarr-claim-status gwarr-claim-status--review">⏳ Your claim is under review. We\'ll email you with the next steps.</p>';
                     } else {
                         if ($claim_status === 'rejected' && !empty($claim->admin_note)) {
                             echo '<p class="gwarr-claim-status gwarr-claim-status--declined">Your previous claim was declined: <em>'
@@ -202,7 +204,7 @@ function gwarr_render_my_warranty_card($row, $claim = null) {
 
             <?php elseif ($is_rejected): ?>
                 <p class="gwarr-rejected-msg">
-                    Sorry — we couldn't verify this order.
+                    Sorry, we couldn't verify this order.
                     <?php if (!empty($row->admin_note)): ?>
                         <br><em><?php echo esc_html($row->admin_note); ?></em>
                     <?php endif; ?>

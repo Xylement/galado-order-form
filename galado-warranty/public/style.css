@@ -1,26 +1,30 @@
-/* GALADO Warranty — public styles (GALADO Club theme) */
+/* GALADO Warranty — public styles (GALADO Brand v1.0: Ink / White / one Red) */
 
-@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-    --gw-bg: #fff6ee;
-    --gw-card: #ffffff;
-    --gw-border: #f3ddd2;
-    --gw-ink: #46302e;
-    --gw-ink-soft: #8a6f6c;
-    --gw-coral: #f25d6f;
-    --gw-coral-light: #ff7e8a;
-    --gw-gold: #f5b83d;
-    --gw-gold-deep: #d99a23;
-    --gw-green: #3fa66f;
-    --gw-radius: 16px;
+    --gw-paper: #ffffff;
+    --gw-surface: #f5f5f3;
+    --gw-fill: #f2f2f2;
+    --gw-ink: #111111;
+    --gw-text2: #4a4a4a;
+    --gw-text3: #8c8c8c;
+    --gw-border: #d9d9d9;
+    --gw-red: #e4002b;
+    --gw-red-dark: #b80023;
+    --gw-red-tint: #ffe9ec;
+    --gw-green: #1e8e5a;
+    --gw-green-tint: #e9f7ef;
+    --gw-radius-card: 20px;
+    --gw-radius-img: 16px;
+    --gw-radius-field: 12px;
     --gw-pill: 999px;
-    --gw-shadow: 0 6px 20px rgba(70, 48, 46, .08);
-    --gw-font-head: 'Baloo 2', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --gw-font-body: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --gw-shadow: 0 4px 16px rgba(17, 17, 17, .06);
+    --gw-font-head: 'Archivo', 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+    --gw-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* Scope the Club typography to the warranty surfaces only. */
+/* Scope the brand typography to the warranty surfaces only. */
 .gwarr-card,
 .gwarr-my-list,
 .gwarr-coverage-note,
@@ -34,6 +38,8 @@
 .gwarr-modal-title,
 .gwarr-processing-title,
 .gwarr-coupon-code,
+.gwarr-coupon-perks,
+.gwarr-product,
 .gwarr-btn,
 .gwarr-btn-secondary,
 .gwarr-claim-toggle {
@@ -41,13 +47,12 @@
 }
 
 .gwarr-card {
-    background: var(--gw-card);
+    background: var(--gw-paper);
     border: 1px solid var(--gw-border);
-    border-radius: var(--gw-radius);
-    padding: 26px 30px;
+    border-radius: var(--gw-radius-card);
+    padding: 28px 30px;
     max-width: 680px;
     margin: 24px 0;
-    box-shadow: var(--gw-shadow);
 }
 
 .gwarr-card-login { text-align: center; }
@@ -55,13 +60,15 @@
 .gwarr-card h3 {
     margin-top: 0;
     font-size: 22px;
+    font-weight: 800;
     letter-spacing: -0.01em;
+    color: var(--gw-ink);
 }
 
 .gwarr-lede {
-    color: #444;
-    font-size: 14px;
-    line-height: 1.55;
+    color: var(--gw-text2);
+    font-size: 15px;
+    line-height: 1.6;
     margin: 4px 0 20px;
 }
 
@@ -77,36 +84,37 @@
     display: block;
     font-size: 13px;
     font-weight: 600;
-    color: #333;
+    color: var(--gw-ink);
     margin-bottom: 6px;
 }
-.gwarr-optional { color: #888; font-weight: 400; font-size: 12px; }
+.gwarr-optional { color: var(--gw-text3); font-weight: 400; font-size: 12px; }
 
 .gwarr-field input[type=text],
 .gwarr-field input[type=email],
 .gwarr-field select,
 .gwarr-field textarea {
     width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #d4d4d4;
-    border-radius: 8px;
-    font-size: 14px;
-    font-family: inherit;
+    padding: 11px 14px;
+    border: 1px solid var(--gw-border);
+    border-radius: var(--gw-radius-field);
+    font-size: 15px;
+    font-family: var(--gw-font-body);
     line-height: 1.5;
     box-sizing: border-box;
+    color: var(--gw-ink);
 }
 
 /* The native <select> renders with a tighter intrinsic line-height than
-   <input>, which clips descenders ("p", "g") at the bottom — pad it out
+   <input>, which clips descenders ("p", "g") at the bottom: pad it out
    and force a min-height so it matches the inputs visually. */
 .gwarr-field select {
-    padding: 12px 36px 12px 12px;
+    padding: 12px 36px 12px 14px;
     min-height: 48px;
     line-height: 1.5;
     appearance: none;
     -webkit-appearance: none;
-    background-color: #fff;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23555' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>");
+    background-color: var(--gw-paper);
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23111111' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5l5 5 5-5'/></svg>");
     background-repeat: no-repeat;
     background-position: right 14px center;
     background-size: 12px 8px;
@@ -115,11 +123,11 @@
 .gwarr-field select:focus,
 .gwarr-field textarea:focus {
     outline: none;
-    border-color: var(--gw-coral);
-    box-shadow: 0 0 0 3px rgba(242, 93, 111, .15);
+    border-color: var(--gw-ink);
+    box-shadow: 0 0 0 3px rgba(17, 17, 17, .10);
 }
 
-.gwarr-help { display: block; font-size: 12px; color: #777; margin-top: 4px; }
+.gwarr-help { display: block; font-size: 12px; color: var(--gw-text3); margin-top: 4px; }
 
 .gwarr-consent {
     display: flex;
@@ -127,56 +135,64 @@
     align-items: flex-start;
     font-size: 13px;
     line-height: 1.5;
-    padding: 12px;
-    background: #fafafa;
-    border-radius: 8px;
+    color: var(--gw-text2);
+    padding: 12px 14px;
+    background: var(--gw-surface);
+    border-radius: var(--gw-radius-field);
 }
 .gwarr-consent input { margin-top: 3px; }
 
 .gwarr-actions { display: flex; gap: 14px; align-items: center; margin: 4px 0 0; }
+
+/* Primary: Ink full-pill (brand). No gradient, no heavy shadow. */
 .gwarr-btn {
-    background: linear-gradient(135deg, var(--gw-coral-light), var(--gw-coral)) !important;
+    background: var(--gw-ink) !important;
     color: #fff !important;
     border: none !important;
-    padding: 13px 26px !important;
+    padding: 14px 28px !important;
     font-size: 15px !important;
     font-weight: 700 !important;
     border-radius: var(--gw-pill) !important;
     cursor: pointer;
     text-decoration: none !important;
-    box-shadow: 0 6px 16px rgba(242, 93, 111, .32) !important;
-    transition: transform .15s ease, box-shadow .15s ease !important;
+    transition: transform .15s ease, background-color .15s ease !important;
 }
 .gwarr-btn:hover {
+    background: #000 !important;
     transform: translateY(-1px);
-    box-shadow: 0 9px 22px rgba(242, 93, 111, .42) !important;
 }
-.gwarr-link { font-size: 13px; color: var(--gw-ink-soft); }
+.gwarr-link { font-size: 13px; color: var(--gw-text2); }
 
-.gwarr-fineprint { font-size: 12px; color: #888; line-height: 1.5; }
+.gwarr-fineprint { font-size: 12px; color: var(--gw-text3); line-height: 1.5; }
 
 .gwarr-notice {
-    border-radius: 8px;
+    border-radius: var(--gw-radius-field);
     padding: 14px 16px;
     margin: 0 0 18px;
     font-size: 14px;
     line-height: 1.5;
 }
-.gwarr-notice-success { background: #e6f4ea; border: 1px solid #b6d8c2; color: #1b5e20; }
-.gwarr-notice-error   { background: #fdeded; border: 1px solid #f3c8c8; color: #8a1f1f; }
-.gwarr-notice-info    { background: #e7f1fd; border: 1px solid #b6c8e4; color: #1a3a7e; }
+.gwarr-notice-success { background: var(--gw-green-tint); color: var(--gw-green); }
+.gwarr-notice-error   { background: var(--gw-red-tint);   color: var(--gw-red-dark); }
+.gwarr-notice-info    { background: var(--gw-surface);    color: var(--gw-text2); }
 .gwarr-notice a       { color: inherit; text-decoration: underline; }
 
 /* My Warranties list */
 
+/* Light-grey section so the white warranty cards stand out. */
+.gwarr-my-wrap {
+    background: var(--gw-surface);
+    border-radius: var(--gw-radius-card);
+    padding: 18px;
+    margin: 4px 0 24px;
+}
 .gwarr-my-list { display: grid; gap: 14px; }
 
 .gwarr-warranty-card {
-    background: var(--gw-card);
+    background: var(--gw-paper);
     border: 1px solid var(--gw-border);
-    border-radius: var(--gw-radius);
-    padding: 18px 22px;
-    box-shadow: var(--gw-shadow);
+    border-radius: var(--gw-radius-card);
+    padding: 20px 22px;
 }
 
 .gwarr-warranty-head {
@@ -185,64 +201,65 @@
     gap: 10px 14px;
     align-items: center;
     font-size: 13px;
-    color: #555;
-    margin-bottom: 10px;
+    color: var(--gw-text2);
+    margin-bottom: 12px;
 }
 
-.gwarr-marketplace { font-weight: 700; color: var(--gw-ink); }
-.gwarr-order { font-family: monospace; }
+.gwarr-marketplace { font-weight: 800; color: var(--gw-ink); }
+.gwarr-order { font-family: 'Courier New', monospace; color: var(--gw-text2); }
 
 .gwarr-badge {
     display: inline-block;
+    font-family: var(--gw-font-head);
     font-size: 11px;
     font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: .04em;
-    padding: 4px 10px;
+    letter-spacing: .06em;
+    padding: 4px 11px;
     border-radius: var(--gw-pill);
 }
-.gwarr-badge-ok      { background: var(--gw-green); color: #fff; }
+.gwarr-badge-ok      { background: var(--gw-green-tint); color: var(--gw-green); }
 .gwarr-badge-run,
-.gwarr-badge-pending { background: var(--gw-gold); color: #5a3d0a; }
+.gwarr-badge-pending { background: var(--gw-fill);       color: var(--gw-text2); }
 .gwarr-badge-err,
-.gwarr-badge-rejected{ background: #e3585f; color: #fff; }
-.gwarr-badge-expired { background: #c3b1aa; color: #fff; }
-.gwarr-badge-claimed { background: #9a8478; color: #fff; }
+.gwarr-badge-rejected{ background: var(--gw-red-tint);   color: var(--gw-red-dark); }
+.gwarr-badge-expired { background: var(--gw-fill);       color: var(--gw-text3); }
+.gwarr-badge-claimed { background: var(--gw-fill);       color: var(--gw-text3); }
 
 /* Spent warranties (expired or claimed) render muted/greyed. */
 .gwarr-warranty-card--inactive {
-    background: #f7f7f8;
-    border-color: #e5e5e7;
+    background: #fbfbfb;
+    border-color: #ececec;
 }
 .gwarr-warranty-card--inactive .gwarr-product,
 .gwarr-warranty-card--inactive .gwarr-meta,
 .gwarr-warranty-card--inactive .gwarr-marketplace,
 .gwarr-warranty-card--inactive .gwarr-order {
-    opacity: 0.6;
+    opacity: 0.55;
     filter: grayscale(100%);
 }
 .gwarr-claimed-msg {
     margin: 0 0 12px;
     font-size: 13px;
     font-weight: 600;
-    color: #6b7280;
+    color: var(--gw-text3);
 }
 
 /* Claim submission (inline on active warranty cards) */
 .gwarr-claim {
-    margin-top: 14px;
-    border-top: 1px solid #f3ddd2;
-    padding-top: 12px;
+    margin-top: 16px;
+    border-top: 1px solid var(--gw-border);
+    padding-top: 14px;
 }
 .gwarr-claim-toggle {
     cursor: pointer;
     font-weight: 700;
     font-size: 14px;
-    color: #f25d6f;
+    color: var(--gw-ink);
     list-style: none;
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
 }
 .gwarr-claim-toggle::-webkit-details-marker { display: none; }
 .gwarr-claim-toggle::before { content: "🛠"; }
@@ -252,39 +269,47 @@
 .gwarr-claim-form input[type="file"] {
     width: 100%;
     box-sizing: border-box;
+    font-family: var(--gw-font-body);
 }
 .gwarr-claim-form textarea {
-    border: 1px solid #e3d2c8;
-    border-radius: 10px;
-    padding: 10px 12px;
+    border: 1px solid var(--gw-border);
+    border-radius: var(--gw-radius-field);
+    padding: 11px 14px;
     font: inherit;
+    font-size: 15px;
+    color: var(--gw-ink);
     resize: vertical;
+}
+.gwarr-claim-form textarea:focus {
+    outline: none;
+    border-color: var(--gw-ink);
+    box-shadow: 0 0 0 3px rgba(17, 17, 17, .10);
 }
 .gwarr-claim-form .gwarr-optional {
     font-weight: 400;
-    color: #9a8478;
+    color: var(--gw-text3);
     font-size: 12px;
 }
 .gwarr-claim-form .gwarr-fineprint {
     margin: 0;
     font-size: 12px;
-    color: #9a8478;
+    color: var(--gw-text3);
 }
 .gwarr-claim-status {
     margin: 12px 0 0;
     font-size: 13px;
-    padding: 10px 12px;
-    border-radius: 10px;
+    padding: 11px 14px;
+    border-radius: var(--gw-radius-field);
 }
-.gwarr-claim-status--review   { background: #fff6e5; color: #8a6d1f; }
-.gwarr-claim-status--declined { background: #fdecee; color: #b23842; }
+.gwarr-claim-status--review   { background: var(--gw-fill);     color: var(--gw-text2); }
+.gwarr-claim-status--declined { background: var(--gw-red-tint); color: var(--gw-red-dark); }
 
-.gwarr-product { margin: 6px 0 14px; font-size: 16px; font-weight: 600; color: #1a1a1a; }
+.gwarr-product { margin: 6px 0 14px; font-size: 17px; font-weight: 800; color: var(--gw-ink); }
 .gwarr-product-list {
     margin: 4px 0 0;
     padding: 0 0 0 22px;
     font-size: 15px;
-    font-weight: 500;
+    font-weight: 600;
     line-height: 1.55;
 }
 .gwarr-product-list li { margin: 2px 0; }
@@ -292,90 +317,93 @@
 .gwarr-meta {
     display: grid;
     grid-template-columns: max-content 1fr;
-    gap: 4px 16px;
+    gap: 5px 16px;
     font-size: 13px;
     margin: 0 0 14px;
 }
-.gwarr-meta dt { color: #777; }
-.gwarr-meta dd { margin: 0; }
+.gwarr-meta dt { color: var(--gw-text3); text-transform: uppercase; letter-spacing: .04em; font-size: 11px; font-weight: 600; }
+.gwarr-meta dd { margin: 0; color: var(--gw-ink); font-weight: 600; }
 
+/* Welcome-gift coupon: red-tint promo card (the sanctioned red moment). */
 .gwarr-coupon {
-    background: #fff8ec;
-    border: 1px dashed var(--gw-gold);
-    border-radius: 14px;
-    padding: 16px;
+    background: var(--gw-red-tint);
+    border: none;
+    border-radius: var(--gw-radius-card);
+    padding: 20px 18px;
     text-align: center;
 }
 .gwarr-coupon-label {
     display: block;
+    font-family: var(--gw-font-head);
     font-size: 11px;
     text-transform: uppercase;
-    letter-spacing: .06em;
-    color: var(--gw-gold-deep);
+    letter-spacing: .18em;
+    color: var(--gw-red);
     font-weight: 700;
-    margin-bottom: 4px;
+    margin-bottom: 10px;
 }
 .gwarr-coupon-code {
-    font-size: 22px;
-    font-weight: 800;
+    font-size: 21px;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
     color: var(--gw-ink);
     display: inline-block;
-    padding: 4px 12px;
+    padding: 9px 20px;
     background: #fff;
     border-radius: var(--gw-pill);
-    border: 1px solid var(--gw-border);
 }
 .gwarr-coupon-perks {
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 16px;
+    font-weight: 800;
     color: var(--gw-ink);
-    margin: 8px 0 2px;
+    margin: 10px 0 2px;
 }
-.gwarr-coupon-help { font-size: 12px; color: var(--gw-gold-deep); margin: 4px 0 0; }
+.gwarr-coupon-help { font-size: 12px; color: var(--gw-text3); margin: 4px 0 0; }
 
 .gwarr-coverage-note {
     margin: 0 0 14px;
     padding: 12px 16px;
-    background: var(--gw-bg);
+    background: var(--gw-paper);
     border: 1px solid var(--gw-border);
-    border-radius: var(--gw-radius);
+    border-radius: var(--gw-radius-img);
     font-size: 13px;
-    color: var(--gw-ink-soft);
+    color: var(--gw-text2);
 }
 .gwarr-coverage-note a {
-    color: var(--gw-coral);
+    color: var(--gw-ink);
     font-weight: 700;
-    text-decoration: none;
-    border-bottom: 1px solid currentColor;
+    text-decoration: underline;
 }
 
 .gwarr-pending-msg,
-.gwarr-rejected-msg { font-size: 13px; color: var(--gw-ink-soft); margin: 0; }
+.gwarr-rejected-msg { font-size: 13px; color: var(--gw-text2); margin: 0; }
 
 .gwarr-empty {
     text-align: center;
     padding: 32px 16px;
     border: 1px dashed var(--gw-border);
-    border-radius: var(--gw-radius);
-    color: var(--gw-ink-soft);
+    border-radius: var(--gw-radius-card);
+    color: var(--gw-text2);
 }
 
 /* ============================================================================
    Auth modal (login / register) — replaces the redirect to /my-account/
 ============================================================================ */
 
+/* Secondary: 1.5px Ink outline pill, fills Ink on hover (brand). */
 .gwarr-btn-secondary {
-    background: #fff !important;
-    color: var(--gw-coral) !important;
-    border: 1.5px solid var(--gw-coral) !important;
-    padding: 12px 24px !important;
+    background: transparent !important;
+    color: var(--gw-ink) !important;
+    border: 1.5px solid var(--gw-ink) !important;
+    padding: 12px 26px !important;
     font-size: 15px !important;
     font-weight: 700 !important;
     border-radius: var(--gw-pill) !important;
     cursor: pointer;
     margin-left: 8px;
+    transition: background-color .15s ease, color .15s ease;
 }
-.gwarr-btn-secondary:hover { background: var(--gw-bg) !important; }
+.gwarr-btn-secondary:hover { background: var(--gw-ink) !important; color: #fff !important; }
 
 .gwarr-modal {
     position: fixed;
@@ -390,20 +418,20 @@
 .gwarr-modal-overlay {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.5);
+    background: rgba(17, 17, 17, 0.55);
     backdrop-filter: blur(3px);
     -webkit-backdrop-filter: blur(3px);
 }
 .gwarr-modal-dialog {
     position: relative;
-    background: #fff;
-    border-radius: 14px;
+    background: var(--gw-paper);
+    border-radius: var(--gw-radius-card);
     width: 100%;
     max-width: 440px;
     max-height: 90vh;
     overflow-y: auto;
     padding: 32px 28px 28px;
-    box-shadow: 0 24px 60px rgba(0,0,0,0.25);
+    box-shadow: 0 24px 60px rgba(17, 17, 17, 0.22);
     animation: gwarr-modal-in 180ms ease-out;
 }
 @keyframes gwarr-modal-in {
@@ -418,18 +446,18 @@
     border: 0;
     font-size: 28px;
     line-height: 1;
-    color: #999;
+    color: var(--gw-text3);
     cursor: pointer;
     padding: 4px 10px;
-    border-radius: 6px;
+    border-radius: var(--gw-radius-field);
 }
-.gwarr-modal-close:hover { color: #1a1a1a; background: #f6f7f7; }
+.gwarr-modal-close:hover { color: var(--gw-ink); background: var(--gw-surface); }
 
 .gwarr-modal-tabs {
     display: flex;
     gap: 4px;
-    background: #f0f0f0;
-    border-radius: 8px;
+    background: var(--gw-fill);
+    border-radius: var(--gw-pill);
     padding: 4px;
     margin: 0 0 18px;
 }
@@ -437,19 +465,22 @@
     flex: 1;
     background: none;
     border: 0;
-    padding: 8px 12px;
-    border-radius: 6px;
+    padding: 9px 12px;
+    border-radius: var(--gw-pill);
+    font-family: var(--gw-font-body);
     font-size: 13px;
-    font-weight: 600;
-    color: #555;
+    font-weight: 700;
+    color: var(--gw-text2);
     cursor: pointer;
 }
-.gwarr-modal-tab.is-active { background: #fff; color: var(--gw-coral); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.gwarr-modal-tab.is-active { background: var(--gw-paper); color: var(--gw-ink); box-shadow: 0 1px 3px rgba(17, 17, 17, 0.10); }
 
 .gwarr-modal-title {
     margin: 0 0 18px;
-    font-size: 18px;
+    font-size: 20px;
+    font-weight: 800;
     text-align: center;
+    color: var(--gw-ink);
 }
 
 .gwarr-modal-form { display: grid; gap: 14px; }
@@ -464,31 +495,33 @@
 .gwarr-modal-field { display: block; }
 .gwarr-modal-field > span {
     display: block;
+    font-family: var(--gw-font-body);
     font-size: 13px;
     font-weight: 600;
-    color: #333;
+    color: var(--gw-ink);
     margin-bottom: 5px;
 }
 .gwarr-modal-field > small {
     display: block;
     font-size: 11px;
-    color: #888;
+    color: var(--gw-text3);
     margin-top: 4px;
 }
 .gwarr-modal-field input {
     width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #d4d4d4;
-    border-radius: 8px;
-    font-size: 14px;
-    font-family: inherit;
+    padding: 11px 14px;
+    border: 1px solid var(--gw-border);
+    border-radius: var(--gw-radius-field);
+    font-size: 15px;
+    font-family: var(--gw-font-body);
     line-height: 1.5;
     box-sizing: border-box;
+    color: var(--gw-ink);
 }
 .gwarr-modal-field input:focus {
     outline: none;
-    border-color: #1a1a1a;
-    box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+    border-color: var(--gw-ink);
+    box-shadow: 0 0 0 3px rgba(17, 17, 17, .10);
 }
 
 .gwarr-modal-remember {
@@ -496,7 +529,7 @@
     align-items: center;
     gap: 8px;
     font-size: 13px;
-    color: #555;
+    color: var(--gw-text2);
     margin: -2px 0 4px;
 }
 
@@ -505,13 +538,13 @@
 .gwarr-modal-error {
     margin: 0;
     min-height: 1em;
-    color: #8a1f1f;
+    color: var(--gw-red-dark);
     font-size: 13px;
     line-height: 1.4;
 }
 .gwarr-modal-fineprint {
     margin: 0;
-    color: #888;
+    color: var(--gw-text3);
     font-size: 12px;
     line-height: 1.5;
 }
@@ -524,7 +557,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.94);
     -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
     animation: gwarr-fade-in 0.2s ease both;
@@ -546,8 +579,8 @@
     width: 52px;
     height: 52px;
     margin: 0 auto 22px;
-    border: 4px solid rgba(242, 93, 111, 0.18);
-    border-top-color: var(--gw-coral);
+    border: 4px solid rgba(17, 17, 17, 0.12);
+    border-top-color: var(--gw-ink);
     border-radius: 50%;
     animation: gwarr-spin 0.8s linear infinite;
 }
@@ -558,15 +591,15 @@
 
 .gwarr-processing-title {
     margin: 0 0 6px;
-    font-size: 17px;
-    font-weight: 700;
-    color: #1a1a1a;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--gw-ink);
 }
 
 .gwarr-processing-step {
     margin: 0;
     font-size: 14px;
-    color: #666;
+    color: var(--gw-text2);
     min-height: 1.4em;
     transition: opacity 0.25s ease;
 }
@@ -576,21 +609,21 @@
     max-width: 260px;
     height: 6px;
     margin: 20px auto 12px;
-    background: rgba(0, 0, 0, 0.08);
-    border-radius: 999px;
+    background: var(--gw-fill);
+    border-radius: var(--gw-pill);
     overflow: hidden;
 }
 .gwarr-progress-fill {
     height: 100%;
     width: 0;
-    background: linear-gradient(135deg, var(--gw-coral-light), var(--gw-coral));
-    border-radius: 999px;
+    background: var(--gw-ink);
+    border-radius: var(--gw-pill);
 }
 
 .gwarr-processing-hint {
     margin: 0;
     font-size: 12px;
-    color: #999;
+    color: var(--gw-text3);
     line-height: 1.5;
 }
 

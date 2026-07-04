@@ -58,7 +58,7 @@ function gwarr_handle_claim_submission() {
         return gwarr_notice('error', 'This warranty isn\'t eligible for a claim (it may be expired, already claimed, or under review).');
     }
     if (GWARR_Claims::has_open_claim($warranty_id)) {
-        return gwarr_notice('info', 'You already have a claim under review for this item — we\'ll be in touch.');
+        return gwarr_notice('info', 'You already have a claim under review for this item. We\'ll be in touch.');
     }
     if ($issue === '') {
         return gwarr_notice('error', 'Please describe the issue so we can help.');
@@ -267,7 +267,7 @@ function gwarr_render_claim_form($warranty) {
             <label class="gwarr-field">
                 <span class="gwarr-label">What's wrong?</span>
                 <textarea name="issue_description" rows="3" maxlength="1000" required
-                          placeholder="Tell us what happened — e.g. the strap detached after 2 weeks."></textarea>
+                          placeholder="Tell us what happened, e.g. the strap detached after 2 weeks."></textarea>
             </label>
 
             <label class="gwarr-field">
