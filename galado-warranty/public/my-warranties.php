@@ -20,15 +20,22 @@ add_shortcode('galado_warranty_list', function () {
 
 // --- WC My Account endpoint --------------------------------------------------
 //
-// Endpoint registration runs once per request on `init` (the conventional
-// hook). Rewrite-rule flushing is handled by the activation hook in the
-// main plugin file — we never flush during normal request lifecycles, since
-// flushing fires every other plugin's rewrite_rules_array callbacks and
-// makes our plugin a blame magnet for unrelated bugs.
+// Endpoint registration runs once per request on `init`. Because git-sync
+// deploys never fire the activation hook, we also flush the rewrite rules ONCE
+// per plugin version here — right after the endpoint is registered so it's
+// included. This self-heals the /my-account/warranties/ 404 that appears when
+// the rewrite rules get rebuilt without our endpoint (a permalink re-save, a WC
+// update, or another plugin flushing). It is NOT a per-request flush: the
+// version gate makes it run a single time after each deploy.
 
 add_action('init', function () {
     if (function_exists('add_rewrite_endpoint')) {
         add_rewrite_endpoint('warranties', EP_ROOT | EP_PAGES);
+    }
+    if (function_exists('flush_rewrite_rules') && defined('GWARR_VERSION')
+        && get_option('gwarr_rewrite_version') !== GWARR_VERSION) {
+        flush_rewrite_rules(false); // soft flush (rebuilds the option, not .htaccess)
+        update_option('gwarr_rewrite_version', GWARR_VERSION, false);
     }
 });
 
