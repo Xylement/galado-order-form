@@ -86,6 +86,14 @@ function gwarr_render_settings_page() {
         }
     }
 
+    // ---- Create missing warranty coupons ----
+    if (isset($_POST['gwarr_couponfix_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_couponfix_nonce'])), 'gwarr_couponfix')) {
+        if (class_exists('GWARR_Coupon')) {
+            GWARR_Coupon::start_repair();
+            echo '<div class="notice notice-success"><p>Coupon repair started, it runs in the background. Keep this page open to watch progress.</p></div>';
+        }
+    }
+
     // ---- Send sample claim emails ----
     if (isset($_POST['gwarr_sample_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_sample_nonce'])), 'gwarr_sample')) {
         $to = sanitize_email($_POST['gwarr_sample_to'] ?? '');
@@ -369,6 +377,49 @@ function gwarr_render_settings_page() {
             <?php wp_nonce_field('gwarr_backfill', 'gwarr_backfill_nonce'); ?>
             <button type="submit" class="button"><?php echo $bf_running ? '🔄 Restart backfill' : '📦 Backfill recent website orders'; ?></button>
             <span class="description" style="margin-left:8px;">Advances automatically while this page is open. Safe to re-run (idempotent).</span>
+        </form>
+
+        <hr style="margin:40px 0;">
+
+        <h2 class="title">Warranty Coupons</h2>
+        <p class="description" style="max-width:760px;">
+            Every approved registration is issued a welcome coupon (e.g. <code>W-XXXXXX</code>). This scans all of them and
+            <strong>creates any WooCommerce coupon that is missing</strong>, so codes shown to customers actually work at
+            checkout. Existing coupons are left untouched. Runs in batches; keep this page open until it says Done.
+        </p>
+        <?php
+        $cr_running = false;
+        if (class_exists('GWARR_Coupon')) {
+            $cr = GWARR_Coupon::get_repair_state();
+            $cr_running = $cr['status'] === 'running';
+            if ($cr_running) {
+                echo '<meta http-equiv="refresh" content="5">';
+                if (class_exists('GWARR_Deferred')) {
+                    GWARR_Deferred::add(function () { GWARR_Coupon::run_repair_batch(); });
+                } else {
+                    GWARR_Coupon::run_repair_batch();
+                }
+            }
+            echo '<p style="margin:6px 0;">';
+            if ($cr['status'] === 'idle') {
+                echo '<em>Not run yet.</em>';
+            } elseif ($cr_running) {
+                echo '<strong style="color:#dba617;">Running…</strong> checked ' . (int) $cr['checked'] . ' of ' . (int) $cr['total']
+                    . ', created ' . (int) $cr['created'] . ', already existed ' . (int) $cr['existing']
+                    . ($cr['failed'] ? ', failed ' . (int) $cr['failed'] : '') . '. <em>Keep this page open, it advances automatically.</em>';
+            } elseif ($cr['status'] === 'done') {
+                echo '<strong style="color:#00a32a;">Done</strong> — checked ' . (int) $cr['checked'] . ', created ' . (int) $cr['created']
+                    . ' missing coupon(s), ' . (int) $cr['existing'] . ' already existed'
+                    . ($cr['failed'] ? ', <strong style="color:#d63638;">' . (int) $cr['failed'] . ' failed (check error log)</strong>' : '')
+                    . '. Finished ' . esc_html($cr['finished']) . '.';
+            }
+            echo '</p>';
+        }
+        ?>
+        <form method="post" style="margin-top:8px;">
+            <?php wp_nonce_field('gwarr_couponfix', 'gwarr_couponfix_nonce'); ?>
+            <button type="submit" class="button"><?php echo $cr_running ? '🔄 Restart coupon repair' : '🎟️ Create missing warranty coupons'; ?></button>
+            <span class="description" style="margin-left:8px;">Only creates coupons that don't exist yet. Safe to re-run.</span>
         </form>
 
         <hr style="margin:40px 0;">
