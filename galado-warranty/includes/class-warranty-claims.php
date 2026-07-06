@@ -300,9 +300,30 @@ class GWARR_Claims {
             $fee_item->set_total_tax(0);
             $order->add_item($fee_item);
 
-            if ($user && $user->user_email) {
-                $order->set_billing_email($user->user_email);
+            // Populate billing details so Malaysian payment gateways (FPX online
+            // banking, Touch 'n Go / e-wallets) appear on the order-pay page.
+            // Those gateways hide themselves when the order has no billing
+            // country / name / phone. Prefer the customer's saved WooCommerce
+            // billing; fall back to the WP account + Malaysia.
+            $cust = class_exists('WC_Customer') ? new WC_Customer((int) $claim->user_id) : null;
+
+            $b_email = ($user && $user->user_email) ? $user->user_email : ($cust ? $cust->get_billing_email() : '');
+            if ($b_email) {
+                $order->set_billing_email($b_email);
             }
+            $b_first = $cust && $cust->get_billing_first_name() ? $cust->get_billing_first_name() : ($user->first_name ?? '');
+            $b_last  = $cust && $cust->get_billing_last_name()  ? $cust->get_billing_last_name()  : ($user->last_name ?? '');
+            if ($b_first) $order->set_billing_first_name($b_first);
+            if ($b_last)  $order->set_billing_last_name($b_last);
+            if ($cust && $cust->get_billing_phone())     $order->set_billing_phone($cust->get_billing_phone());
+            if ($cust && $cust->get_billing_address_1())  $order->set_billing_address_1($cust->get_billing_address_1());
+            if ($cust && $cust->get_billing_city())       $order->set_billing_city($cust->get_billing_city());
+            if ($cust && $cust->get_billing_state())      $order->set_billing_state($cust->get_billing_state());
+            if ($cust && $cust->get_billing_postcode())   $order->set_billing_postcode($cust->get_billing_postcode());
+            // Country is the field gateways check most: default to MY (GALADO is
+            // Malaysia-first) when the customer has none saved.
+            $order->set_billing_country(($cust && $cust->get_billing_country()) ? $cust->get_billing_country() : 'MY');
+
             $order->set_created_via('galado-warranty');
             $order->add_order_note('Auto-created for warranty claim #' . (int) $claim->id . ' (replacement shipping fee).');
 
