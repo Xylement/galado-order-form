@@ -94,6 +94,23 @@ function gwarr_render_settings_page() {
         }
     }
 
+    // ---- Check / repair a single coupon code ----
+    $coupon_check = null;
+    if (isset($_POST['gwarr_couponcheck_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_couponcheck_nonce'])), 'gwarr_couponcheck') && class_exists('GWARR_Coupon')) {
+        $chk_code = sanitize_text_field(wp_unslash($_POST['gwarr_check_code'] ?? ''));
+        if (($_POST['gwarr_check_do'] ?? '') === 'create') {
+            $r = GWARR_Coupon::force_create($chk_code);
+            if (is_wp_error($r)) {
+                echo '<div class="notice notice-error"><p>Could not create <code>' . esc_html($chk_code) . '</code>: ' . esc_html($r->get_error_message()) . '</p></div>';
+            } elseif ($r === 'exists') {
+                echo '<div class="notice notice-info"><p><code>' . esc_html($chk_code) . '</code> already exists as a published coupon.</p></div>';
+            } else {
+                echo '<div class="notice notice-success"><p>Created coupon <code>' . esc_html($chk_code) . '</code>.</p></div>';
+            }
+        }
+        $coupon_check = GWARR_Coupon::inspect($chk_code);
+    }
+
     // ---- Send sample claim emails ----
     if (isset($_POST['gwarr_sample_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['gwarr_sample_nonce'])), 'gwarr_sample')) {
         $to = sanitize_email($_POST['gwarr_sample_to'] ?? '');
@@ -421,6 +438,41 @@ function gwarr_render_settings_page() {
             <button type="submit" class="button"><?php echo $cr_running ? '🔄 Restart coupon repair' : '🎟️ Create missing warranty coupons'; ?></button>
             <span class="description" style="margin-left:8px;">Only creates coupons that don't exist yet. Safe to re-run.</span>
         </form>
+
+        <p class="description" style="max-width:760px;margin-top:20px;"><strong>Check a specific code.</strong> Diagnose exactly what happened to one coupon (e.g. <code>W-S9Q5JI</code>) and force-create it.</p>
+        <form method="post" style="margin-top:6px;">
+            <?php wp_nonce_field('gwarr_couponcheck', 'gwarr_couponcheck_nonce'); ?>
+            <input type="text" name="gwarr_check_code" value="<?php echo esc_attr($coupon_check['code'] ?? ''); ?>" placeholder="W-XXXXXX" class="regular-text" style="max-width:200px;">
+            <button type="submit" class="button">🔍 Check</button>
+            <button type="submit" name="gwarr_check_do" value="create" class="button button-primary">➕ Create it now</button>
+        </form>
+        <?php if (is_array($coupon_check) && ($coupon_check['code'] ?? '') !== ''): ?>
+            <div style="margin-top:10px;padding:12px 14px;background:#f6f7f7;border-radius:8px;max-width:760px;font-size:13px;">
+                <?php
+                $pubid = (int) $coupon_check['published_id'];
+                if ($pubid > 0) {
+                    echo '<p style="margin:0 0 6px;">✅ <strong>Published coupon exists</strong> (post #' . $pubid . ', <a href="' . esc_url(admin_url('post.php?post=' . $pubid . '&action=edit')) . '">edit</a>). It should show in WooCommerce Coupons.</p>';
+                } else {
+                    echo '<p style="margin:0 0 6px;">❌ <strong>No published coupon</strong> with this code.</p>';
+                }
+                if (!empty($coupon_check['posts'])) {
+                    $bits = [];
+                    foreach ($coupon_check['posts'] as $p) $bits[] = '#' . (int) $p->ID . ' (' . esc_html($p->post_status) . ')';
+                    echo '<p style="margin:0 0 6px;color:#666;">Coupon posts found (any status): ' . implode(', ', $bits) . '</p>';
+                }
+                if (!empty($coupon_check['rows'])) {
+                    foreach ($coupon_check['rows'] as $rrow) {
+                        $u = get_userdata((int) $rrow->user_id);
+                        echo '<p style="margin:0 0 4px;color:#666;">Registration #' . (int) $rrow->id . ' · status <strong>' . esc_html($rrow->status) . '</strong> · '
+                            . esc_html(GWARR_Marketplaces::label($rrow->marketplace)) . ' ' . esc_html($rrow->order_number)
+                            . ' · customer ' . esc_html($u ? $u->user_email : 'no user/email (' . (int) $rrow->user_id . ')') . '</p>';
+                    }
+                } else {
+                    echo '<p style="margin:0;color:#a00;">No warranty registration carries this code (nothing to create it from).</p>';
+                }
+                ?>
+            </div>
+        <?php endif; ?>
 
         <hr style="margin:40px 0;">
 

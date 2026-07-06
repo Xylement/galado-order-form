@@ -550,6 +550,16 @@ class GWARR_DB {
         );
     }
 
+    /** Registration rows carrying a specific coupon code (case-insensitive). */
+    public static function rows_by_coupon($code) {
+        global $wpdb;
+        return $wpdb->get_results($wpdb->prepare(
+            'SELECT id, user_id, marketplace, order_number, coupon_code, status, created_at FROM ' . self::table()
+            . ' WHERE LOWER(coupon_code) = LOWER(%s)',
+            (string) $code
+        ));
+    }
+
     /**
      * Status counts for the admin filter chips.
      */

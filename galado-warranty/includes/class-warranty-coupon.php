@@ -153,6 +153,59 @@ class GWARR_Coupon {
         return $user ? $user->user_email : '';
     }
 
+    /**
+     * Diagnose a single coupon code: whether a WooCommerce coupon post exists
+     * (in any status, so trashed/draft show up too) and which registration row
+     * carries the code.
+     *
+     * @return array{code:string,published_id:int,posts:array,rows:array}
+     */
+    public static function inspect($code) {
+        global $wpdb;
+        $code = trim((string) $code);
+        $out  = ['code' => $code, 'published_id' => 0, 'posts' => [], 'rows' => []];
+        if ($code === '') {
+            return $out;
+        }
+        if (function_exists('wc_get_coupon_id_by_code')) {
+            $out['published_id'] = (int) wc_get_coupon_id_by_code($code);
+        }
+        // Any shop_coupon post matching the code, case-insensitively, any status.
+        $out['posts'] = $wpdb->get_results($wpdb->prepare(
+            "SELECT ID, post_status FROM {$wpdb->posts} WHERE post_type = 'shop_coupon' AND LOWER(post_title) = LOWER(%s)",
+            $code
+        )) ?: [];
+        if (class_exists('GWARR_DB')) {
+            $out['rows'] = GWARR_DB::rows_by_coupon($code) ?: [];
+        }
+        return $out;
+    }
+
+    /**
+     * Force-create the coupon for a single code from its linked registration,
+     * regardless of the bulk repair. If a published coupon already exists it is
+     * left alone. Returns 'exists' | 'created' | WP_Error.
+     */
+    public static function force_create($code) {
+        $code = trim((string) $code);
+        if ($code === '') {
+            return new WP_Error('gwarr_no_code', 'Enter a coupon code.');
+        }
+        if (function_exists('wc_get_coupon_id_by_code') && wc_get_coupon_id_by_code($code)) {
+            return 'exists';
+        }
+        if (!class_exists('GWARR_DB')) {
+            return new WP_Error('gwarr_no_db', 'Database class unavailable.');
+        }
+        $rows = GWARR_DB::rows_by_coupon($code);
+        if (empty($rows)) {
+            return new WP_Error('gwarr_no_row', 'No warranty registration carries the code ' . $code . '.');
+        }
+        // Build directly with the stored code so the customer's known code works.
+        $res = self::build($rows[0], $rows[0]->coupon_code, $rows[0]->created_at ?? null);
+        return is_wp_error($res) ? $res : 'created';
+    }
+
     // =====================================================================
     // Repair runner: create any missing WC coupons for existing warranty
     // codes. Driven one batch per settings-page load (like the order backfill),
