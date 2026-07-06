@@ -107,29 +107,84 @@ class GWARR_Coupon {
             $row->order_number
         ));
 
-        // Save, then confirm the post actually exists. save() can silently fail
-        // (return without a post id); returning the code in that case is the
-        // exact "phantom coupon" bug. Retry once, then error loudly.
-        for ($attempt = 1; $attempt <= 2; $attempt++) {
-            try {
-                $coupon->save();
-            } catch (\Throwable $e) {
-                error_log('[galado-warranty] coupon save exception for ' . $code . ' (attempt ' . $attempt . '): ' . $e->getMessage());
-                if ($attempt === 2) {
-                    return new WP_Error('gwarr_coupon_save', $e->getMessage());
-                }
-                continue;
-            }
+        // Attempt 1: WooCommerce's own save (best path, sets caches + fires hooks).
+        try {
+            $coupon->save();
             if ((int) $coupon->get_id() > 0) {
-                return $code; // persisted
+                return $code; // persisted cleanly
             }
-            error_log('[galado-warranty] coupon ' . $code . ' did not persist after save (attempt ' . $attempt . ')');
+        } catch (\Throwable $e) {
+            error_log('[galado-warranty] WC coupon save exception for ' . $code . ': ' . $e->getMessage());
         }
 
-        return new WP_Error(
-            'gwarr_coupon_missing',
-            'Coupon ' . $code . ' could not be created (save did not persist). A plugin may be blocking coupon creation, check the error log.'
-        );
+        // WC save did not persist. Something is blocking shop_coupon creation via
+        // WooCommerce's data store. Create the coupon post directly: this both
+        // surfaces the real reason (wp_insert_post with $wp_error=true) and works
+        // as a fallback when the block lives only in WC's coupon layer, not core.
+        return self::direct_insert($code, $coupon->get_description(), $amount, $min_spend, $expires, $free_shipping, $user_email);
+    }
+
+    /**
+     * Create a shop_coupon post directly + set the coupon meta WooCommerce reads,
+     * capturing the real error if a filter refuses it. Reuses an existing
+     * draft/pending post for the same code (e.g. a half-created one) instead of
+     * duplicating.
+     *
+     * @return string|WP_Error the code on success.
+     */
+    private static function direct_insert($code, $description, $amount, $min_spend, $expires, $free_shipping, $user_email) {
+        global $wpdb;
+
+        $existing_id = (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'shop_coupon' AND LOWER(post_title) = LOWER(%s) ORDER BY ID DESC LIMIT 1",
+            $code
+        ));
+
+        if ($existing_id) {
+            wp_update_post(['ID' => $existing_id, 'post_status' => 'publish']);
+            $post_id = $existing_id;
+        } else {
+            $post_id = wp_insert_post([
+                'post_type'      => 'shop_coupon',
+                'post_status'    => 'publish',
+                'post_title'     => $code,
+                'post_excerpt'   => (string) $description,
+                'post_author'    => get_current_user_id() ?: 1,
+                'ping_status'    => 'closed',
+                'comment_status' => 'closed',
+            ], true);
+
+            if (is_wp_error($post_id)) {
+                error_log('[galado-warranty] coupon ' . $code . ' blocked: ' . $post_id->get_error_message());
+                return new WP_Error('gwarr_coupon_blocked', 'Coupon creation blocked: ' . $post_id->get_error_message());
+            }
+            if (!$post_id) {
+                error_log('[galado-warranty] coupon ' . $code . ' insert returned 0 (a plugin is filtering out shop_coupon posts)');
+                return new WP_Error('gwarr_coupon_blocked', 'Coupon post was silently dropped, a plugin is filtering shop_coupon creation.');
+            }
+        }
+
+        // Set the meta WooCommerce reads back for a coupon.
+        update_post_meta($post_id, 'discount_type', 'percent');
+        update_post_meta($post_id, 'coupon_amount', $amount);
+        update_post_meta($post_id, 'individual_use', 'yes');
+        update_post_meta($post_id, 'usage_limit', 1);
+        update_post_meta($post_id, 'usage_limit_per_user', 1);
+        update_post_meta($post_id, 'usage_count', 0);
+        update_post_meta($post_id, 'customer_email', [$user_email]);
+        update_post_meta($post_id, 'minimum_amount', (string) $min_spend);
+        update_post_meta($post_id, 'maximum_amount', '');
+        update_post_meta($post_id, 'date_expires', (int) $expires);
+        update_post_meta($post_id, 'free_shipping', $free_shipping ? 'yes' : 'no');
+        update_post_meta($post_id, 'exclude_sale_items', 'no');
+
+        // Bust WooCommerce's code->id lookup cache so the new coupon resolves.
+        if (class_exists('WC_Cache_Helper') && method_exists('WC_Cache_Helper', 'invalidate_cache_group')) {
+            WC_Cache_Helper::invalidate_cache_group('coupons');
+        }
+
+        error_log('[galado-warranty] coupon ' . $code . ' created via direct insert (WC save was blocked), post #' . (int) $post_id);
+        return $code;
     }
 
     /**
