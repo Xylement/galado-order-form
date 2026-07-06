@@ -133,6 +133,19 @@ class GWARR_Coupon {
      * @return string|WP_Error the code on success.
      */
     private static function direct_insert($code, $description, $amount, $min_spend, $expires, $free_shipping, $user_email) {
+        try {
+            return self::direct_insert_inner($code, $description, $amount, $min_spend, $expires, $free_shipping, $user_email);
+        } catch (\Throwable $e) {
+            // A plugin can fatal on programmatic post creation; capture it rather
+            // than 500 the page, and surface the exact class/file:line.
+            error_log('[galado-warranty] coupon ' . $code . ' direct insert threw: ' . $e->getMessage()
+                . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            return new WP_Error('gwarr_coupon_fatal',
+                'Coupon creation crashed: ' . $e->getMessage() . ' [' . get_class($e) . ' @ ' . basename($e->getFile()) . ':' . $e->getLine() . ']');
+        }
+    }
+
+    private static function direct_insert_inner($code, $description, $amount, $min_spend, $expires, $free_shipping, $user_email) {
         global $wpdb;
 
         $existing_id = (int) $wpdb->get_var($wpdb->prepare(
