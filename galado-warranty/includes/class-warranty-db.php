@@ -529,15 +529,17 @@ class GWARR_DB {
     }
 
     /**
-     * Approved registrations that carry a welcome-coupon code, paginated by id
-     * (for the "create missing coupons" repair). The set is stable so offset
-     * paging is safe.
+     * Registrations that carry a welcome-coupon code, paginated by id (for the
+     * "create missing coupons" repair). ANY status is included: a welcome coupon
+     * is issued on approval, but the row may later become 'claimed' (a warranty
+     * claim was approved) and still needs its coupon. The set is stable so
+     * offset paging is safe.
      */
     public static function coupon_rows($limit, $offset) {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             'SELECT id, user_id, marketplace, order_number, coupon_code, created_at FROM ' . self::table()
-            . " WHERE status = 'approved' AND coupon_code IS NOT NULL AND coupon_code <> '' ORDER BY id ASC LIMIT %d OFFSET %d",
+            . " WHERE coupon_code IS NOT NULL AND coupon_code <> '' ORDER BY id ASC LIMIT %d OFFSET %d",
             (int) $limit,
             (int) $offset
         ));
@@ -546,7 +548,7 @@ class GWARR_DB {
     public static function coupon_rows_count() {
         global $wpdb;
         return (int) $wpdb->get_var(
-            'SELECT COUNT(*) FROM ' . self::table() . " WHERE status = 'approved' AND coupon_code IS NOT NULL AND coupon_code <> ''"
+            'SELECT COUNT(*) FROM ' . self::table() . " WHERE coupon_code IS NOT NULL AND coupon_code <> ''"
         );
     }
 
