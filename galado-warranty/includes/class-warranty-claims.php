@@ -355,6 +355,70 @@ class GWARR_Claims {
         }
     }
 
+    /** Ensure the WC frontend singletons exist (admin/cron requests lack them). */
+    private static function boot_wc_context($user_id) {
+        if (!function_exists('WC')) return;
+        if (null === WC()->session && class_exists('WC_Session_Handler')) {
+            WC()->session = new WC_Session_Handler();
+            WC()->session->init();
+        }
+        if (null === WC()->customer && class_exists('WC_Customer')) {
+            WC()->customer = new WC_Customer((int) $user_id, true);
+        }
+        if (null === WC()->cart && class_exists('WC_Cart')) {
+            WC()->cart = new WC_Cart();
+        }
+    }
+
+    /**
+     * Backfill Malaysian billing on an EXISTING shipping order so FPX + Touch
+     * 'n Go appear on the pay page. Fills only empty fields (never overwrites a
+     * real value); defaults billing country to MY. Returns true if it saved a
+     * change.
+     */
+    public static function ensure_order_billing($order, $user_id) {
+        if (!$order || !is_object($order)) return false;
+        try {
+            self::boot_wc_context($user_id);
+            $cust = (class_exists('WC_Customer') && $user_id) ? new WC_Customer((int) $user_id) : null;
+            $user = $user_id ? get_userdata((int) $user_id) : null;
+            $changed = false;
+
+            if (!$order->get_billing_country()) {
+                $order->set_billing_country(($cust && $cust->get_billing_country()) ? $cust->get_billing_country() : 'MY');
+                $changed = true;
+            }
+            if (!$order->get_billing_first_name()) {
+                $f = ($cust && $cust->get_billing_first_name()) ? $cust->get_billing_first_name() : ($user->first_name ?? '');
+                if ($f) { $order->set_billing_first_name($f); $changed = true; }
+            }
+            if (!$order->get_billing_last_name()) {
+                $l = ($cust && $cust->get_billing_last_name()) ? $cust->get_billing_last_name() : ($user->last_name ?? '');
+                if ($l) { $order->set_billing_last_name($l); $changed = true; }
+            }
+            if (!$order->get_billing_phone() && $cust && $cust->get_billing_phone()) {
+                $order->set_billing_phone($cust->get_billing_phone()); $changed = true;
+            }
+            if (!$order->get_billing_email()) {
+                $e = ($user && $user->user_email) ? $user->user_email : ($cust ? $cust->get_billing_email() : '');
+                if ($e) { $order->set_billing_email($e); $changed = true; }
+            }
+            if ($changed) $order->save();
+            return $changed;
+        } catch (\Throwable $e) {
+            error_log('[galado-warranty] ensure_order_billing failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /** Approved claims that carry a shipping pay-order (for bulk maintenance). */
+    public static function with_shipping_orders() {
+        global $wpdb;
+        return $wpdb->get_results(
+            'SELECT * FROM ' . self::table() . " WHERE status = 'approved' AND shipping_order_id IS NOT NULL AND shipping_fee > 0 ORDER BY id DESC"
+        );
+    }
+
     public static function reject($id, $admin_note = '') {
         return self::set_status($id, 'rejected', $admin_note);
     }

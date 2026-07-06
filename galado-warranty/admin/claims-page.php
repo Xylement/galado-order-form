@@ -27,6 +27,28 @@ function gwarr_render_claims_page() {
         <h1>Warranty Claims</h1>
         <?php echo $action_notice; // already-escaped notice HTML ?>
 
+        <?php
+        // Maintenance: any approved claim with an UNPAID shipping order → offer a
+        // one-click "set MY billing + resend pay link" so FPX / Touch 'n Go show.
+        $unpaid = 0;
+        foreach ((array) GWARR_Claims::with_shipping_orders() as $c) {
+            if (!empty($c->shipping_order_id) && function_exists('wc_get_order')) {
+                $o = wc_get_order((int) $c->shipping_order_id);
+                if ($o && !$o->is_paid()) $unpaid++;
+            }
+        }
+        if ($unpaid > 0):
+        ?>
+        <div class="notice notice-info" style="padding:10px 12px;">
+            <p style="margin:0 0 8px;"><strong><?php echo (int) $unpaid; ?> unpaid shipping payment(s)</strong> can be fixed to show FPX + Touch 'n Go: this sets billing country to Malaysia on the order(s) and re-sends the pay-link email.</p>
+            <form method="post" onsubmit="return confirm('Set billing to Malaysia on <?php echo (int) $unpaid; ?> unpaid shipping order(s) and re-send the pay-link email to each customer?');">
+                <?php wp_nonce_field('gwarr_claim_admin', 'gwarr_claim_admin_nonce'); ?>
+                <input type="hidden" name="claim_id" value="0">
+                <button type="submit" name="gwarr_claim_action" value="fix_resend_all" class="button button-primary">🇲🇾 Fix billing + resend pay links (<?php echo (int) $unpaid; ?>)</button>
+            </form>
+        </div>
+        <?php endif; ?>
+
         <ul class="subsubsub">
             <?php
             $filters = [
@@ -250,6 +272,29 @@ function gwarr_handle_claim_admin_post() {
     $note     = isset($_POST['admin_note']) ? sanitize_text_field(wp_unslash($_POST['admin_note'])) : '';
     $fee      = isset($_POST['shipping_fee']) ? max(0, round((float) $_POST['shipping_fee'], 2)) : 0;
 
+    // Bulk maintenance action: operates on all unpaid shipping claims, so it
+    // runs before the single-claim id guard below.
+    if ($action === 'fix_resend_all') {
+        $claims = GWARR_Claims::with_shipping_orders();
+        $fixed = 0; $sent = 0; $paid = 0; $total = 0;
+        foreach ((array) $claims as $c) {
+            if (empty($c->shipping_order_id) || !function_exists('wc_get_order')) continue;
+            $o = wc_get_order((int) $c->shipping_order_id);
+            if (!$o) continue;
+            if ($o->is_paid()) { $paid++; continue; } // already paid, leave it
+            $total++;
+            if (GWARR_Claims::ensure_order_billing($o, (int) $c->user_id)) $fixed++;
+            $fresh = GWARR_Claims::find((int) $c->id);
+            $ok = class_exists('GWARR_Email') ? (bool) GWARR_Email::send_claim_approved($fresh) : false;
+            gwarr_record_claim_email_status((int) $c->id, $ok);
+            if ($ok) $sent++;
+        }
+        return gwarr_admin_notice($sent === $total ? 'success' : 'error',
+            'Processed ' . $total . ' unpaid shipping claim(s): billing set to Malaysia on ' . $fixed
+            . ', pay-link email re-sent to ' . $sent . '.' . ($paid ? ' Skipped ' . $paid . ' already paid.' : '')
+            . ($sent < $total ? ' <strong>Some emails failed to send, check your SMTP.</strong>' : ''));
+    }
+
     if ($claim_id <= 0) {
         return gwarr_admin_notice('error', 'Missing claim ID.');
     }
@@ -278,6 +323,12 @@ function gwarr_handle_claim_admin_post() {
         $claim = GWARR_Claims::find($claim_id);
         if (!$claim || $claim->status !== 'approved') {
             return gwarr_admin_notice('error', 'That claim is not approved, so there is no approval email to resend.');
+        }
+        // Self-heal: make sure the pay order has MY billing so FPX + Touch 'n Go
+        // show, before re-sending the link.
+        if (!empty($claim->shipping_order_id) && function_exists('wc_get_order')) {
+            $o = wc_get_order((int) $claim->shipping_order_id);
+            if ($o) GWARR_Claims::ensure_order_billing($o, (int) $claim->user_id);
         }
         $ok = class_exists('GWARR_Email') ? (bool) GWARR_Email::send_claim_approved($claim) : false;
         gwarr_record_claim_email_status($claim_id, $ok);
