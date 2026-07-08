@@ -18,6 +18,60 @@ class GWARR_Claims {
     }
 
     /**
+     * On the pay-for-order page of a warranty shipping order, re-add enabled
+     * gateways that hid themselves.
+     *
+     * Why: several Malaysian gateway plugins (FPX online banking, Touch 'n Go
+     * / e-wallets) compute is_available() from the CART total. On the
+     * order-pay page the cart is empty (total 0), so a minimum-amount check
+     * fails and the gateway vanishes, while cards/PayPal (which read the
+     * order) still show. Normal checkout is unaffected because the cart is
+     * real there.
+     *
+     * Scoped strictly to orders this plugin created (created_via =
+     * galado-warranty); every other page and order keeps WooCommerce's own
+     * availability decisions.
+     */
+    public static function pay_page_gateways($available) {
+        if (!is_array($available)) {
+            return $available;
+        }
+        if (!function_exists('is_wc_endpoint_url') || !is_wc_endpoint_url('order-pay')) {
+            return $available;
+        }
+
+        global $wp;
+        $order_id = isset($wp->query_vars['order-pay']) ? absint($wp->query_vars['order-pay']) : 0;
+        if (!$order_id || !function_exists('wc_get_order')) {
+            return $available;
+        }
+        $order = wc_get_order($order_id);
+        if (!$order || 'galado-warranty' !== $order->get_created_via()) {
+            return $available;
+        }
+        if (!function_exists('WC') || !WC()->payment_gateways()) {
+            return $available;
+        }
+
+        $added = [];
+        foreach (WC()->payment_gateways()->payment_gateways() as $id => $gateway) {
+            if (isset($available[$id])) {
+                continue;
+            }
+            if (!isset($gateway->enabled) || 'yes' !== $gateway->enabled) {
+                continue;
+            }
+            $available[$id] = $gateway;
+            $added[]        = $id;
+        }
+        if ($added) {
+            error_log('[galado-warranty] pay page for order ' . $order_id
+                . ': re-added gateways hidden by cart-based availability: ' . implode(', ', $added));
+        }
+        return $available;
+    }
+
+    /**
      * Create a claim. media_ids is an array of WP attachment ids.
      * @return int|WP_Error new claim id
      */
