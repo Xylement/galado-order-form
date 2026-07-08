@@ -32,6 +32,9 @@ class GWARR_Claims {
      * galado-warranty); every other page and order keeps WooCommerce's own
      * availability decisions.
      */
+    /** Gateway diagnostics for the admin-only pay-page readout. */
+    private static $pay_diag = null;
+
     public static function pay_page_gateways($available) {
         if (!is_array($available)) {
             return $available;
@@ -53,22 +56,74 @@ class GWARR_Claims {
             return $available;
         }
 
-        $added = [];
+        $before = array_keys($available);
+        $added  = [];
+        $diag   = [];
+
         foreach (WC()->payment_gateways()->payment_gateways() as $id => $gateway) {
-            if (isset($available[$id])) {
-                continue;
+            $runtime_enabled = isset($gateway->enabled) ? (string) $gateway->enabled : '?';
+            // The SAVED setting is the merchant's actual on/off choice. Some
+            // gateways flip their runtime ->enabled to 'no' outside checkout
+            // (no cart), which is exactly the bug we're correcting for, so a
+            // saved 'yes' counts even when runtime says 'no'.
+            $saved_enabled = method_exists($gateway, 'get_option')
+                ? (string) $gateway->get_option('enabled', $runtime_enabled)
+                : $runtime_enabled;
+
+            $was_available = isset($available[$id]);
+            if (!$was_available && ('yes' === $runtime_enabled || 'yes' === $saved_enabled)) {
+                $available[$id] = $gateway;
+                $added[]        = $id;
             }
-            if (!isset($gateway->enabled) || 'yes' !== $gateway->enabled) {
-                continue;
-            }
-            $available[$id] = $gateway;
-            $added[]        = $id;
+
+            $diag[] = [
+                'id'      => $id,
+                'title'   => isset($gateway->method_title) && $gateway->method_title ? $gateway->method_title : (isset($gateway->title) ? $gateway->title : $id),
+                'runtime' => $runtime_enabled,
+                'saved'   => $saved_enabled,
+                'before'  => $was_available,
+                'final'   => isset($available[$id]),
+            ];
         }
+
         if ($added) {
             error_log('[galado-warranty] pay page for order ' . $order_id
                 . ': re-added gateways hidden by cart-based availability: ' . implode(', ', $added));
         }
+
+        // Admin-only readout so a missing gateway can be diagnosed on the page
+        // itself (registered? enabled where?) instead of guessing.
+        if (function_exists('current_user_can') && current_user_can('manage_woocommerce')) {
+            $first = null === self::$pay_diag;
+            self::$pay_diag = ['order_id' => $order_id, 'before' => $before, 'rows' => $diag];
+            if ($first) {
+                add_action('wp_footer', [__CLASS__, 'render_pay_page_diag'], 999);
+            }
+        }
+
         return $available;
+    }
+
+    /** Fixed-position gateway readout on the pay page, admins only. */
+    public static function render_pay_page_diag() {
+        if (null === self::$pay_diag || !current_user_can('manage_woocommerce')) {
+            return;
+        }
+        $d = self::$pay_diag;
+        echo '<div style="position:fixed;left:8px;bottom:8px;z-index:999999;max-width:480px;max-height:45vh;overflow:auto;background:#111;color:#eee;font:11px/1.5 Menlo,monospace;padding:10px 12px;border-radius:8px;opacity:.95;">';
+        echo '<div style="font-weight:700;margin-bottom:6px;">GALADO warranty · gateway diagnostic (admins only) · order #' . (int) $d['order_id'] . '</div>';
+        echo '<div style="margin-bottom:6px;color:#9f9;">available before fix: ' . esc_html(implode(', ', $d['before']) ?: '(none)') . '</div>';
+        foreach ($d['rows'] as $r) {
+            $color = $r['final'] ? '#9f9' : '#f99';
+            echo '<div style="color:' . $color . ';">'
+                . esc_html($r['id']) . ' · ' . esc_html($r['title'])
+                . ' · runtime=' . esc_html($r['runtime'])
+                . ' · saved=' . esc_html($r['saved'])
+                . ' · shown=' . ($r['final'] ? 'YES' : 'no')
+                . '</div>';
+        }
+        echo '<div style="margin-top:6px;color:#999;">If Online Banking / FPX is not listed at all here, its plugin never registers the gateway on this page.</div>';
+        echo '</div>';
     }
 
     /**
