@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.8.9
+ * Version: 1.8.10
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.8.9');
+define('GWARR_VERSION', '1.8.10');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -533,7 +533,7 @@ function gwarr_install_table() {
     $table   = $wpdb->prefix . GWARR_TABLE;
     $charset = $wpdb->get_charset_collate();
 
-    // Columns added in v1.8.9 (source/wc_order_id/wc_item_id/claimed_at) are
+    // Columns added in v1.8.10 (source/wc_order_id/wc_item_id/claimed_at) are
     // appended by dbDelta on existing installs — the UNIQUE KEY is left
     // untouched. Website (WooCommerce) rows stay unique per line item by
     // storing order_number as "{orderId}#{itemId}", which the existing
@@ -589,7 +589,7 @@ function gwarr_install_table() {
         KEY idx_synced (synced_at)
     ) {$charset};";
 
-    // Warranty claims (v1.8.9) — one row per customer claim against a warranty.
+    // Warranty claims (v1.8.10) — one row per customer claim against a warranty.
     // media_ids holds a JSON array of WP attachment IDs (photos + 1 video).
     $claims_table = $wpdb->prefix . 'galado_warranty_claims';
     $sql_claims = "CREATE TABLE {$claims_table} (

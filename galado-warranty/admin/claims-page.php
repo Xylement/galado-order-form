@@ -28,23 +28,37 @@ function gwarr_render_claims_page() {
         <?php echo $action_notice; // already-escaped notice HTML ?>
 
         <?php
-        // Maintenance: any approved claim with an UNPAID shipping order → offer a
-        // one-click "set MY billing + resend pay link" so FPX / Touch 'n Go show.
-        $unpaid = 0;
+        // Maintenance banner: unpaid shipping orders STILL MISSING billing
+        // country (the actual fixable condition). Orders already fixed keep
+        // their MY billing, so they drop out and the banner clears itself
+        // instead of nagging until the customer pays. A dismiss is stored per
+        // order-set, so it stays hidden until genuinely new orders qualify.
+        $fixable = [];
         foreach ((array) GWARR_Claims::with_shipping_orders() as $c) {
-            if (!empty($c->shipping_order_id) && function_exists('wc_get_order')) {
-                $o = wc_get_order((int) $c->shipping_order_id);
-                if ($o && !$o->is_paid()) $unpaid++;
+            if (empty($c->shipping_order_id) || !function_exists('wc_get_order')) continue;
+            $o = wc_get_order((int) $c->shipping_order_id);
+            if ($o && !$o->is_paid() && !$o->get_billing_country()) {
+                $fixable[] = (int) $c->shipping_order_id;
             }
         }
-        if ($unpaid > 0):
+        sort($fixable);
+        $fix_count = count($fixable);
+        $fix_hash  = $fixable ? md5(implode(',', $fixable)) : '';
+        $dismissed = (string) get_option('gwarr_shipbanner_dismissed', '');
+        if ($fix_count > 0 && $fix_hash !== $dismissed):
         ?>
-        <div class="notice notice-info" style="padding:10px 12px;">
-            <p style="margin:0 0 8px;"><strong><?php echo (int) $unpaid; ?> unpaid shipping payment(s)</strong> can be fixed to show FPX + Touch 'n Go: this sets billing country to Malaysia on the order(s) and re-sends the pay-link email.</p>
-            <form method="post" onsubmit="return confirm('Set billing to Malaysia on <?php echo (int) $unpaid; ?> unpaid shipping order(s) and re-send the pay-link email to each customer?');">
+        <div class="notice notice-info" style="padding:10px 12px;position:relative;">
+            <form method="post" style="position:absolute;top:6px;right:8px;margin:0;">
                 <?php wp_nonce_field('gwarr_claim_admin', 'gwarr_claim_admin_nonce'); ?>
                 <input type="hidden" name="claim_id" value="0">
-                <button type="submit" name="gwarr_claim_action" value="fix_resend_all" class="button button-primary">🇲🇾 Fix billing + resend pay links (<?php echo (int) $unpaid; ?>)</button>
+                <input type="hidden" name="gwarr_banner_hash" value="<?php echo esc_attr($fix_hash); ?>">
+                <button type="submit" name="gwarr_claim_action" value="dismiss_ship_banner" class="button-link" style="font-size:16px;line-height:1;color:#787c82;text-decoration:none;" aria-label="Dismiss">✕</button>
+            </form>
+            <p style="margin:0 0 8px;"><strong><?php echo (int) $fix_count; ?> unpaid shipping payment(s)</strong> are missing billing details, so FPX + Touch 'n Go won't show on their pay page. This sets billing country to Malaysia and re-sends the pay-link email.</p>
+            <form method="post" onsubmit="return confirm('Set billing to Malaysia on <?php echo (int) $fix_count; ?> shipping order(s) and re-send the pay-link email to each customer?');">
+                <?php wp_nonce_field('gwarr_claim_admin', 'gwarr_claim_admin_nonce'); ?>
+                <input type="hidden" name="claim_id" value="0">
+                <button type="submit" name="gwarr_claim_action" value="fix_resend_all" class="button button-primary">🇲🇾 Fix billing + resend pay links (<?php echo (int) $fix_count; ?>)</button>
             </form>
         </div>
         <?php endif; ?>
@@ -272,16 +286,29 @@ function gwarr_handle_claim_admin_post() {
     $note     = isset($_POST['admin_note']) ? sanitize_text_field(wp_unslash($_POST['admin_note'])) : '';
     $fee      = isset($_POST['shipping_fee']) ? max(0, round((float) $_POST['shipping_fee'], 2)) : 0;
 
-    // Bulk maintenance action: operates on all unpaid shipping claims, so it
-    // runs before the single-claim id guard below.
+    // Bulk maintenance actions operate on the whole set (no single claim id),
+    // so they run before the single-claim id guard below.
+
+    // Persistently hide the fix-billing banner for the CURRENT set of orders;
+    // it re-appears automatically only when new orders qualify (hash changes).
+    if ($action === 'dismiss_ship_banner') {
+        $hash = sanitize_text_field(wp_unslash($_POST['gwarr_banner_hash'] ?? ''));
+        if (preg_match('/^[a-f0-9]{32}$/', $hash)) {
+            update_option('gwarr_shipbanner_dismissed', $hash, false);
+        }
+        return '';
+    }
+
     if ($action === 'fix_resend_all') {
         $claims = GWARR_Claims::with_shipping_orders();
-        $fixed = 0; $sent = 0; $paid = 0; $total = 0;
+        $fixed = 0; $sent = 0; $skipped = 0; $total = 0;
         foreach ((array) $claims as $c) {
             if (empty($c->shipping_order_id) || !function_exists('wc_get_order')) continue;
             $o = wc_get_order((int) $c->shipping_order_id);
             if (!$o) continue;
-            if ($o->is_paid()) { $paid++; continue; } // already paid, leave it
+            // Only orders that still NEED the fix (unpaid + no billing country).
+            // Already-fixed ones are skipped so re-clicking never re-emails them.
+            if ($o->is_paid() || $o->get_billing_country()) { $skipped++; continue; }
             $total++;
             if (GWARR_Claims::ensure_order_billing($o, (int) $c->user_id)) $fixed++;
             $fresh = GWARR_Claims::find((int) $c->id);
@@ -289,9 +316,12 @@ function gwarr_handle_claim_admin_post() {
             gwarr_record_claim_email_status((int) $c->id, $ok);
             if ($ok) $sent++;
         }
+        if (0 === $total) {
+            return gwarr_admin_notice('success', 'Nothing to fix: every unpaid shipping order already has billing details.' . ($skipped ? ' (' . $skipped . ' checked.)' : ''));
+        }
         return gwarr_admin_notice($sent === $total ? 'success' : 'error',
-            'Processed ' . $total . ' unpaid shipping claim(s): billing set to Malaysia on ' . $fixed
-            . ', pay-link email re-sent to ' . $sent . '.' . ($paid ? ' Skipped ' . $paid . ' already paid.' : '')
+            'Fixed ' . $total . ' shipping order(s): billing set to Malaysia on ' . $fixed
+            . ', pay-link email re-sent to ' . $sent . '.' . ($skipped ? ' Skipped ' . $skipped . ' already paid or already fixed.' : '')
             . ($sent < $total ? ' <strong>Some emails failed to send, check your SMTP.</strong>' : ''));
     }
 
