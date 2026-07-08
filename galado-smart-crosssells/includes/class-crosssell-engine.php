@@ -535,6 +535,17 @@ class Galado_Crosssell_Engine {
         $rating = $product->get_average_rating();
         $review_count = $product->get_review_count();
 
+        // Red-tint savings chip for simple sale items ("Save RM45"), the
+        // guideline-sanctioned red promo moment on a product tile.
+        $save_html = '';
+        if ($is_simple && $product->is_on_sale()) {
+            $regular = (float) $product->get_regular_price();
+            $current = (float) $product->get_price();
+            if ($regular > $current) {
+                $save_html = '<span class="galado-cs-card__save">Save ' . esc_html(wp_strip_all_tags(wc_price($regular - $current))) . '</span>';
+            }
+        }
+
         ob_start();
         ?>
         <div class="galado-cs-card" data-product-id="<?php echo esc_attr($id); ?>">
@@ -556,7 +567,7 @@ class Galado_Crosssell_Engine {
                         <span class="count">(<?php echo esc_html($review_count); ?>)</span>
                     </div>
                 <?php endif; ?>
-                <div class="galado-cs-card__price"><?php echo $price; ?></div>
+                <div class="galado-cs-card__price"><?php echo $price . $save_html; ?></div>
                 <?php if ($is_simple): ?>
                     <button class="galado-cs-add-btn" data-product-id="<?php echo esc_attr($id); ?>">
                         <span class="btn-text">+ Add</span>

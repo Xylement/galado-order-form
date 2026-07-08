@@ -1,29 +1,38 @@
-/* GALADO Smart Cross-Sells - Frontend Styles */
+/* GALADO Smart Cross-Sells - Frontend Styles (Brand v1.0: Ink / White / one Red) */
 
 /* Section wrapper */
 .galado-cs-section {
     margin: 32px 0;
-    padding: 24px 0;
+    padding: 24px 0 0;
     border-top: 1px solid #d9d9d9;
 }
 
 .galado-cs-title {
     font-size: 22px;
-    font-weight: 600;
+    font-weight: 800;
+    letter-spacing: -0.01em;
     margin: 0 0 4px;
     color: #111111;
 }
 
 .galado-cs-title--small {
     font-size: 17px;
-    margin: 0 0 12px;
+    margin: 0 0 4px;
 }
 
 .galado-cs-subtitle {
     font-size: 14px;
-    color: #666;
-    margin: 0 0 20px;
+    color: #8c8c8c;
+    margin: 0 0 6px;
 }
+
+/* Perks microline: spell out the perks that remove purchase hesitation */
+.galado-cs-perks {
+    font-size: 12px;
+    color: #8c8c8c;
+    margin: 0 0 18px;
+}
+.galado-cs-perks span { white-space: nowrap; }
 
 /* Product grid (cart + thank you) */
 .galado-cs-grid {
@@ -32,32 +41,37 @@
     gap: 16px;
 }
 
+/* Mobile: swipeable rail with snap, feels native on 390px screens */
 @media (max-width: 768px) {
     .galado-cs-grid {
-        grid-template-columns: repeat(2, 1fr);
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
         gap: 12px;
+        padding: 4px 4px 12px;
+        margin: 0 -4px;
+        scrollbar-width: none;
+    }
+    .galado-cs-grid::-webkit-scrollbar { display: none; }
+    .galado-cs-grid .galado-cs-card {
+        flex: 0 0 46%;
+        scroll-snap-align: start;
     }
 }
 
-@media (max-width: 480px) {
-    .galado-cs-grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
-    }
-}
-
-/* Product card */
+/* Product card: white tile, 20px radius, one layer of depth (soft shadow) */
 .galado-cs-card {
     background: #fff;
-    border: 1px solid #eee;
-    border-radius: 12px;
+    border-radius: 20px;
     overflow: hidden;
-    transition: box-shadow 0.2s, transform 0.2s;
+    box-shadow: 0 4px 16px rgba(17, 17, 17, 0.06);
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
 }
 
 .galado-cs-card:hover {
-    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(17, 17, 17, 0.10);
+    transform: scale(1.02);
 }
 
 .galado-cs-card__image {
@@ -72,28 +86,29 @@
     display: block;
 }
 
+/* Pill badge, Red = Sale */
 .galado-cs-card__badge {
     position: absolute;
-    top: 8px;
-    left: 8px;
+    top: 10px;
+    left: 10px;
     background: #e4002b;
     color: #fff;
     font-size: 11px;
-    font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 4px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.05em;
 }
 
 .galado-cs-card__info {
-    padding: 12px;
+    padding: 14px;
 }
 
 .galado-cs-card__name {
     display: block;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     color: #111111;
     text-decoration: none;
     line-height: 1.4;
@@ -105,7 +120,7 @@
 }
 
 .galado-cs-card__name:hover {
-    color: #000;
+    color: #111111;
     text-decoration: underline;
 }
 
@@ -114,7 +129,7 @@
 }
 
 .galado-cs-card__rating .star {
-    color: #ddd;
+    color: #d9d9d9;
     font-size: 12px;
 }
 
@@ -124,18 +139,18 @@
 
 .galado-cs-card__rating .count {
     font-size: 11px;
-    color: #999;
+    color: #8c8c8c;
 }
 
 .galado-cs-card__price {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 800;
     color: #111111;
     margin-bottom: 10px;
 }
 
 .galado-cs-card__price del {
-    color: #999;
+    color: #8c8c8c;
     font-weight: 400;
     font-size: 12px;
 }
@@ -145,29 +160,43 @@
     color: #e4002b;
 }
 
-/* Add button */
+/* Red-tint savings chip next to the sale price */
+.galado-cs-card__save {
+    display: inline-block;
+    background: #ffe9ec;
+    color: #e4002b;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin-left: 6px;
+    vertical-align: 1px;
+}
+
+/* Add button: Ink primary full pill (the brand button) */
 .galado-cs-add-btn {
     display: block;
     width: 100%;
-    padding: 8px 12px;
+    padding: 10px 16px;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
     text-align: center;
-    color: #111111;
-    background: #f5f5f5;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    color: #fff;
+    background: #111111;
+    border: none;
+    border-radius: 999px;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: background-color 0.2s ease-out, transform 0.2s ease-out;
     -webkit-appearance: none;
     text-decoration: none;
     line-height: 1.4;
+    box-sizing: border-box;
 }
 
 .galado-cs-add-btn:hover {
-    background: #111111;
+    background: #000;
     color: #fff;
-    border-color: #111111;
+    transform: translateY(-1px);
 }
 
 .galado-cs-add-btn.adding {
@@ -178,28 +207,29 @@
 .galado-cs-add-btn.added {
     background: #1e8e5a;
     color: #fff;
-    border-color: #1e8e5a;
 }
 
+/* Variable products: Ink outline pill, fills Ink on hover */
 .galado-cs-select-btn {
     display: block;
     width: 100%;
-    padding: 8px 12px;
+    padding: 9px 16px;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 700;
     text-align: center;
-    color: #666;
+    color: #111111;
     background: transparent;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    border: 1.5px solid #111111;
+    border-radius: 999px;
     cursor: pointer;
     text-decoration: none;
-    transition: all 0.2s;
+    transition: background-color 0.2s ease-out, color 0.2s ease-out;
     box-sizing: border-box;
 }
 
 .galado-cs-select-btn:hover {
-    color: #111111;
+    color: #fff;
+    background: #111111;
     border-color: #111111;
 }
 
@@ -215,23 +245,23 @@
     align-items: center;
     gap: 12px;
     padding: 10px;
-    background: #f5f5f3;
-    border: 1px solid #eee;
-    border-radius: 10px;
-    transition: border-color 0.2s;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(17, 17, 17, 0.05);
+    transition: box-shadow 0.2s ease-out;
 }
 
 .galado-cs-compact-card:hover {
-    border-color: #ccc;
+    box-shadow: 0 4px 14px rgba(17, 17, 17, 0.09);
 }
 
 .galado-cs-compact-card__image {
     flex-shrink: 0;
-    width: 50px;
-    height: 50px;
-    border-radius: 8px;
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
     overflow: hidden;
-    background: #fff;
+    background: #f5f5f3;
 }
 
 .galado-cs-compact-card__image img {
@@ -248,7 +278,7 @@
 .galado-cs-compact-card__name {
     display: block;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     color: #111111;
     white-space: nowrap;
     overflow: hidden;
@@ -258,7 +288,7 @@
 .galado-cs-compact-card__price {
     display: block;
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 800;
     color: #111111;
     margin-top: 2px;
 }
@@ -266,7 +296,7 @@
 .galado-cs-add-btn--compact {
     flex-shrink: 0;
     width: auto;
-    padding: 6px 14px;
+    padding: 8px 16px;
     font-size: 12px;
 }
 
@@ -276,13 +306,13 @@
     align-items: center;
 }
 
-/* Checkout section spacing */
+/* Checkout section: warm-grey panel so the white rows stand out */
 .galado-cs-checkout {
     margin: 0 0 24px;
     padding: 16px;
     background: #f5f5f3;
-    border: 1px solid #eee;
-    border-radius: 12px;
+    border: none;
+    border-radius: 20px;
     border-top: none;
 }
 
@@ -304,3 +334,8 @@
 .galado-cs-card:nth-child(2) { animation-delay: 0.05s; }
 .galado-cs-card:nth-child(3) { animation-delay: 0.1s; }
 .galado-cs-card:nth-child(4) { animation-delay: 0.15s; }
+
+@media (prefers-reduced-motion: reduce) {
+    .galado-cs-card { animation: none; }
+    .galado-cs-card:hover { transform: none; }
+}

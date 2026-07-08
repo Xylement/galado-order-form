@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Smart Cross-Sells
  * Plugin URI: https://galado.com.my
  * Description: Boost AOV with intelligent cross-sell recommendations on cart page, checkout, and post-purchase. Shows compatible accessories based on cart contents.
- * Version: 1.1.1
+ * Version: 1.2.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_CS_VERSION', '1.1.1');
+define('GALADO_CS_VERSION', '1.2.0');
 define('GALADO_CS_PATH', plugin_dir_path(__FILE__));
 define('GALADO_CS_URL', plugin_dir_url(__FILE__));
 
@@ -43,6 +43,23 @@ add_action('plugins_loaded', function() {
     Galado_Cart_Crosssells::init();
     Galado_Checkout_Crosssells::init();
     Galado_Thankyou_Crosssells::init();
+
+    // One-time copy migration to Brand v1.0 voice: sentence case, and drop the
+    // fake-scarcity checkout title (banned by the guidelines). Only rewrites a
+    // title if it still equals the OLD default, so custom titles are kept.
+    if (get_option('galado_cs_copy_version') !== '2') {
+        $copy_map = [
+            'galado_cs_cart_title'     => ['Complete Your Setup',  'Complete your setup'],
+            'galado_cs_checkout_title' => ['Last Chance to Add',   'Anything else for your phone?'],
+            'galado_cs_thankyou_title' => ['Customers Also Love',  'Customers also love'],
+        ];
+        foreach ($copy_map as $opt => $pair) {
+            if (get_option($opt) === $pair[0]) {
+                update_option($opt, $pair[1]);
+            }
+        }
+        update_option('galado_cs_copy_version', '2'); // autoloaded: checked every request
+    }
 });
 
 // Enqueue frontend assets
@@ -104,9 +121,9 @@ register_activation_hook(__FILE__, function() {
         'galado_cs_enable_cart' => 'yes',
         'galado_cs_enable_checkout' => 'yes',
         'galado_cs_enable_thankyou' => 'yes',
-        'galado_cs_cart_title' => 'Complete Your Setup',
-        'galado_cs_checkout_title' => 'Last Chance to Add',
-        'galado_cs_thankyou_title' => 'Customers Also Love',
+        'galado_cs_cart_title' => 'Complete your setup',
+        'galado_cs_checkout_title' => 'Anything else for your phone?',
+        'galado_cs_thankyou_title' => 'Customers also love',
         'galado_cs_max_products' => 4,
         'galado_cs_smart_matching' => 'yes',
         'galado_cs_ranking_mode' => 'hybrid',

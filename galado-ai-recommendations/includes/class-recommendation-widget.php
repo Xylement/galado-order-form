@@ -101,6 +101,7 @@ class GAIR_Recommendation_Widget {
                     }
                     ?>
                 </p>
+                <p class="gair-section__perks"><span>✓ Free shipping in Malaysia</span> &nbsp;·&nbsp; <span>✓ 1-to-1 drop warranty</span> &nbsp;·&nbsp; <span>✓ Earn G-Coins with every order</span></p>
             </div>
             <div class="gair-section__content">
                 <?php if (!is_wp_error($cached_html) && !empty($cached_html)): ?>

@@ -674,8 +674,20 @@ class GAIR_AI_Engine {
             $price = $product->get_price_html();
             $permalink = $product->get_permalink();
             $rating = $product->get_average_rating();
+            $review_count = $product->get_review_count();
+            $is_simple = $product->is_type('simple');
+
+            // Red-tint savings chip for simple sale items ("Save RM45").
+            $save_html = '';
+            if ($is_simple && $product->is_on_sale()) {
+                $regular = (float) $product->get_regular_price();
+                $current = (float) $product->get_price();
+                if ($regular > $current) {
+                    $save_html = '<span class="gair-product-card__save">Save ' . esc_html(wp_strip_all_tags(wc_price($regular - $current))) . '</span>';
+                }
+            }
             ?>
-            <div class="gair-product-card">
+            <div class="gair-product-card" data-product-id="<?php echo esc_attr($id); ?>">
                 <a href="<?php echo esc_url($permalink); ?>" class="gair-product-card__image">
                     <?php echo $image; ?>
                     <?php if ($product->is_on_sale()): ?>
@@ -689,9 +701,21 @@ class GAIR_AI_Engine {
                             <?php for ($i = 1; $i <= 5; $i++): ?>
                                 <span class="star <?php echo $i <= round($rating) ? 'filled' : ''; ?>">★</span>
                             <?php endfor; ?>
+                            <?php if ($review_count > 0): ?>
+                                <span class="count">(<?php echo esc_html($review_count); ?>)</span>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
-                    <div class="gair-product-card__price"><?php echo $price; ?></div>
+                    <div class="gair-product-card__price"><?php echo $price . $save_html; ?></div>
+                    <?php if ($is_simple): ?>
+                        <button class="gair-add-btn" data-product-id="<?php echo esc_attr($id); ?>">
+                            <span class="btn-text">+ Add to cart</span>
+                            <span class="btn-loading" style="display:none;">Adding...</span>
+                            <span class="btn-done" style="display:none;">✓ Added</span>
+                        </button>
+                    <?php else: ?>
+                        <a href="<?php echo esc_url($permalink); ?>" class="gair-select-btn">Select options</a>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php

@@ -19,10 +19,13 @@ class Galado_Checkout_Crosssells {
 
         if (empty($recommendations)) return;
 
-        $title = get_option('galado_cs_checkout_title', 'Last Chance to Add');
+        // Warm, no pressure. "Last Chance to Add" is banned voice per the brand
+        // guidelines (no fake scarcity), so the default is a friendly question.
+        $title = get_option('galado_cs_checkout_title', 'Anything else for your phone?');
         ?>
         <div class="galado-cs-section galado-cs-checkout">
             <h3 class="galado-cs-title galado-cs-title--small"><?php echo esc_html($title); ?></h3>
+            <p class="galado-cs-subtitle" style="margin-bottom:12px;">Tap to add, it ships together with your order</p>
             <div class="galado-cs-compact-list">
                 <?php foreach ($recommendations as $product): ?>
                     <?php self::render_compact_card($product); ?>

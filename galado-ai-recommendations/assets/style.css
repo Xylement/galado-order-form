@@ -1,4 +1,4 @@
-/* GALADO AI Recommendations - Frontend Styles */
+/* GALADO AI Recommendations - Frontend Styles (Brand v1.0: Ink / White / one Red) */
 
 .gair-section {
     margin: 40px 0;
@@ -11,16 +11,25 @@
 
 .gair-section__title {
     font-size: 22px;
-    font-weight: 600;
+    font-weight: 800;
+    letter-spacing: -0.01em;
     color: #111111;
     margin: 0 0 4px;
 }
 
 .gair-section__subtitle {
     font-size: 14px;
-    color: #888;
+    color: #8c8c8c;
     margin: 0;
 }
+
+/* Perks microline: spell out the perks that remove purchase hesitation */
+.gair-section__perks {
+    font-size: 12px;
+    color: #8c8c8c;
+    margin: 6px 0 0;
+}
+.gair-section__perks span { white-space: nowrap; }
 
 /* Product grid */
 .gair-products-grid {
@@ -29,25 +38,38 @@
     gap: 16px;
 }
 
+/* Mobile: swipeable rail with snap, feels native on 390px screens */
 @media (max-width: 768px) {
     .gair-products-grid {
-        grid-template-columns: repeat(2, 1fr);
+        display: flex;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
         gap: 12px;
+        padding: 4px 4px 12px;
+        margin: 0 -4px;
+        scrollbar-width: none;
+    }
+    .gair-products-grid::-webkit-scrollbar { display: none; }
+    .gair-products-grid .gair-product-card,
+    .gair-products-grid .gair-skeleton-card {
+        flex: 0 0 46%;
+        scroll-snap-align: start;
     }
 }
 
-/* Product card */
+/* Product card: white tile, 20px radius, one layer of depth (soft shadow) */
 .gair-product-card {
     background: #fff;
-    border: 1px solid #eee;
-    border-radius: 12px;
+    border-radius: 20px;
     overflow: hidden;
-    transition: box-shadow 0.2s, transform 0.2s;
+    box-shadow: 0 4px 16px rgba(17, 17, 17, 0.06);
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
 }
 
 .gair-product-card:hover {
-    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(17, 17, 17, 0.10);
+    transform: scale(1.02);
 }
 
 .gair-product-card__image {
@@ -62,27 +84,29 @@
     display: block;
 }
 
+/* Pill badge, Red = Sale */
 .gair-product-card__badge {
     position: absolute;
-    top: 8px;
-    left: 8px;
+    top: 10px;
+    left: 10px;
     background: #e4002b;
     color: #fff;
     font-size: 11px;
-    font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 4px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
     text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .gair-product-card__info {
-    padding: 12px;
+    padding: 14px;
 }
 
 .gair-product-card__name {
     display: block;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     color: #111111;
     text-decoration: none;
     line-height: 1.4;
@@ -97,8 +121,12 @@
     text-decoration: underline;
 }
 
+.gair-product-card__rating {
+    margin-bottom: 4px;
+}
+
 .gair-product-card__rating .star {
-    color: #ddd;
+    color: #d9d9d9;
     font-size: 12px;
 }
 
@@ -106,15 +134,20 @@
     color: #f5a623;
 }
 
+.gair-product-card__rating .count {
+    font-size: 11px;
+    color: #8c8c8c;
+}
+
 .gair-product-card__price {
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 15px;
+    font-weight: 800;
     color: #111111;
-    margin-top: 4px;
+    margin: 4px 0 10px;
 }
 
 .gair-product-card__price del {
-    color: #999;
+    color: #8c8c8c;
     font-weight: 400;
     font-size: 12px;
 }
@@ -124,9 +157,85 @@
     color: #e4002b;
 }
 
+/* Red-tint savings chip next to the sale price */
+.gair-product-card__save {
+    display: inline-block;
+    background: #ffe9ec;
+    color: #e4002b;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+    margin-left: 6px;
+    vertical-align: 1px;
+}
+
+/* Add button: Ink primary full pill (the brand button) */
+.gair-add-btn {
+    display: block;
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    color: #fff;
+    background: #111111;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background-color 0.2s ease-out, transform 0.2s ease-out;
+    -webkit-appearance: none;
+    text-decoration: none;
+    line-height: 1.4;
+    box-sizing: border-box;
+}
+
+.gair-add-btn:hover {
+    background: #000;
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.gair-add-btn.adding {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.gair-add-btn.added {
+    background: #1e8e5a;
+    color: #fff;
+}
+
+/* Variable products: Ink outline pill, fills Ink on hover */
+.gair-select-btn {
+    display: block;
+    width: 100%;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    color: #111111;
+    background: transparent;
+    border: 1.5px solid #111111;
+    border-radius: 999px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.2s ease-out, color 0.2s ease-out;
+    box-sizing: border-box;
+}
+
+.gair-select-btn:hover {
+    color: #fff;
+    background: #111111;
+    border-color: #111111;
+}
+
 /* Skeleton loading */
 .gair-skeleton-card {
     padding: 16px;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 4px 16px rgba(17, 17, 17, 0.06);
 }
 
 .gair-skeleton {
@@ -140,7 +249,7 @@
 .gair-skeleton--image {
     width: 100%;
     padding-top: 100%;
-    border-radius: 10px;
+    border-radius: 16px;
     margin-bottom: 12px;
 }
 
@@ -165,4 +274,10 @@
 @keyframes gairFadeIn {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .gair-product-card { animation: none; }
+    .gair-product-card:hover { transform: none; }
+    .gair-skeleton { animation: none; }
 }

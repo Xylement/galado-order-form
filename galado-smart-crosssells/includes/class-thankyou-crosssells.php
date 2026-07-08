@@ -28,11 +28,11 @@ class Galado_Thankyou_Crosssells {
 
         if (empty($recommendations)) return;
 
-        $title = get_option('galado_cs_thankyou_title', 'Customers Also Love');
+        $title = get_option('galado_cs_thankyou_title', 'Customers also love');
         ?>
         <div class="galado-cs-section galado-cs-thankyou">
             <h2 class="galado-cs-title"><?php echo esc_html($title); ?></h2>
-            <p class="galado-cs-subtitle">Add these to your collection next time</p>
+            <p class="galado-cs-subtitle">Good taste deserves company. Add these to your collection next time</p>
             <div class="galado-cs-grid">
                 <?php foreach ($recommendations as $product): ?>
                     <?php echo Galado_Crosssell_Engine::render_product_card($product); ?>
