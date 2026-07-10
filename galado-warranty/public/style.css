@@ -91,6 +91,7 @@
 
 .gwarr-field input[type=text],
 .gwarr-field input[type=email],
+.gwarr-field input[type=tel],
 .gwarr-field select,
 .gwarr-field textarea {
     width: 100%;
@@ -295,6 +296,30 @@
     font-size: 12px;
     color: var(--gw-text3);
 }
+/* Delivery block inside the claim form */
+.gwarr-delivery-summary {
+    background: var(--gw-surface);
+    border-radius: var(--gw-radius-field);
+    padding: 12px 14px;
+}
+.gwarr-delivery-summary__addr {
+    margin: 6px 0 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--gw-text2);
+}
+.gwarr-delivery-edit summary {
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gw-text2);
+    text-decoration: underline;
+    list-style: none;
+}
+.gwarr-delivery-edit summary::-webkit-details-marker { display: none; }
+.gwarr-delivery-edit[open] summary { margin-bottom: 12px; }
+.gwarr-delivery-fields { display: grid; gap: 12px; }
+
 .gwarr-claim-status {
     margin: 12px 0 0;
     font-size: 13px;

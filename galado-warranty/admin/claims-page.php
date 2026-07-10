@@ -119,6 +119,15 @@ function gwarr_render_claim_admin_row($row) {
         <td>
             <strong><?php echo esc_html($row->display_name ?: '(no name)'); ?></strong><br>
             <small><?php echo esc_html($row->user_email ?: '—'); ?></small>
+            <?php if (!empty($row->delivery_phone)): ?>
+                <br><small>📱 <?php echo esc_html($row->delivery_phone); ?></small>
+            <?php endif; ?>
+            <?php if (!empty($row->delivery_address_1)): ?>
+                <br><small title="<?php echo esc_attr($row->delivery_address_1 . (!empty($row->delivery_address_2) ? ', ' . $row->delivery_address_2 : '')); ?>">📦 <?php
+                    $state = function_exists('gwarr_state_label') ? gwarr_state_label((string) ($row->delivery_state ?? '')) : (string) ($row->delivery_state ?? '');
+                    echo esc_html(trim(($row->delivery_postcode ?? '') . ' ' . ($row->delivery_city ?? '') . ', ' . $state, ' ,'));
+                ?></small>
+            <?php endif; ?>
         </td>
         <td>
             <?php if (!empty($row->item_label)): ?>
