@@ -384,8 +384,8 @@ class GWARR_Claims {
             self::$last_order_error = 'WooCommerce is not active.';
             return 0;
         }
-        if (!class_exists('WC_Order_Item_Fee')) {
-            self::$last_order_error = 'WC_Order_Item_Fee class unavailable.';
+        if (!class_exists('WC_Order_Item_Product')) {
+            self::$last_order_error = 'WC_Order_Item_Product class unavailable.';
             return 0;
         }
         try {
@@ -415,13 +415,24 @@ class GWARR_Claims {
                 return 0;
             }
 
-            $fee_item = new WC_Order_Item_Fee();
-            $fee_item->set_name('Replacement shipping: ' . $label);
-            $fee_item->set_amount((string) $fee);
-            $fee_item->set_total((string) $fee);
-            $fee_item->set_tax_status('none');
-            $fee_item->set_total_tax(0);
-            $order->add_item($fee_item);
+            // Add the charge as a real product LINE ITEM, not a bare
+            // WC_Order_Item_Fee. The Razer / Molpay seamless gateway builds its
+            // payment-form description by imploding product names gathered from
+            // $order->get_items() (line_item type only). A fee-only order has no
+            // line items, so that variable stays undefined and generate_form()
+            // fatals with "implode(): Argument #1 must be of type array, NULL
+            // given" on the pay page. A product line item keeps get_items()
+            // non-empty so the gateway form renders. capture_order() skips
+            // created_via=galado-warranty orders so this never becomes a bogus
+            // warranty row.
+            $line = new WC_Order_Item_Product();
+            $line->set_name('Replacement shipping: ' . $label);
+            $line->set_quantity(1);
+            $line->set_subtotal((string) $fee);
+            $line->set_total((string) $fee);
+            $line->set_subtotal_tax(0);
+            $line->set_total_tax(0);
+            $order->add_item($line);
 
             // Populate billing details so Malaysian payment gateways (FPX online
             // banking, Touch 'n Go / e-wallets) appear on the order-pay page.
@@ -557,6 +568,54 @@ class GWARR_Claims {
             return $changed;
         } catch (\Throwable $e) {
             error_log('[galado-warranty] ensure_order_billing failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Repair an EXISTING shipping order that was created as a bare fee (no
+     * product line item) so the Razer / Molpay pay page stops fataling on
+     * implode() of an undefined product-name array. Converts any fee line into
+     * an equivalent product line item, preserving the order total. No-op if the
+     * order already has a line item. Returns true if it changed anything.
+     */
+    public static function ensure_order_line_item($order) {
+        if (!$order || !is_object($order) || !class_exists('WC_Order_Item_Product')) {
+            return false;
+        }
+        if (count($order->get_items('line_item')) > 0) {
+            return false; // already fulfilment-shaped
+        }
+        try {
+            $amount = 0.0;
+            $label  = '';
+            foreach ($order->get_items('fee') as $fee_id => $fee) {
+                $amount += (float) $fee->get_total();
+                if ($label === '') {
+                    $label = (string) $fee->get_name();
+                }
+                $order->remove_item($fee_id); // the line item replaces it (no double count)
+            }
+            if ($amount <= 0) {
+                $amount = (float) $order->get_total();
+            }
+            if ($label === '') {
+                $label = 'Replacement shipping';
+            }
+            $line = new WC_Order_Item_Product();
+            $line->set_name($label);
+            $line->set_quantity(1);
+            $line->set_subtotal((string) $amount);
+            $line->set_total((string) $amount);
+            $line->set_subtotal_tax(0);
+            $line->set_total_tax(0);
+            $order->add_item($line);
+            $order->set_cart_tax(0);
+            $order->set_total((float) $amount);
+            $order->save();
+            return true;
+        } catch (\Throwable $e) {
+            error_log('[galado-warranty] ensure_order_line_item failed for order ' . (int) $order->get_id() . ': ' . $e->getMessage());
             return false;
         }
     }

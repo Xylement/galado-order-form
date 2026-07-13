@@ -41,6 +41,14 @@ class GWARR_Orders {
         if (!$order) {
             return 0;
         }
+        // Never auto-register warranties for our OWN internal shipping-fee
+        // orders (created for warranty-claim replacement shipping). They now
+        // carry a "Replacement shipping" product line item — needed so the
+        // Razer/Molpay pay page renders — which would otherwise be captured as
+        // a bogus warranty when the order is paid.
+        if (method_exists($order, 'get_created_via') && 'galado-warranty' === $order->get_created_via()) {
+            return 0;
+        }
 
         $email   = strtolower(trim((string) $order->get_billing_email()));
         $user_id = (int) $order->get_user_id(); // 0 for guest checkouts

@@ -37,7 +37,10 @@ function gwarr_render_claims_page() {
         foreach ((array) GWARR_Claims::with_shipping_orders() as $c) {
             if (empty($c->shipping_order_id) || !function_exists('wc_get_order')) continue;
             $o = wc_get_order((int) $c->shipping_order_id);
-            if ($o && !$o->is_paid() && !$o->get_billing_country()) {
+            // Fixable = unpaid AND (missing MY billing OR missing a product line
+            // item). The line-item gap is what fatals the Razer/Molpay pay page.
+            if ($o && !$o->is_paid()
+                && (!$o->get_billing_country() || count($o->get_items('line_item')) === 0)) {
                 $fixable[] = (int) $c->shipping_order_id;
             }
         }
@@ -54,7 +57,7 @@ function gwarr_render_claims_page() {
                 <input type="hidden" name="gwarr_banner_hash" value="<?php echo esc_attr($fix_hash); ?>">
                 <button type="submit" name="gwarr_claim_action" value="dismiss_ship_banner" class="button-link" style="font-size:16px;line-height:1;color:#787c82;text-decoration:none;" aria-label="Dismiss">✕</button>
             </form>
-            <p style="margin:0 0 8px;"><strong><?php echo (int) $fix_count; ?> unpaid shipping payment(s)</strong> are missing billing details, so FPX + Touch 'n Go won't show on their pay page. This sets billing country to Malaysia and re-sends the pay-link email.</p>
+            <p style="margin:0 0 8px;"><strong><?php echo (int) $fix_count; ?> unpaid shipping payment(s)</strong> need a fix on their pay page (missing Malaysia billing, and/or a bare fee that makes the FPX / Touch 'n Go page show a critical error). This repairs the order and re-sends the pay-link email.</p>
             <form method="post" onsubmit="return confirm('Set billing to Malaysia on <?php echo (int) $fix_count; ?> shipping order(s) and re-send the pay-link email to each customer?');">
                 <?php wp_nonce_field('gwarr_claim_admin', 'gwarr_claim_admin_nonce'); ?>
                 <input type="hidden" name="claim_id" value="0">
@@ -315,11 +318,16 @@ function gwarr_handle_claim_admin_post() {
             if (empty($c->shipping_order_id) || !function_exists('wc_get_order')) continue;
             $o = wc_get_order((int) $c->shipping_order_id);
             if (!$o) continue;
-            // Only orders that still NEED the fix (unpaid + no billing country).
-            // Already-fixed ones are skipped so re-clicking never re-emails them.
-            if ($o->is_paid() || $o->get_billing_country()) { $skipped++; continue; }
+            // Only orders that still NEED a fix: unpaid, and missing either MY
+            // billing or a product line item (the line-item gap fatals the
+            // Razer/Molpay pay page). Already-fixed ones are skipped so
+            // re-clicking never re-emails them.
+            $needs_billing = !$o->get_billing_country();
+            $needs_line    = count($o->get_items('line_item')) === 0;
+            if ($o->is_paid() || (!$needs_billing && !$needs_line)) { $skipped++; continue; }
             $total++;
             if (GWARR_Claims::ensure_order_billing($o, (int) $c->user_id)) $fixed++;
+            if ($needs_line) GWARR_Claims::ensure_order_line_item($o);
             $fresh = GWARR_Claims::find((int) $c->id);
             $ok = class_exists('GWARR_Email') ? (bool) GWARR_Email::send_claim_approved($fresh) : false;
             gwarr_record_claim_email_status((int) $c->id, $ok);
@@ -363,11 +371,15 @@ function gwarr_handle_claim_admin_post() {
         if (!$claim || $claim->status !== 'approved') {
             return gwarr_admin_notice('error', 'That claim is not approved, so there is no approval email to resend.');
         }
-        // Self-heal: make sure the pay order has MY billing so FPX + Touch 'n Go
-        // show, before re-sending the link.
+        // Self-heal: make sure the pay order has MY billing (so FPX + Touch 'n
+        // Go show) AND a product line item (so the Razer/Molpay pay page doesn't
+        // fatal), before re-sending the link.
         if (!empty($claim->shipping_order_id) && function_exists('wc_get_order')) {
             $o = wc_get_order((int) $claim->shipping_order_id);
-            if ($o) GWARR_Claims::ensure_order_billing($o, (int) $claim->user_id);
+            if ($o) {
+                GWARR_Claims::ensure_order_billing($o, (int) $claim->user_id);
+                GWARR_Claims::ensure_order_line_item($o);
+            }
         }
         $ok = class_exists('GWARR_Email') ? (bool) GWARR_Email::send_claim_approved($claim) : false;
         gwarr_record_claim_email_status($claim_id, $ok);
