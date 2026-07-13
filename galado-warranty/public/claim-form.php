@@ -41,6 +41,46 @@ function gwarr_maybe_process_claim() {
 }
 
 /**
+ * The customer's saved delivery details (WooCommerce billing profile), used to
+ * decide whether the claim form needs to ask for them.
+ */
+function gwarr_claim_delivery_profile($user_id) {
+    $p = [
+        'name' => '', 'phone' => '', 'address_1' => '', 'address_2' => '',
+        'city' => '', 'state' => '', 'postcode' => '',
+    ];
+    if ($user_id && class_exists('WC_Customer')) {
+        try {
+            $c = new WC_Customer((int) $user_id);
+            $p['name']      = trim($c->get_billing_first_name() . ' ' . $c->get_billing_last_name());
+            $p['phone']     = (string) $c->get_billing_phone();
+            $p['address_1'] = (string) $c->get_billing_address_1();
+            $p['address_2'] = (string) $c->get_billing_address_2();
+            $p['city']      = (string) $c->get_billing_city();
+            $p['state']     = (string) $c->get_billing_state();
+            $p['postcode']  = (string) $c->get_billing_postcode();
+        } catch (\Throwable $e) {
+            // fall through to WP fallbacks
+        }
+    }
+    if ($p['name'] === '' && $user_id) {
+        $u = get_userdata((int) $user_id);
+        if ($u) {
+            $p['name'] = trim($u->first_name . ' ' . $u->last_name);
+            if ($p['name'] === '') {
+                $p['name'] = (string) $u->display_name;
+            }
+        }
+    }
+    return $p;
+}
+
+/** Enough on file to ship a parcel without asking? */
+function gwarr_claim_delivery_complete($p) {
+    return $p['phone'] !== '' && $p['address_1'] !== '' && $p['city'] !== '' && $p['postcode'] !== '';
+}
+
+/**
  * Validate + persist a claim (with uploads). Returns an HTML notice string.
  */
 function gwarr_handle_claim_submission() {
@@ -75,6 +115,32 @@ function gwarr_handle_claim_submission() {
         $item_label = $items ? $items[0] : ''; // single-item: implied
     }
 
+    // Delivery details for the replacement parcel. The form prefills from the
+    // account (and hides the fields behind a summary when complete), but the
+    // values always ride along with the submission so every claim carries a
+    // shippable address + phone.
+    $d = [
+        'name'      => isset($_POST['claim_name'])      ? trim(sanitize_text_field(wp_unslash($_POST['claim_name'])))      : '',
+        'phone'     => isset($_POST['claim_phone'])     ? trim(sanitize_text_field(wp_unslash($_POST['claim_phone'])))     : '',
+        'address_1' => isset($_POST['claim_address_1']) ? trim(sanitize_text_field(wp_unslash($_POST['claim_address_1']))) : '',
+        'address_2' => isset($_POST['claim_address_2']) ? trim(sanitize_text_field(wp_unslash($_POST['claim_address_2']))) : '',
+        'city'      => isset($_POST['claim_city'])      ? trim(sanitize_text_field(wp_unslash($_POST['claim_city'])))      : '',
+        'state'     => isset($_POST['claim_state'])     ? trim(sanitize_text_field(wp_unslash($_POST['claim_state'])))     : '',
+        'postcode'  => isset($_POST['claim_postcode'])  ? trim(sanitize_text_field(wp_unslash($_POST['claim_postcode'])))  : '',
+    ];
+    if ($d['phone'] === '' || $d['address_1'] === '' || $d['city'] === '' || $d['postcode'] === '' || $d['state'] === '') {
+        return gwarr_notice('error', 'Please fill in your delivery address and phone number so we can ship your replacement.');
+    }
+    if (strlen(preg_replace('/\D/', '', $d['phone'])) < 8) {
+        return gwarr_notice('error', 'That phone number looks too short. Please check it and try again.');
+    }
+    if (!preg_match('/^\d{5}$/', $d['postcode'])) {
+        return gwarr_notice('error', 'Please enter a valid 5-digit Malaysian postcode.');
+    }
+    if (!array_key_exists($d['state'], gwarr_my_states())) {
+        return gwarr_notice('error', 'Please select your state.');
+    }
+
     // Handle uploads (photos[] + optional video). Caps are enforced here; the
     // host's php.ini limits apply on top — if exceeded, $_FILES arrives empty.
     $media = gwarr_handle_claim_uploads();
@@ -83,14 +149,50 @@ function gwarr_handle_claim_submission() {
     }
 
     $claim_id = GWARR_Claims::insert([
-        'warranty_id'       => $warranty_id,
-        'user_id'           => $user_id,
-        'item_label'        => $item_label,
-        'issue_description' => $issue,
-        'media_ids'         => $media,
+        'warranty_id'        => $warranty_id,
+        'user_id'            => $user_id,
+        'item_label'         => $item_label,
+        'issue_description'  => $issue,
+        'media_ids'          => $media,
+        'delivery_name'      => $d['name'],
+        'delivery_phone'     => $d['phone'],
+        'delivery_address_1' => $d['address_1'],
+        'delivery_address_2' => $d['address_2'],
+        'delivery_city'      => $d['city'],
+        'delivery_state'     => $d['state'],
+        'delivery_postcode'  => $d['postcode'],
     ]);
     if (is_wp_error($claim_id)) {
         return gwarr_notice('error', esc_html($claim_id->get_error_message()));
+    }
+
+    // Heal the account: save these details to the WooCommerce billing profile,
+    // filling only EMPTY fields (never overwriting what the customer saved),
+    // so future checkouts, claims and shipping orders have them on file.
+    if (class_exists('WC_Customer')) {
+        try {
+            $c = new WC_Customer((int) $user_id);
+            $changed = false;
+            if (!$c->get_billing_phone() && $d['phone'] !== '')       { $c->set_billing_phone($d['phone']); $changed = true; }
+            if (!$c->get_billing_address_1() && $d['address_1'] !== '') {
+                $c->set_billing_address_1($d['address_1']);
+                $c->set_billing_address_2($d['address_2']);
+                $c->set_billing_city($d['city']);
+                $c->set_billing_state($d['state']);
+                $c->set_billing_postcode($d['postcode']);
+                if (!$c->get_billing_country()) $c->set_billing_country('MY');
+                $changed = true;
+            }
+            if (!$c->get_billing_first_name() && $d['name'] !== '') {
+                $parts = preg_split('/\s+/', $d['name']);
+                $c->set_billing_first_name(array_shift($parts));
+                if ($parts) $c->set_billing_last_name(implode(' ', $parts));
+                $changed = true;
+            }
+            if ($changed) $c->save();
+        } catch (\Throwable $e) {
+            error_log('[galado-warranty] could not save delivery details to profile for user ' . $user_id . ': ' . $e->getMessage());
+        }
     }
 
     // Notify (deferred so the customer isn't kept waiting on email/SMTP).
@@ -280,11 +382,93 @@ function gwarr_render_claim_form($warranty) {
                 <input type="file" name="video" accept="video/*">
             </label>
 
+            <?php
+            // Delivery details for the replacement. If the account already has
+            // a phone + address we show a compact confirmation (no typing);
+            // otherwise we ask, prefilled with whatever we do have. The values
+            // always submit, so every claim carries a shippable address.
+            $profile  = gwarr_claim_delivery_profile(get_current_user_id());
+            $complete = gwarr_claim_delivery_complete($profile);
+            ?>
+            <?php if ($complete): ?>
+                <div class="gwarr-delivery-summary">
+                    <span class="gwarr-label">📦 We'll ship your replacement to</span>
+                    <p class="gwarr-delivery-summary__addr">
+                        <strong><?php echo esc_html($profile['name']); ?></strong><br>
+                        <?php echo esc_html($profile['address_1']); ?><?php echo $profile['address_2'] !== '' ? ', ' . esc_html($profile['address_2']) : ''; ?><br>
+                        <?php echo esc_html($profile['postcode'] . ' ' . $profile['city'] . ', ' . gwarr_state_label($profile['state'])); ?>
+                        &nbsp;·&nbsp; 📱 <?php echo esc_html($profile['phone']); ?>
+                    </p>
+                </div>
+                <details class="gwarr-delivery-edit">
+                    <summary>Use a different address or phone</summary>
+                    <div class="gwarr-delivery-fields">
+                        <?php gwarr_render_delivery_fields($profile); ?>
+                    </div>
+                </details>
+            <?php else: ?>
+                <div class="gwarr-field">
+                    <span class="gwarr-label">📦 Where should we send your replacement?</span>
+                    <span class="gwarr-help">We'll deliver the replacement to this address once your claim is sorted.</span>
+                </div>
+                <div class="gwarr-delivery-fields">
+                    <?php gwarr_render_delivery_fields($profile); ?>
+                </div>
+            <?php endif; ?>
+
             <p class="gwarr-actions">
                 <button type="submit" name="gwarr_claim_submit" value="1" class="button gwarr-btn">Submit claim</button>
             </p>
             <p class="gwarr-fineprint">Clear photos (and a short video if relevant) help us resolve your claim faster.</p>
         </form>
     </details>
+    <?php
+}
+
+/**
+ * The delivery form fields, prefilled from the customer's profile. Shared by
+ * both states of the claim form (open when details are missing, tucked under
+ * "Use a different address" when the profile is already complete).
+ */
+function gwarr_render_delivery_fields($p) {
+    $states = gwarr_my_states();
+    ?>
+    <div class="gwarr-row gwarr-row-2">
+        <label class="gwarr-field">
+            <span class="gwarr-label">Receiver's name</span>
+            <input type="text" name="claim_name" maxlength="120" value="<?php echo esc_attr($p['name']); ?>" required>
+        </label>
+        <label class="gwarr-field">
+            <span class="gwarr-label">Phone number</span>
+            <input type="tel" name="claim_phone" maxlength="20" inputmode="tel" placeholder="e.g. 012-345 6789" value="<?php echo esc_attr($p['phone']); ?>" required>
+        </label>
+    </div>
+    <label class="gwarr-field">
+        <span class="gwarr-label">Address line 1</span>
+        <input type="text" name="claim_address_1" maxlength="191" placeholder="Unit / house no, street" value="<?php echo esc_attr($p['address_1']); ?>" required>
+    </label>
+    <label class="gwarr-field">
+        <span class="gwarr-label">Address line 2 <span class="gwarr-optional">(optional)</span></span>
+        <input type="text" name="claim_address_2" maxlength="191" placeholder="Residence / building name" value="<?php echo esc_attr($p['address_2']); ?>">
+    </label>
+    <div class="gwarr-row gwarr-row-2">
+        <label class="gwarr-field">
+            <span class="gwarr-label">Postcode</span>
+            <input type="text" name="claim_postcode" maxlength="5" inputmode="numeric" pattern="[0-9]{5}" placeholder="e.g. 11900" value="<?php echo esc_attr($p['postcode']); ?>" required>
+        </label>
+        <label class="gwarr-field">
+            <span class="gwarr-label">City</span>
+            <input type="text" name="claim_city" maxlength="100" value="<?php echo esc_attr($p['city']); ?>" required>
+        </label>
+    </div>
+    <label class="gwarr-field">
+        <span class="gwarr-label">State</span>
+        <select name="claim_state" required>
+            <option value="">Select your state</option>
+            <?php foreach ($states as $code => $label): ?>
+                <option value="<?php echo esc_attr($code); ?>" <?php selected($p['state'], $code); ?>><?php echo esc_html($label); ?></option>
+            <?php endforeach; ?>
+        </select>
+    </label>
     <?php
 }
