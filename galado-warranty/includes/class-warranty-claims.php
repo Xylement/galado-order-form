@@ -134,18 +134,11 @@ class GWARR_Claims {
         global $wpdb;
 
         $row = wp_parse_args($args, [
-            'warranty_id'        => 0,
-            'user_id'            => 0,
-            'item_label'         => '',
-            'issue_description'  => '',
-            'media_ids'          => [],
-            'delivery_name'      => '',
-            'delivery_phone'     => '',
-            'delivery_address_1' => '',
-            'delivery_address_2' => '',
-            'delivery_city'      => '',
-            'delivery_state'     => '',
-            'delivery_postcode'  => '',
+            'warranty_id'       => 0,
+            'user_id'           => 0,
+            'item_label'        => '',
+            'issue_description' => '',
+            'media_ids'         => [],
         ]);
 
         if ((int) $row['warranty_id'] <= 0 || (int) $row['user_id'] <= 0) {
@@ -160,21 +153,14 @@ class GWARR_Claims {
         $ok = $wpdb->insert(
             self::table(),
             [
-                'warranty_id'        => (int) $row['warranty_id'],
-                'user_id'            => (int) $row['user_id'],
-                'item_label'         => (string) $row['item_label'] ?: null,
-                'delivery_name'      => (string) $row['delivery_name'] ?: null,
-                'delivery_phone'     => (string) $row['delivery_phone'] ?: null,
-                'delivery_address_1' => (string) $row['delivery_address_1'] ?: null,
-                'delivery_address_2' => (string) $row['delivery_address_2'] ?: null,
-                'delivery_city'      => (string) $row['delivery_city'] ?: null,
-                'delivery_state'     => (string) $row['delivery_state'] ?: null,
-                'delivery_postcode'  => (string) $row['delivery_postcode'] ?: null,
-                'issue_description'  => (string) $row['issue_description'],
-                'media_ids'          => wp_json_encode($media),
-                'status'             => 'submitted',
+                'warranty_id'       => (int) $row['warranty_id'],
+                'user_id'           => (int) $row['user_id'],
+                'item_label'        => (string) $row['item_label'] ?: null,
+                'issue_description' => (string) $row['issue_description'],
+                'media_ids'         => wp_json_encode($media),
+                'status'            => 'submitted',
             ],
-            ['%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+            ['%d', '%d', '%s', '%s', '%s', '%s']
         );
 
         if ($ok === false) {
@@ -352,7 +338,7 @@ class GWARR_Claims {
         if (!$order_id) {
             $why = self::last_order_error();
             return new WP_Error('gwarr_order_failed',
-                'Could not create the WooCommerce shipping order' . ($why ? ': ' . $why : '. Check the error log.'));
+                'Could not create the WooCommerce shipping order' . ($why ? ': ' . $why : ' — check the error log.'));
         }
 
         $wpdb->update(
@@ -416,7 +402,7 @@ class GWARR_Claims {
             }
 
             $fee_item = new WC_Order_Item_Fee();
-            $fee_item->set_name('Replacement shipping: ' . $label);
+            $fee_item->set_name('Replacement shipping — ' . $label);
             $fee_item->set_amount((string) $fee);
             $fee_item->set_total((string) $fee);
             $fee_item->set_tax_status('none');
@@ -446,33 +432,6 @@ class GWARR_Claims {
             // Country is the field gateways check most: default to MY (GALADO is
             // Malaysia-first) when the customer has none saved.
             $order->set_billing_country(($cust && $cust->get_billing_country()) ? $cust->get_billing_country() : 'MY');
-
-            // The claim's delivery snapshot (collected at submission) wins over
-            // the profile: it's what the customer just confirmed for THIS
-            // replacement. Also mirrored to the shipping address so the order
-            // is fulfilment-ready everywhere it's viewed.
-            if (!empty($claim->delivery_phone) || !empty($claim->delivery_address_1)) {
-                $d_name  = trim((string) ($claim->delivery_name ?? ''));
-                $d_first = $d_name !== '' ? preg_split('/\s+/', $d_name)[0] : '';
-                $d_last  = $d_first !== '' ? trim(substr($d_name, strlen($d_first))) : '';
-
-                if ($d_first) { $order->set_billing_first_name($d_first); $order->set_shipping_first_name($d_first); }
-                if ($d_last)  { $order->set_billing_last_name($d_last);   $order->set_shipping_last_name($d_last); }
-                if (!empty($claim->delivery_phone)) $order->set_billing_phone((string) $claim->delivery_phone);
-                if (!empty($claim->delivery_address_1)) {
-                    $order->set_billing_address_1((string) $claim->delivery_address_1);
-                    $order->set_shipping_address_1((string) $claim->delivery_address_1);
-                    $order->set_billing_address_2((string) ($claim->delivery_address_2 ?? ''));
-                    $order->set_shipping_address_2((string) ($claim->delivery_address_2 ?? ''));
-                    $order->set_billing_city((string) ($claim->delivery_city ?? ''));
-                    $order->set_shipping_city((string) ($claim->delivery_city ?? ''));
-                    $order->set_billing_state((string) ($claim->delivery_state ?? ''));
-                    $order->set_shipping_state((string) ($claim->delivery_state ?? ''));
-                    $order->set_billing_postcode((string) ($claim->delivery_postcode ?? ''));
-                    $order->set_shipping_postcode((string) ($claim->delivery_postcode ?? ''));
-                    $order->set_shipping_country('MY');
-                }
-            }
 
             $order->set_created_via('galado-warranty');
             $order->add_order_note('Auto-created for warranty claim #' . (int) $claim->id . ' (replacement shipping fee).');
@@ -567,90 +526,6 @@ class GWARR_Claims {
         return $wpdb->get_results(
             'SELECT * FROM ' . self::table() . " WHERE status = 'approved' AND shipping_order_id IS NOT NULL AND shipping_fee > 0 ORDER BY id DESC"
         );
-    }
-
-    /** The claim a shipping pay-order belongs to, or null. */
-    public static function find_by_shipping_order($order_id) {
-        global $wpdb;
-        return $wpdb->get_row($wpdb->prepare(
-            'SELECT * FROM ' . self::table() . ' WHERE shipping_order_id = %d ORDER BY id DESC LIMIT 1',
-            (int) $order_id
-        ));
-    }
-
-    /**
-     * Inject the warranty-claim context into WooCommerce's OWN order emails
-     * (admin New Order when the fee is paid, plus the customer's receipt):
-     * claim number, item, and the ORIGINAL marketplace order number. The
-     * delivery address and phone already appear natively in these emails
-     * because the claim's delivery snapshot is written onto the order's
-     * billing + shipping. Fired on woocommerce_email_order_meta.
-     */
-    public static function email_order_meta($order, $sent_to_admin = false, $plain_text = false, $email = null) {
-        if (!$order || !is_object($order) || !method_exists($order, 'get_created_via')) {
-            return;
-        }
-        if ('galado-warranty' !== $order->get_created_via()) {
-            return;
-        }
-        $claim = self::find_by_shipping_order((int) $order->get_id());
-        if (!$claim) {
-            return;
-        }
-
-        $warranty = class_exists('GWARR_DB') ? GWARR_DB::find((int) $claim->warranty_id) : null;
-        $origin   = '';
-        if ($warranty) {
-            $is_website = isset($warranty->source) && 'website' === $warranty->source;
-            $order_no   = ($is_website && !empty($warranty->wc_order_id)) ? '#' . $warranty->wc_order_id : $warranty->order_number;
-            $origin     = GWARR_Marketplaces::label($warranty->marketplace) . ' order ' . $order_no;
-        }
-        $item = !empty($claim->item_label) ? (string) $claim->item_label : (string) ($warranty->product_text ?? '');
-        // Phone shown here only if the order itself is missing one (legacy claims).
-        $phone = (empty($order->get_billing_phone()) && !empty($claim->delivery_phone)) ? (string) $claim->delivery_phone : '';
-
-        if ($plain_text) {
-            echo "\n==== GALADO WARRANTY CLAIM ====\n";
-            echo 'Claim: #' . (int) $claim->id . "\n";
-            if ($item !== '')   echo 'Item: ' . wp_strip_all_tags($item) . "\n";
-            if ($origin !== '') echo 'Original order: ' . wp_strip_all_tags($origin) . "\n";
-            if ($phone !== '')  echo 'Phone: ' . $phone . "\n";
-            echo "This order is the replacement-shipping fee. Deliver to the shipping address in this email.\n\n";
-            return;
-        }
-
-        echo '<div style="margin:0 0 24px;padding:14px 18px;background:#f5f5f3;border-radius:8px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#111111;">';
-        echo '<strong style="display:block;margin-bottom:4px;">GALADO warranty claim #' . (int) $claim->id . '</strong>';
-        if ($item !== '') {
-            echo 'Item: <strong>' . esc_html(wp_strip_all_tags($item)) . '</strong><br>';
-        }
-        if ($origin !== '') {
-            echo 'Original order: <strong>' . esc_html($origin) . '</strong><br>';
-        }
-        if ($phone !== '') {
-            echo 'Phone: <strong>' . esc_html($phone) . '</strong><br>';
-        }
-        echo '<span style="color:#4a4a4a;">This order is the replacement-shipping fee. Deliver to the shipping address in this email.</span>';
-        echo '</div>';
-    }
-
-    /**
-     * Route the admin New Order email for warranty shipping-fee orders to the
-     * warranty inbox as well, so the paid notification lands where claims are
-     * handled (in addition to WooCommerce's configured recipient).
-     */
-    public static function new_order_recipient($recipient, $order = null, $email = null) {
-        if (!$order || !is_object($order) || !method_exists($order, 'get_created_via')) {
-            return $recipient;
-        }
-        if ('galado-warranty' !== $order->get_created_via()) {
-            return $recipient;
-        }
-        $extra = class_exists('GWARR_Email') ? GWARR_Email::claim_notify_email() : '';
-        if ($extra && false === stripos((string) $recipient, $extra)) {
-            $recipient = trim((string) $recipient) !== '' ? $recipient . ',' . $extra : $extra;
-        }
-        return $recipient;
     }
 
     public static function reject($id, $admin_note = '') {

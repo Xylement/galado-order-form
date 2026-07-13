@@ -273,7 +273,6 @@ class GWARR_Email {
 
         $rows = self::claim_rows($warranty, $claim);
         $rows['Customer'] = esc_html(($user ? $user->display_name : 'unknown') . ' (' . ($user ? $user->user_email : '-') . ')');
-        $rows = array_merge($rows, self::claim_delivery_rows($claim));
         $rows['Issue']    = nl2br(esc_html((string) $claim->issue_description));
         $rows['Media']    = $media ? esc_html(count($media) . ' file(s) attached') : 'none';
 
@@ -281,29 +280,8 @@ class GWARR_Email {
         return self::send($to, $m['subject'], $m['html']);
     }
 
-    /**
-     * Phone + delivery-address rows from a claim's delivery snapshot (empty
-     * array when the claim predates delivery collection).
-     */
-    private static function claim_delivery_rows($claim) {
-        $rows = [];
-        if (!empty($claim->delivery_phone)) {
-            $rows['Phone'] = esc_html($claim->delivery_phone);
-        }
-        if (!empty($claim->delivery_address_1)) {
-            $state = function_exists('gwarr_state_label') ? gwarr_state_label((string) ($claim->delivery_state ?? '')) : (string) ($claim->delivery_state ?? '');
-            $addr  = esc_html((string) ($claim->delivery_name ?? ''))
-                . '<br>' . esc_html((string) $claim->delivery_address_1)
-                . (!empty($claim->delivery_address_2) ? ', ' . esc_html((string) $claim->delivery_address_2) : '')
-                . '<br>' . esc_html(trim(($claim->delivery_postcode ?? '') . ' ' . ($claim->delivery_city ?? '') . ', ' . $state, ' ,'));
-            $rows['Deliver to'] = $addr;
-        }
-        return $rows;
-    }
-
-
     /** Where claim-submission alerts go (settings, fallback warranty@galado.com.my). */
-    public static function claim_notify_email() {
+    private static function claim_notify_email() {
         $s = get_option('gwarr_settings', []);
         $e = strtolower(trim((string) ($s['claim_notify_email'] ?? '')));
         return ($e !== '' && is_email($e)) ? $e : 'warranty@galado.com.my';
@@ -362,14 +340,10 @@ class GWARR_Email {
             if (self::send($to, '[SAMPLE] ' . $m['subject'], $m['html'])) $sent++;
         }
 
-        $sample_addr = esc_html('Sherlyn Tan') . '<br>' . esc_html('12, Jalan Mahsuri 3, Sunway Tunas') . '<br>' . esc_html('11900 Bayan Lepas, Pulau Pinang');
-
         $rows = $meta;
-        $rows['Customer']   = esc_html('Sherlyn Tan (sherlyn@galado.com.my)');
-        $rows['Phone']      = esc_html('012-345 6789');
-        $rows['Deliver to'] = $sample_addr;
-        $rows['Issue']      = esc_html('The strap clip snapped after about 3 weeks of normal use.');
-        $rows['Media']      = esc_html('2 file(s) attached');
+        $rows['Customer'] = esc_html('Sherlyn Tan (sherlyn@galado.com.my)');
+        $rows['Issue']    = esc_html('The strap clip snapped after about 3 weeks of normal use.');
+        $rows['Media']    = esc_html('2 file(s) attached');
         $am = self::render_admin_claim_email($rows);
         if (self::send($to, '[SAMPLE] ' . $am['subject'], $am['html'])) $sent++;
 

@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.9.0
+ * Version: 1.8.10
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.9.0');
+define('GWARR_VERSION', '1.8.10');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -64,32 +64,6 @@ function gwarr_perk_description() {
 function gwarr_coverage_url() {
     $settings = get_option('gwarr_settings', []);
     return $settings['support_coverage_url'] ?? 'https://galado.com.my/support/#tab_satisfaction-guarantee';
-}
-
-/**
- * Malaysian states as WooCommerce code => label. Prefers WooCommerce's own
- * list (keeps codes in sync with checkout); static fallback if WC is absent.
- * Claims store the CODE; display goes through gwarr_state_label().
- */
-function gwarr_my_states() {
-    if (function_exists('WC') && WC()->countries) {
-        $states = WC()->countries->get_states('MY');
-        if (is_array($states) && !empty($states)) {
-            return $states;
-        }
-    }
-    return [
-        'JHR' => 'Johor', 'KDH' => 'Kedah', 'KTN' => 'Kelantan', 'LBN' => 'Labuan',
-        'MLK' => 'Melaka', 'NSN' => 'Negeri Sembilan', 'PHG' => 'Pahang',
-        'PNG' => 'Pulau Pinang', 'PRK' => 'Perak', 'PLS' => 'Perlis',
-        'PJY' => 'Putrajaya', 'SBH' => 'Sabah', 'SWK' => 'Sarawak',
-        'SGR' => 'Selangor', 'TRG' => 'Terengganu', 'KUL' => 'Kuala Lumpur',
-    ];
-}
-
-function gwarr_state_label($code) {
-    $states = gwarr_my_states();
-    return $states[$code] ?? (string) $code;
 }
 
 /**
@@ -410,15 +384,6 @@ add_action('plugins_loaded', function () {
         // at max priority so a later cart-based filter can't re-remove them.
         add_filter('woocommerce_available_payment_gateways', ['GWARR_Claims', 'pay_page_gateways'], PHP_INT_MAX);
 
-        // Warranty context inside WooCommerce's OWN order emails (no separate
-        // email): claim no + item + ORIGINAL marketplace order number appear in
-        // the admin New Order email (fires when the fee is paid) and the
-        // customer receipt. Address + phone already show natively since the
-        // claim's delivery snapshot is written onto the order. The New Order
-        // email is additionally routed to the warranty inbox for our orders.
-        add_action('woocommerce_email_order_meta', ['GWARR_Claims', 'email_order_meta'], 10, 4);
-        add_filter('woocommerce_email_recipient_new_order', ['GWARR_Claims', 'new_order_recipient'], 10, 3);
-
         // Link guest-checkout warranties to a customer's account by billing
         // email when they log in or register — so an order placed as a guest
         // (user_id = 0) surfaces in My Warranties once they have an account.
@@ -568,7 +533,7 @@ function gwarr_install_table() {
     $table   = $wpdb->prefix . GWARR_TABLE;
     $charset = $wpdb->get_charset_collate();
 
-    // Columns added in v1.9.0 (source/wc_order_id/wc_item_id/claimed_at) are
+    // Columns added in v1.8.10 (source/wc_order_id/wc_item_id/claimed_at) are
     // appended by dbDelta on existing installs — the UNIQUE KEY is left
     // untouched. Website (WooCommerce) rows stay unique per line item by
     // storing order_number as "{orderId}#{itemId}", which the existing
@@ -624,7 +589,7 @@ function gwarr_install_table() {
         KEY idx_synced (synced_at)
     ) {$charset};";
 
-    // Warranty claims (v1.9.0) — one row per customer claim against a warranty.
+    // Warranty claims (v1.8.10) — one row per customer claim against a warranty.
     // media_ids holds a JSON array of WP attachment IDs (photos + 1 video).
     $claims_table = $wpdb->prefix . 'galado_warranty_claims';
     $sql_claims = "CREATE TABLE {$claims_table} (
@@ -632,13 +597,6 @@ function gwarr_install_table() {
         warranty_id BIGINT UNSIGNED NOT NULL,
         user_id BIGINT UNSIGNED NOT NULL,
         item_label VARCHAR(255) NULL,
-        delivery_name VARCHAR(120) NULL,
-        delivery_phone VARCHAR(40) NULL,
-        delivery_address_1 VARCHAR(191) NULL,
-        delivery_address_2 VARCHAR(191) NULL,
-        delivery_city VARCHAR(100) NULL,
-        delivery_state VARCHAR(60) NULL,
-        delivery_postcode VARCHAR(16) NULL,
         issue_description TEXT NOT NULL,
         media_ids TEXT NULL,
         status VARCHAR(16) NOT NULL DEFAULT 'submitted',
