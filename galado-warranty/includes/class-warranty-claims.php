@@ -378,6 +378,51 @@ class GWARR_Claims {
         return self::$last_order_error;
     }
 
+    /**
+     * The house product behind warranty shipping-fee line items. Email
+     * templates (and other plugins) call methods on $item->get_product(),
+     * which is false for a product-less line item and fatals the render —
+     * that is exactly how the paid notification for order 404824 vanished.
+     * Private + hidden keeps it out of the storefront, feeds and search;
+     * virtual keeps it out of shipping. Cached in an option, with an SKU
+     * lookup as self-repair. Returns 0 on failure (line item then behaves
+     * as before, order creation is never blocked).
+     */
+    private static function shipping_product_id() {
+        $pid = (int) get_option('gwarr_shipping_product_id', 0);
+        if ($pid && function_exists('wc_get_product')) {
+            $p = wc_get_product($pid);
+            if ($p && 'trash' !== $p->get_status()) {
+                return $pid;
+            }
+        }
+        if (!class_exists('WC_Product_Simple')) {
+            return 0;
+        }
+        try {
+            $pid = (int) wc_get_product_id_by_sku('gwarr-shipping');
+            if (!$pid) {
+                $product = new WC_Product_Simple();
+                $product->set_name('Warranty Replacement Shipping');
+                $product->set_sku('gwarr-shipping');
+                $product->set_status('private');
+                $product->set_catalog_visibility('hidden');
+                $product->set_virtual(true);
+                $product->set_regular_price('0');
+                $product->set_sold_individually(true);
+                $product->set_reviews_allowed(false);
+                $pid = (int) $product->save();
+            }
+            if ($pid) {
+                update_option('gwarr_shipping_product_id', $pid, false);
+            }
+            return $pid;
+        } catch (Throwable $e) {
+            error_log('[galado-warranty] shipping product create failed: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
     private static function create_shipping_order($claim, $fee) {
         self::$last_order_error = '';
         if (!function_exists('wc_create_order')) {
@@ -426,6 +471,7 @@ class GWARR_Claims {
             // created_via=galado-warranty orders so this never becomes a bogus
             // warranty row.
             $line = new WC_Order_Item_Product();
+            $line->set_product_id(self::shipping_product_id());
             $line->set_name('Replacement shipping: ' . $label);
             $line->set_quantity(1);
             $line->set_subtotal((string) $fee);
@@ -603,6 +649,7 @@ class GWARR_Claims {
                 $label = 'Replacement shipping';
             }
             $line = new WC_Order_Item_Product();
+            $line->set_product_id(self::shipping_product_id());
             $line->set_name($label);
             $line->set_quantity(1);
             $line->set_subtotal((string) $amount);
@@ -718,6 +765,20 @@ class GWARR_Claims {
                 $order->update_meta_data('_gwarr_paid_email_sent', current_time('mysql'));
                 $order->save();
                 return;
+            }
+
+            // Self-heal pre-1.9.4 fee orders: a line item without a product
+            // makes every Woo email template fatal on
+            // $item->get_product()->get_image_id() (proven on this order's
+            // note trail). Point it at the house shipping product first.
+            foreach ($order->get_items('line_item') as $item) {
+                if (!$item->get_product_id()) {
+                    $pid = self::shipping_product_id();
+                    if ($pid) {
+                        $item->set_product_id($pid);
+                        $item->save();
+                    }
+                }
             }
 
             $mailer = function_exists('WC') ? WC()->mailer() : null;
