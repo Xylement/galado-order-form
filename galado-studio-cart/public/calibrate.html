@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GALADO Studio · Mock calibration</title>
+<style>
+  :root { --ink: #111111; --red: #E4002B; --blue: #1e66d0; --canvas: #F5F5F3; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Inter, -apple-system, Arial, sans-serif; background: var(--canvas); color: var(--ink); }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 18px 14px 60px; }
+  h1 { font-family: Archivo, Arial, sans-serif; font-size: 22px; margin: 4px 0 2px; }
+  .sub { color: #6B6B66; font-size: 13.5px; margin: 0 0 14px; line-height: 1.5; }
+  .legend { display: flex; gap: 14px; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .legend span::before { content: ''; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .legend .lp::before { background: var(--blue); }
+  .legend .lc::before { background: var(--red); }
+  .stagebox { position: relative; margin: 0 auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .stagebox img { display: block; width: 100%; height: auto; pointer-events: none; border-radius: 14px; background: #fff; }
+  .rect { position: absolute; border: 2.5px solid; border-radius: 6px; cursor: move; }
+  .rect.print { border-color: var(--blue); background: rgba(30,102,208,0.10); }
+  .rect.camera { border-color: var(--red); background: rgba(228,0,43,0.14); }
+  .rect .tag { position: absolute; top: -22px; left: 0; font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border-radius: 999px; color: #fff; }
+  .rect.print .tag { background: var(--blue); }
+  .rect.camera .tag { background: var(--red); }
+  .hd { position: absolute; width: 22px; height: 22px; margin: -11px; border-radius: 50%; background: #fff; border: 2.5px solid currentColor; }
+  .rect.print .hd { color: var(--blue); }
+  .rect.camera .hd { color: var(--red); }
+  .hd.nw { left: 0; top: 0; cursor: nwse-resize; } .hd.ne { right: -22px; top: 0; cursor: nesw-resize; }
+  .hd.sw { left: 0; top: 100%; cursor: nesw-resize; } .hd.se { right: -22px; top: 100%; cursor: nwse-resize; }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 14px 0 8px; }
+  .bar strong { font-size: 15px; }
+  button { font: 600 14px Inter, Arial, sans-serif; border-radius: 999px; padding: 11px 18px; cursor: pointer; border: 1.5px solid var(--ink); background: #fff; color: var(--ink); }
+  button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  button:disabled { opacity: .35; }
+  .doneNote { font-size: 13px; color: #6B6B66; margin-top: 6px; }
+  textarea { width: 100%; height: 130px; margin-top: 10px; border-radius: 12px; border: 1.5px solid #ECECEA; padding: 10px; font: 12px/1.4 ui-monospace, Menlo, monospace; }
+  .pill { display: inline-block; background: #fff; border: 1.5px solid #ECECEA; border-radius: 999px; padding: 4px 12px; font-size: 12.5px; margin-left: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Mock calibration</h1>
+  <p class="sub">For each photo: drag the <b>blue box</b> to cover exactly the printable case face (edge to edge of the flat area we print on), and the <b>red box</b> to cover the camera glass. Corners resize, middle moves. Then press Export and send me the text.</p>
+  <div class="legend"><span class="lp">Print area</span><span class="lc">Camera</span></div>
+  <div class="bar">
+    <button id="prev">&#8592; Back</button>
+    <strong id="title">…</strong>
+    <button id="next" class="primary">Next &#8594;</button>
+  </div>
+  <div class="stagebox" id="stage"></div>
+  <div class="bar" style="margin-top:16px">
+    <span class="doneNote" id="progress"></span>
+    <button id="export" class="primary">Export all</button>
+  </div>
+  <textarea id="out" placeholder="The export appears here. Copy it and paste it to me." readonly></textarea>
+</div>
+<script>
+(function () {
+  'use strict';
+  var FILES = [];
+  var GEOM = {}; // file -> { print:{x,y,w,h}, camera:{x,y,w,h} } fractions of the image
+  var idx = 0;
+
+  function defaults(file, manifest) {
+    // Prefill from any model that uses this file: contain-fit plate (same
+    // formula as the editor) + its camera zone projected into image space.
+    var entry = null;
+    Object.keys(manifest).forEach(function (k) {
+      if (!entry && manifest[k] && manifest[k].file === file && manifest[k].print) entry = manifest[k];
+    });
+    var print = { x: 0.06, y: 0.03, w: 0.88, h: 0.94 };
+    var camera = { x: 0.1, y: 0.05, w: 0.5, h: 0.22 };
+    if (entry && entry.img) {
+      var aspect = entry.print.w / entry.print.h;
+      var iw = entry.img.w, ih = entry.img.h;
+      var inset = 0.025;
+      var boxW = iw * (1 - 2 * inset), boxH = ih * (1 - 2 * inset);
+      var ph = Math.min(boxH, boxW / aspect), pw = ph * aspect;
+      print = { x: (iw - pw) / 2 / iw, y: (ih - ph) / 2 / ih, w: pw / iw, h: ph / ih };
+      if (entry.camera) {
+        camera = {
+          x: print.x + entry.camera.x0 * print.w,
+          y: print.y + entry.camera.y0 * print.h,
+          w: (entry.camera.x1 - entry.camera.x0) * print.w,
+          h: (entry.camera.y1 - entry.camera.y0) * print.h,
+        };
+      }
+    }
+    return { print: print, camera: camera };
+  }
+
+  var stage = document.getElementById('stage');
+  var img = null;
+
+  function render() {
+    var file = FILES[idx];
+    document.getElementById('title').textContent = file.replace('.webp', '');
+    document.getElementById('prev').disabled = idx === 0;
+    document.getElementById('next').textContent = idx === FILES.length - 1 ? 'Done' : 'Next →';
+    document.getElementById('progress').textContent = 'Photo ' + (idx + 1) + ' of ' + FILES.length;
+    stage.innerHTML = '';
+    img = new Image();
+    img.src = 'mocks/' + file + '?cal=1';
+    stage.appendChild(img);
+    img.onload = function () { ['print', 'camera'].forEach(function (kind) { stage.appendChild(rectEl(file, kind)); }); };
+  }
+
+  function rectEl(file, kind) {
+    var box = document.createElement('div');
+    box.className = 'rect ' + kind;
+    var tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = kind === 'print' ? 'PRINT AREA' : 'CAMERA';
+    box.appendChild(tag);
+    ['nw', 'ne', 'sw', 'se'].forEach(function (corner) {
+      var h = document.createElement('span');
+      h.className = 'hd ' + corner;
+      h.dataset.corner = corner;
+      box.appendChild(h);
+    });
+    position(box, GEOM[file][kind]);
+
+    var drag = null;
+    box.addEventListener('pointerdown', function (e) {
+      var r = GEOM[file][kind];
+      drag = {
+        corner: e.target.dataset ? e.target.dataset.corner : null,
+        startX: e.clientX, startY: e.clientY,
+        rect: { x: r.x, y: r.y, w: r.w, h: r.h },
+      };
+      box.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    box.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      var iw = img.clientWidth, ih = img.clientHeight;
+      var dx = (e.clientX - drag.startX) / iw;
+      var dy = (e.clientY - drag.startY) / ih;
+      var r0 = drag.rect;
+      var r = { x: r0.x, y: r0.y, w: r0.w, h: r0.h };
+      var c = drag.corner;
+      if (!c) { r.x = r0.x + dx; r.y = r0.y + dy; }
+      else {
+        if (c === 'nw') { r.x = r0.x + dx; r.y = r0.y + dy; r.w = r0.w - dx; r.h = r0.h - dy; }
+        if (c === 'ne') { r.y = r0.y + dy; r.w = r0.w + dx; r.h = r0.h - dy; }
+        if (c === 'sw') { r.x = r0.x + dx; r.w = r0.w - dx; r.h = r0.h + dy; }
+        if (c === 'se') { r.w = r0.w + dx; r.h = r0.h + dy; }
+      }
+      r.w = Math.max(0.03, r.w); r.h = Math.max(0.02, r.h);
+      r.x = Math.min(Math.max(r.x, -0.02), 1.02 - r.w);
+      r.y = Math.min(Math.max(r.y, -0.02), 1.02 - r.h);
+      GEOM[file][kind] = r;
+      position(box, r);
+    });
+    var up = function () { drag = null; };
+    box.addEventListener('pointerup', up);
+    box.addEventListener('pointercancel', up);
+    return box;
+  }
+
+  function position(box, r) {
+    box.style.left = (r.x * 100) + '%';
+    box.style.top = (r.y * 100) + '%';
+    box.style.width = (r.w * 100) + '%';
+    box.style.height = (r.h * 100) + '%';
+  }
+
+  document.getElementById('prev').onclick = function () { if (idx > 0) { idx -= 1; render(); } };
+  document.getElementById('next').onclick = function () { if (idx < FILES.length - 1) { idx += 1; render(); } else { doExport(); } };
+  document.getElementById('export').onclick = doExport;
+
+  function doExport() {
+    var round = function (v) { return Math.round(v * 10000) / 10000; };
+    var out = {};
+    FILES.forEach(function (f) {
+      var g = GEOM[f];
+      out[f] = {
+        print: { x: round(g.print.x), y: round(g.print.y), w: round(g.print.w), h: round(g.print.h) },
+        camera: { x: round(g.camera.x), y: round(g.camera.y), w: round(g.camera.w), h: round(g.camera.h) },
+      };
+    });
+    var text = 'GALADO-CALIBRATION-V1 ' + JSON.stringify(out);
+    var ta = document.getElementById('out');
+    ta.value = text;
+    ta.focus(); ta.select();
+    if (navigator.clipboard) navigator.clipboard.writeText(text).catch(function () { /* selected for manual copy */ });
+    document.getElementById('progress').textContent = 'Copied. Paste it to me in chat.';
+  }
+
+  fetch('mocks/mocks.json?cal=' + Date.now())
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var manifest = d.mocks || d;
+      var seen = {};
+      Object.keys(manifest).forEach(function (k) {
+        var f = manifest[k] && manifest[k].file;
+        if (f && !seen[f]) { seen[f] = true; FILES.push(f); }
+      });
+      FILES.forEach(function (f) { GEOM[f] = defaults(f, manifest); });
+      render();
+    });
+})();
+</script>
+</body>
+</html>

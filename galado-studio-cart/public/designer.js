@@ -21,8 +21,6 @@
     modelH: 'Choose your model',
     addPhoto: '+ Photo',
     addText: '+ Text',
-    bgLabel: 'Background',
-    bgClear: 'Clear case',
     photoSheetH: 'Add a photo',
     uploadHint: 'JPG, PNG or HEIC, up to 10MB',
     rights: 'This photo is mine or I have permission to use it, and I am happy for GALADO to print it.',
@@ -66,12 +64,10 @@
     ['orange-gummy', 'Orange Gummy.otf', 'Orange Gummy'],
   ];
   var TEXT_COLOURS = [['ink', '#111111'], ['white', '#FFFFFF'], ['red', '#E4002B']];
-  var BG_COLOURS = ['#FFFFFF', '#111111', '#E4002B', '#F5F5F3', '#A8C3A0', '#A9C7E4', '#F5C6C6', '#F2D98D'];
 
   var S = {
     modelId: '', modelLabel: '',
     token: '', turnstileToken: '',
-    bgFill: null,
     scene: null,
   };
   var C = null; // fabric canvas
@@ -160,7 +156,8 @@
   function ensureSession(holder) {
     var open = function (t) {
       api('/v1/session', { method: 'POST', json: { turnstile_token: t, wp_claim: cfg.wp_claim || '' } })
-        .then(function (b) { if (b.__status === 200) { S.token = b.token; holder.style.display = 'none'; } });
+        .then(function (b) { if (b.__status === 200) { S.token = b.token; holder.style.display = 'none'; } })
+        .catch(function () { /* retried via waitForToken when the customer acts */ });
     };
     if (cfg.sitekey && window.turnstile) {
       window.turnstile.render(holder, {
@@ -210,17 +207,28 @@
       var stageH = maxH;
       var stageW = Math.min(Math.round(stageH * natural), (root.clientWidth - 20) || 370);
       stageH = Math.round(stageW / natural);
-      var inset = 0.025;
-      var boxW = stageW * (1 - 2 * inset);
-      var boxH = stageH * (1 - 2 * inset);
-      var plateH = Math.min(boxH, boxW / printAspect);
-      var plateW = plateH * printAspect;
-      plate = {
-        left: (stageW - plateW) / 2,
-        top: (stageH - plateH) / 2,
-        w: plateW,
-        h: plateH,
-      };
+      if (mock.plate_img) {
+        // Owner-calibrated print area (fractions of the mock image).
+        plate = {
+          left: mock.plate_img.x * stageW,
+          top: mock.plate_img.y * stageH,
+          w: mock.plate_img.w * stageW,
+          h: mock.plate_img.h * stageH,
+        };
+      } else {
+        // Uncalibrated: contain-fit the print aspect over the case face.
+        var inset = 0.025;
+        var boxW = stageW * (1 - 2 * inset);
+        var boxH = stageH * (1 - 2 * inset);
+        var plateH = Math.min(boxH, boxW / printAspect);
+        var plateW = plateH * printAspect;
+        plate = {
+          left: (stageW - plateW) / 2,
+          top: (stageH - plateH) / 2,
+          w: plateW,
+          h: plateH,
+        };
+      }
       stage = el('div', { class: 'gd-stage', style: 'width:' + stageW + 'px;height:' + stageH + 'px' });
       img.className = 'gd-mock';
       img.alt = S.modelLabel;
@@ -251,19 +259,6 @@
       el('button', { class: 'gd-tool gd-tool--danger', type: 'button', text: COPY.remove, onclick: function () { withActive(function (o) { C.remove(o); C.discardActiveObject(); C.requestRenderAll(); } ); } }),
     ]);
 
-    var bgRow = el('div', { class: 'gd-bgrow' });
-    bgRow.appendChild(el('span', { class: 'gstudio-label', style: 'margin:0 8px 0 0', text: COPY.bgLabel }));
-    bgRow.appendChild(el('button', {
-      class: 'gd-swatch gd-swatch--clear' + (S.bgFill === null ? ' sel' : ''), type: 'button', title: COPY.bgClear,
-      onclick: function () { setBg(null, bgRow); },
-    }));
-    BG_COLOURS.forEach(function (hex) {
-      bgRow.appendChild(el('button', {
-        class: 'gd-swatch' + (S.bgFill === hex ? ' sel' : ''), type: 'button', style: 'background:' + hex,
-        onclick: function () { setBg(hex, bgRow); },
-      }));
-    });
-
     var turnstileHolder = el('div', { class: 'gd-turnstile' });
     var toolbar = el('div', { class: 'gd-toolbar' }, [
       el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addPhoto, onclick: photoSheet }),
@@ -272,7 +267,7 @@
 
     mount(
       el('h2', { text: S.modelLabel }),
-      stage, warn, selBar, toolbar, bgRow, turnstileHolder,
+      stage, warn, selBar, toolbar, turnstileHolder,
       el('button', { class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.doneCta, style: 'margin-top:14px', onclick: finishDesign }),
       el('p', { class: 'gstudio-note', text: COPY.retention })
     );
@@ -367,15 +362,6 @@
     });
   }
 
-  function setBg(fill, bgRow) {
-    S.bgFill = fill;
-    C.setBackgroundColor(fill || '', C.renderAll.bind(C));
-    Array.prototype.forEach.call(bgRow.querySelectorAll('.gd-swatch'), function (b) { b.classList.remove('sel'); });
-    var idx = fill === null ? 0 : BG_COLOURS.indexOf(fill) + 1;
-    var swatches = bgRow.querySelectorAll('.gd-swatch');
-    if (swatches[idx]) swatches[idx].classList.add('sel');
-    ga('studio_designer_bg', { fill: fill || 'clear' });
-  }
 
   // ---- sheets ------------------------------------------------------------------
 
@@ -541,19 +527,19 @@
     return {
       version: 1,
       model_id: S.modelId,
-      background: S.bgFill ? { fill: S.bgFill } : null,
+      background: null, // owner call (16 Jul round 4): clear case only
       elements: elements,
     };
   }
 
   function finishDesign() {
     var scene = serializeScene();
-    if (!scene.elements.length && !scene.background) {
+    if (!scene.elements.length) {
       stageMeta.warn.textContent = COPY.emptyNote;
       return;
     }
     S.scene = scene;
-    ga('studio_designer_done', { elements: scene.elements.length, bg: scene.background ? 'fill' : 'clear' });
+    ga('studio_designer_done', { elements: scene.elements.length });
     mount(
       el('div', { class: 'gstudio-ok', text: '✓' }),
       el('h2', { class: 'gstudio-center', text: COPY.doneH }),
