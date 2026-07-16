@@ -46,6 +46,9 @@
     update: 'Update',
     cameraWarn: 'That sits under the camera, so it would be hidden. Drag it clear.',
     edgeWarn: 'Touching the very edge may get trimmed in printing.',
+    cutout: 'Cut out',
+    outline: 'Outline',
+    cuttingOut: 'Cutting out your subject... about 20 seconds.',
     layerUp: 'Forward',
     layerDown: 'Back',
     duplicate: 'Copy',
@@ -271,7 +274,9 @@
     }, [canvasEl]));
 
     var warn = el('p', { class: 'gd-warn', text: '' });
+    var cutBtn = el('button', { class: 'gd-tool', type: 'button', text: COPY.cutout, onclick: doCutout });
     var selBar = el('div', { class: 'gd-selbar', style: 'display:none' }, [
+      cutBtn,
       el('button', { class: 'gd-tool', type: 'button', text: COPY.layerUp, onclick: function () { withActive(function (o) { C.bringForward(o); }); } }),
       el('button', { class: 'gd-tool', type: 'button', text: COPY.layerDown, onclick: function () { withActive(function (o) { C.sendBackwards(o); }); } }),
       el('button', { class: 'gd-tool', type: 'button', text: COPY.duplicate, onclick: duplicateActive }),
@@ -336,8 +341,56 @@
   }
 
   function updateSelUi() {
-    stageMeta.selBar.style.display = C.getActiveObject() ? 'flex' : 'none';
+    var o = C.getActiveObject();
+    stageMeta.selBar.style.display = o ? 'flex' : 'none';
+    var cutBtn = stageMeta.selBar.firstChild;
+    if (cutBtn) {
+      var isPhoto = o && o.gdType === 'image' && String(o.gdRef).indexOf('upload:') === 0;
+      cutBtn.style.display = isPhoto ? '' : 'none';
+      cutBtn.textContent = o && o.gdVariants ? (o.gdRef === 'upload:' + o.gdVariants.sticker ? COPY.cutout : COPY.outline) : COPY.cutout;
+      if (o && o.gdVariants && o.gdRef === 'upload:' + o.gdVariants.cutout) cutBtn.textContent = COPY.outline;
+    }
     checkPlacement();
+  }
+
+  function swapImageSrc(o, uploadId) {
+    var prevW = o.getScaledWidth();
+    fetch(cfg.api + '/v1/uploads/' + uploadId, { headers: { authorization: 'Bearer ' + S.token } })
+      .then(function (r) { return r.blob(); })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        o.setSrc(url, function () {
+          var scale = prevW / (o.width || 1);
+          o.set({ scaleX: scale, scaleY: scale });
+          o.gdRef = 'upload:' + uploadId;
+          o.setCoords();
+          C.requestRenderAll();
+          updateSelUi();
+        });
+      })
+      .catch(function () { stageMeta.warn.textContent = COPY.errB; });
+  }
+
+  function doCutout() {
+    var o = C.getActiveObject();
+    if (!o || o.gdType !== 'image') return;
+    if (o.gdVariants) {
+      // Toggle between the plain cutout and the white-outline sticker.
+      var next = o.gdRef === 'upload:' + o.gdVariants.cutout ? o.gdVariants.sticker : o.gdVariants.cutout;
+      swapImageSrc(o, next);
+      return;
+    }
+    var srcId = String(o.gdRef).slice(7);
+    stageMeta.warn.textContent = COPY.cuttingOut;
+    api('/v1/uploads/' + srcId + '/cutout', { method: 'POST' })
+      .then(function (b) {
+        if (b.__status !== 200) { stageMeta.warn.textContent = b.human_message || COPY.errB; return; }
+        o.gdVariants = { cutout: b.cutout_id, sticker: b.sticker_id };
+        stageMeta.warn.textContent = '';
+        swapImageSrc(o, b.cutout_id);
+        ga('studio_designer_cutout', {});
+      })
+      .catch(function () { stageMeta.warn.textContent = COPY.errB; });
   }
 
   function contentObjects() {
