@@ -63,7 +63,14 @@
     ['bebas', 'Bebas-Regular.otf', 'Bebas'],
     ['orange-gummy', 'Orange Gummy.otf', 'Orange Gummy'],
   ];
-  var TEXT_COLOURS = [['ink', '#111111'], ['white', '#FFFFFF'], ['red', '#E4002B']];
+  var TEXT_COLOURS = [
+    ['ink', '#111111'], ['white', '#FFFFFF'], ['red', '#E4002B'], ['rose', '#E86A8B'],
+    ['orange', '#F28C28'], ['sunshine', '#F2C94C'], ['forest', '#2E7D4F'], ['teal', '#1F8A8A'],
+    ['blue', '#2D6CDF'], ['navy', '#1F3A5F'], ['purple', '#7B5BD6'], ['grey', '#9C9A93'],
+  ];
+  var COLOUR_HEX = {};
+  TEXT_COLOURS.forEach(function (c) { COLOUR_HEX[c[0]] = c[1]; });
+  var LIGHT_COLOURS = { white: 1, sunshine: 1 };
 
   var S = {
     modelId: '', modelLabel: '',
@@ -467,9 +474,9 @@
     function refreshPreview() {
       preview.textContent = input.value.trim() || 'Aiman';
       preview.style.fontFamily = "'gd-" + fontSel.value + "', cursive";
-      var hex = { ink: '#111111', white: '#FFFFFF', red: '#E4002B' }[colourKey];
-      preview.style.color = hex;
-      preview.style.background = colourKey === 'white' ? '#111111' : '#F5F5F3';
+      preview.style.color = COLOUR_HEX[colourKey];
+      preview.style.background = LIGHT_COLOURS[colourKey] ? '#111111' : '#F5F5F3';
+      fontSel.style.fontFamily = "'gd-" + fontSel.value + "', Inter, Arial, sans-serif";
     }
     input.oninput = refreshPreview;
     fontSel.onchange = refreshPreview;
@@ -485,15 +492,14 @@
         onclick: function () {
           var text = input.value.trim();
           if (!text) return;
-          var hexByKey = {}; TEXT_COLOURS.forEach(function (c) { hexByKey[c[0]] = c[1]; });
           if (existing) {
-            existing.set({ text: text, fontFamily: 'gd-' + fontSel.value, fill: hexByKey[colourKey] });
+            existing.set({ text: text, fontFamily: 'gd-' + fontSel.value, fill: COLOUR_HEX[colourKey] });
             existing.gdText = text; existing.gdFont = fontSel.value; existing.gdColour = colourKey;
           } else {
             var t = new fabric.Text(text, {
               left: stageMeta.plateW / 2, top: stageMeta.plateH * 0.8,
               originX: 'center', originY: 'center',
-              fontFamily: 'gd-' + fontSel.value, fill: hexByKey[colourKey],
+              fontFamily: 'gd-' + fontSel.value, fill: COLOUR_HEX[colourKey],
               fontSize: Math.round(stageMeta.plateW / 7),
             });
             t.setControlsVisibility({ ml: false, mr: false, mt: false, mb: false });

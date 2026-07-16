@@ -240,8 +240,8 @@
 .gd-toolbar { display: flex; gap: 10px; margin-top: 12px; }
 .gd-toolbar .gd-add { flex: 1; }
 .gd-bgrow { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-.gd-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(17,17,17,0.18); cursor: pointer; padding: 0; }
-.gd-swatch.sel { border-color: #111111; box-shadow: 0 0 0 2px #fff inset; }
+.gd-swatch { width: 34px; height: 34px; min-width: 34px; min-height: 34px; max-width: 34px; max-height: 34px; flex: 0 0 34px; box-sizing: border-box; border-radius: 50%; border: 2px solid rgba(17,17,17,0.18); cursor: pointer; padding: 0; line-height: 0; appearance: none; -webkit-appearance: none; }
+.gd-swatch.sel { border-color: #111111; box-shadow: 0 0 0 2.5px #fff inset; }
 .gd-swatch--clear { background:
   linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%),
   linear-gradient(45deg, #eee 25%, #fff 25%, #fff 75%, #eee 75%);
@@ -251,9 +251,10 @@
 .gd-sheet { background: #fff; border-radius: 20px; padding: 18px 18px 22px; width: calc(100% - 24px); max-width: 430px; margin: 10vh auto 24px; box-shadow: 0 18px 50px rgba(17,17,17,0.25); }
 .gd-sheethead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .gd-sheet h3 { margin: 0; font-family: Archivo, Arial, sans-serif; }
-.gd-close { border: 0; background: #F5F5F3; border-radius: 50%; width: 34px; height: 34px; font-size: 14px; cursor: pointer; }
+.gd-close { display: flex; align-items: center; justify-content: center; border: 0; background: #F5F5F3; border-radius: 50%; width: 36px; height: 36px; min-height: 0; min-width: 0; padding: 0; font-size: 15px; line-height: 1; cursor: pointer; flex: 0 0 36px; }
 .gd-sheet .gstudio-btn { width: 100%; margin-top: 14px; }
 .gd-sheet .gstudio-input { margin-top: 6px; width: 100%; box-sizing: border-box; }
+.gd-sheet select.gstudio-input { height: auto; min-height: 0; padding: 13px 42px 13px 14px; font-size: 16px; line-height: 1.35; -webkit-appearance: none; appearance: none; background-color: #fff; background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23111111' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
 .gd-file { display: block; width: 100%; margin: 4px 0 10px; }
 .gd-rights { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: #6B6B66; margin: 8px 0; }
 .gd-scenedump { background: #F5F5F3; border-radius: 12px; padding: 12px; font-size: 11px; overflow-x: auto; text-align: left; max-height: 260px; }
