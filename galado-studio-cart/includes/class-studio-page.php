@@ -49,6 +49,7 @@ class GSTUDIO_Page {
         }
 
         return [
+            'ver'        => GSTUDIO_VERSION,
             'api'        => gstudio_api_base(),
             'cart_url'   => esc_url_raw(rest_url('galado-studio/v1/cart')),
             'sitekey'    => (string) $settings['turnstile_sitekey'],

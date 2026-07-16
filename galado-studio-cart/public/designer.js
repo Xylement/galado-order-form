@@ -141,7 +141,7 @@
       grid.appendChild(el('button', {
         class: 'gstudio-model', type: 'button', text: m.label,
         onclick: function () {
-          S.modelId = m.id; S.modelLabel = m.label;
+          S.modelId = m.model_id || m.id; S.modelLabel = m.label;
           ga('studio_designer_model', { model_id: m.id });
           renderEditor();
         },
@@ -180,22 +180,35 @@
     return map[modelId] || null;
   }
 
+  var manifestRefreshed = false;
   function renderEditor() {
     var mock = mockFor(S.modelId);
+
+    // Self-heal a stale inlined manifest (cached page HTML / cached script
+    // saw this live: entries without print geometry, or no entry at all).
+    // Pull the manifest fresh once, then re-render with the real data.
+    if ((!mock || !mock.print) && cfg.mocks_base && !manifestRefreshed) {
+      manifestRefreshed = true;
+      fetch(cfg.mocks_base + 'mocks.json?ver=' + encodeURIComponent(cfg.ver || Date.now()))
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d && d.mocks) { cfg.mocks = d.mocks; renderEditor(); } })
+        .catch(function () { /* keep the neutral stage */ });
+    }
+
     // The editor canvas IS the print rect: contain-fitted over the case
-    // cutout (the cutout is the case face; the camera zone overlay must land
-    // on the photographed camera). Height is capped so the toolbar stays in
-    // reach on a phone.
+    // cutout when a frame photo exists (the camera overlay must land on the
+    // photographed camera), a neutral case card otherwise. Height is capped
+    // so the toolbar stays in reach on a phone.
     var printAspect = (mock && mock.print) ? mock.print.w / mock.print.h : 0.49;
     var maxH = Math.min(Math.round((window.innerHeight || 700) * 0.56), 560);
     var stage, plate;
 
-    if (mock && mock.print) {
+    if (mock && mock.print && mock.file) {
       var img = new Image();
       img.src = cfg.mocks_base + mock.file;
       var natural = (mock.img && mock.img.h) ? mock.img.w / mock.img.h : 0.507;
       var stageH = maxH;
-      var stageW = Math.min(Math.round(stageH * natural), root.clientWidth - 20 || 370);
+      var stageW = Math.min(Math.round(stageH * natural), (root.clientWidth - 20) || 370);
       stageH = Math.round(stageW / natural);
       var inset = 0.025;
       var boxW = stageW * (1 - 2 * inset);
@@ -211,9 +224,11 @@
       stage = el('div', { class: 'gd-stage', style: 'width:' + stageW + 'px;height:' + stageH + 'px' });
       img.className = 'gd-mock';
       img.alt = S.modelLabel;
+      img.onerror = function () { img.style.display = 'none'; stage.classList.add('gd-stage--plain'); };
       stage.appendChild(img);
     } else {
-      // No mock frame: neutral case-aspect plate (same designing rules).
+      // No frame photo: neutral case card, SAME print geometry and rules
+      // (camera overlay + warnings still apply when the model has them).
       var ph = maxH - 24;
       plate = { left: 12, top: 12, w: ph * printAspect, h: ph };
       stage = el('div', {
@@ -270,7 +285,7 @@
       preserveObjectStacking: true,
     });
     stageMeta = { plateW: Math.round(plate.w), plateH: Math.round(plate.h), mock: mock, warn: warn, selBar: selBar };
-    window.__gd = { canvas: C, state: S, serialize: serializeScene }; // QA/support handle
+    window.__gd = { version: cfg.ver || 'dev', canvas: C, state: S, serialize: serializeScene }; // QA/support handle
 
     // Camera keep-out overlay (from the die-line, via mocks.json).
     if (mock && mock.camera) {
