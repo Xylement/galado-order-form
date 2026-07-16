@@ -2,7 +2,7 @@
    Light storefront surface: canvas grey, white cards, Ink text, one red
    commerce CTA per screen, pills only. Mobile-first (primary QA 390x844). */
 
-.gstudio-root {
+.gstudio-root, .gd-sheet {
   --g-ink: #111111;
   --g-red: #E4002B;
   --g-canvas: #F5F5F3;
@@ -247,14 +247,14 @@
   linear-gradient(45deg, #eee 25%, #fff 25%, #fff 75%, #eee 75%);
   background-size: 10px 10px; background-position: 0 0, 5px 5px; }
 .gd-turnstile { margin-top: 12px; }
-.gd-sheetwrap { position: fixed; inset: 0; background: rgba(17,17,17,0.45); z-index: 9999; display: flex; align-items: flex-end; justify-content: center; }
-.gd-sheet { background: #fff; border-radius: 20px 20px 0 0; padding: 20px 18px 26px; width: 100%; max-width: 430px; }
-.gd-sheet h3 { margin: 0 0 12px; font-family: Archivo, Arial, sans-serif; }
-.gd-sheet .gstudio-input { margin-top: 6px; }
+.gd-sheetwrap { position: fixed; inset: 0; background: rgba(17,17,17,0.45); z-index: 9999; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.gd-sheet { background: #fff; border-radius: 20px; padding: 18px 18px 22px; width: calc(100% - 24px); max-width: 430px; margin: 10vh auto 24px; box-shadow: 0 18px 50px rgba(17,17,17,0.25); }
+.gd-sheethead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.gd-sheet h3 { margin: 0; font-family: Archivo, Arial, sans-serif; }
+.gd-close { border: 0; background: #F5F5F3; border-radius: 50%; width: 34px; height: 34px; font-size: 14px; cursor: pointer; }
+.gd-sheet .gstudio-btn { width: 100%; margin-top: 14px; }
+.gd-sheet .gstudio-input { margin-top: 6px; width: 100%; box-sizing: border-box; }
 .gd-file { display: block; width: 100%; margin: 4px 0 10px; }
 .gd-rights { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: #6B6B66; margin: 8px 0; }
 .gd-scenedump { background: #F5F5F3; border-radius: 12px; padding: 12px; font-size: 11px; overflow-x: auto; text-align: left; max-height: 260px; }
-@media (min-width: 700px) {
-  .gd-sheetwrap { align-items: center; }
-  .gd-sheet { border-radius: 20px; }
-}
+

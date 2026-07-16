@@ -28,6 +28,10 @@
     rights: 'This photo is mine or I have permission to use it, and I am happy for GALADO to print it.',
     retention: 'We keep uploads for 30 days, then they are gone for good.',
     checking: 'Checking your photo...',
+    choosePhoto: 'Choose a photo',
+    rightsFirst: 'Tick the box above first, then choose your photo.',
+    gettingReady: 'Getting things ready...',
+    verifyFirst: 'Complete the quick check on the page first, then try again.',
     textSheetH: 'Add your words',
     textPh: 'Up to 24 characters',
     fontLabel: 'Lettering style',
@@ -344,31 +348,56 @@
 
   function sheet(title, bodyNodes) {
     var overlay = el('div', { class: 'gd-sheetwrap', onclick: function (e) { if (e.target === overlay) overlay.remove(); } });
-    var box = el('div', { class: 'gd-sheet' }, [el('h3', { text: title })].concat(bodyNodes));
+    var head = el('div', { class: 'gd-sheethead' }, [
+      el('h3', { text: title }),
+      el('button', { class: 'gd-close', type: 'button', text: '✕', 'aria-label': 'Close', onclick: function () { overlay.remove(); } }),
+    ]);
+    var box = el('div', { class: 'gd-sheet' }, [head].concat(bodyNodes));
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     return overlay;
   }
 
+  function waitForToken(cb, status) {
+    if (S.token) return cb();
+    status.textContent = COPY.gettingReady;
+    var tries = 0;
+    var t = setInterval(function () {
+      tries += 1;
+      if (S.token) { clearInterval(t); cb(); }
+      else if (tries > 24) { clearInterval(t); status.textContent = COPY.verifyFirst; }
+    }, 500);
+  }
+
   function photoSheet() {
-    var file = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/heic,image/heif', class: 'gd-file' });
+    var file = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/heic,image/heif', style: 'display:none' });
     var rights = el('input', { type: 'checkbox', id: 'gd-rights' });
     var status = el('p', { class: 'gstudio-note', text: COPY.uploadHint });
+    var choose = el('button', {
+      class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.choosePhoto,
+      onclick: function () {
+        if (!rights.checked) { status.textContent = COPY.rightsFirst; return; }
+        file.click();
+      },
+    });
     var overlay = sheet(COPY.photoSheetH, [
-      file,
       el('label', { class: 'gd-rights', for: 'gd-rights' }, [rights, el('span', { text: ' ' + COPY.rights })]),
+      choose,
+      file,
       status,
     ]);
     file.onchange = function () {
       if (!file.files || !file.files[0]) return;
-      if (!rights.checked) { status.textContent = COPY.rights; return; }
-      if (!S.token) { status.textContent = COPY.checking; return; }
+      waitForToken(function () { doUpload(file.files[0]); }, status);
+    };
+    function doUpload(picked) {
       status.textContent = COPY.checking;
+      choose.disabled = true;
       var fd = new FormData();
-      fd.append('file', file.files[0]);
+      fd.append('file', picked);
       api('/v1/uploads', { method: 'POST', body: fd })
         .then(function (b) {
-          if (b.__status !== 200) { status.textContent = b.human_message || COPY.errB; return; }
+          if (b.__status !== 200) { status.textContent = b.human_message || COPY.errB; choose.disabled = false; return; }
           return fetch(cfg.api + '/v1/uploads/' + b.upload_id, { headers: { authorization: 'Bearer ' + S.token } })
             .then(function (r) { return r.blob(); })
             .then(function (blob) {
@@ -387,8 +416,8 @@
               overlay.remove();
             });
         })
-        .catch(function () { status.textContent = COPY.errB; });
-    };
+        .catch(function () { status.textContent = COPY.errB; choose.disabled = false; });
+    }
   }
 
   function textSheet(existing) {
