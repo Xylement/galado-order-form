@@ -723,16 +723,29 @@ class GWARR_Claims {
             $mailer = function_exists('WC') ? WC()->mailer() : null;
             $emails = $mailer ? $mailer->get_emails() : [];
             if (empty($emails['WC_Email_New_Order'])) {
-                error_log('[galado-warranty] paid notification: New Order email class unavailable');
+                $order->add_order_note('Warranty paid-notification: New Order email class unavailable.');
                 return;
             }
-            $emails['WC_Email_New_Order']->trigger($order_id, $order);
+            try {
+                $emails['WC_Email_New_Order']->trigger($order_id, $order);
+            } catch (Throwable $e) {
+                // Surface the real failure ON THE ORDER (php error_log is not
+                // reachable on this host) with the exact file:line, so the
+                // culprit template/plugin names itself.
+                $order->add_order_note('Warranty paid-notification FAILED in email render: '
+                    . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
+                return;
+            }
 
             $order->update_meta_data('_gwarr_paid_email_sent', current_time('mysql'));
             $order->save();
             $order->add_order_note('Warranty shipping fee paid: New Order email sent to the store inbox and ' . GWARR_Email::claim_notify_email() . '.');
         } catch (Throwable $e) {
             error_log('[galado-warranty] paid notification for order ' . $order_id . ' failed: ' . $e->getMessage());
+            if (!empty($order)) {
+                $order->add_order_note('Warranty paid-notification FAILED: ' . $e->getMessage()
+                    . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
+            }
         }
     }
 
