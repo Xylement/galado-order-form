@@ -225,3 +225,36 @@
    like every GALADO collection landing (dark nav + copyright stay). */
 .gstudio-root { margin-top: clamp(32px, 6vw, 64px); margin-bottom: clamp(40px, 7vw, 80px); }
 #footer .footer-widgets.footer-1 { display: none !important; }
+
+/* ---- Designer mode (spec Addendum D) ---- */
+.gd-stage { position: relative; margin: 12px auto 0; }
+.gd-stage--plain { background: #F5F5F3; border-radius: 20px; }
+.gd-mock { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.gd-plate { position: absolute; overflow: hidden; border-radius: 6px; }
+.gd-plate canvas { touch-action: none; }
+.gd-warn { min-height: 20px; margin: 8px 2px 0; font-size: 13px; color: #6B6B66; }
+.gd-warn--hard { color: #E4002B; font-weight: 600; }
+.gd-selbar { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.gd-tool { border: 1.5px solid #111111; background: #fff; border-radius: 999px; padding: 7px 14px; font: 600 13px Inter, Arial, sans-serif; cursor: pointer; }
+.gd-tool--danger { border-color: #E4002B; color: #E4002B; }
+.gd-toolbar { display: flex; gap: 10px; margin-top: 12px; }
+.gd-toolbar .gd-add { flex: 1; }
+.gd-bgrow { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.gd-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(17,17,17,0.18); cursor: pointer; padding: 0; }
+.gd-swatch.sel { border-color: #111111; box-shadow: 0 0 0 2px #fff inset; }
+.gd-swatch--clear { background:
+  linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%),
+  linear-gradient(45deg, #eee 25%, #fff 25%, #fff 75%, #eee 75%);
+  background-size: 10px 10px; background-position: 0 0, 5px 5px; }
+.gd-turnstile { margin-top: 12px; }
+.gd-sheetwrap { position: fixed; inset: 0; background: rgba(17,17,17,0.45); z-index: 9999; display: flex; align-items: flex-end; justify-content: center; }
+.gd-sheet { background: #fff; border-radius: 20px 20px 0 0; padding: 20px 18px 26px; width: 100%; max-width: 430px; }
+.gd-sheet h3 { margin: 0 0 12px; font-family: Archivo, Arial, sans-serif; }
+.gd-sheet .gstudio-input { margin-top: 6px; }
+.gd-file { display: block; width: 100%; margin: 4px 0 10px; }
+.gd-rights { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: #6B6B66; margin: 8px 0; }
+.gd-scenedump { background: #F5F5F3; border-radius: 12px; padding: 12px; font-size: 11px; overflow-x: auto; text-align: left; max-height: 260px; }
+@media (min-width: 700px) {
+  .gd-sheetwrap { align-items: center; }
+  .gd-sheet { border-radius: 20px; }
+}

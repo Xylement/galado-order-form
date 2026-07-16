@@ -10,6 +10,7 @@
   var cfg = window.GSTUDIO_CFG || {};
   var root = document.getElementById('galado-studio');
   if (!root) return;
+  if (window.location.search.indexOf('designer=1') !== -1) return; // designer.js owns the page
 
   // ---- copy deck (verbatim) -------------------------------------------------
   var COPY = {
