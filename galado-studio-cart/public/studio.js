@@ -73,6 +73,7 @@
     modNameB: 'That name cannot go on a case. Try a different spelling or a nickname.',
     modRetry: 'Try a different idea',
     modBlockedCard: 'This one did not pass our quality check, so we set it aside. Your other designs are ready.',
+    modAllB: 'None of the three takes passed our checks this time. The usual culprits are brand logos, jersey lettering or a famous face ending up in the artwork. Your design slot was not used. Adjust the idea or photo and go again.',
     errT: 'Something hiccuped on our side',
     errB: 'Your design slot was not used. Give it another go.',
     errRetry: 'Try again',
@@ -416,7 +417,11 @@
       api('/v1/jobs/' + jobId).then(function (body) {
         if (body.__status !== 200) { clearInterval(genTimer); return handleApiError(body, renderStep3); }
         if (body.status === 'done') { clearInterval(genTimer); return onDone(body); }
-        if (body.status === 'error') { clearInterval(genTimer); return renderError(COPY.errB, renderStep3); }
+        if (body.status === 'error') {
+          clearInterval(genTimer);
+          if (body.error_code === 'MODERATION_OUTPUT') { ga('studio_blocked', { stage: 'output_all' }); return renderBlocked(COPY.modAllB); }
+          return renderError(COPY.errB, renderStep3);
+        }
         setTimeout(tick, 1300);
       });
     };
