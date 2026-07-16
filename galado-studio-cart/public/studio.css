@@ -258,3 +258,4 @@
 .gd-rights { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: #6B6B66; margin: 8px 0; }
 .gd-scenedump { background: #F5F5F3; border-radius: 12px; padding: 12px; font-size: 11px; overflow-x: auto; text-align: left; max-height: 260px; }
 
+.gd-fontpreview { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: #F5F5F3; font-size: 30px; line-height: 1.2; text-align: center; min-height: 44px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

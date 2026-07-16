@@ -54,13 +54,13 @@
   };
 
   var FONTS = [
-    ['shorelines-script', 'Shorelines Script.otf', 'Shorelines Script'],
-    ['ladylike', 'Ladylike.otf', 'Ladylike'],
-    ['gotcha', 'Gotcha.ttf', 'Gotcha'],
-    ['kiss-me-or-not', 'Kiss Me Or Not.otf', 'Kiss Me Or Not'],
+    ['shorelines-script', 'Shorelines Script Bold.otf', 'Shorelines Script'],
+    ['ladylike', 'LadylikeBB.otf', 'Ladylike'],
+    ['gotcha', 'gotcha-regular.ttf', 'Gotcha'],
+    ['angelic-bonques', 'Angelic_Bonques_Script.ttf', 'Angelic Bonques'],
+    ['ayla-handwritten', 'AylaHandwritten-Regular.ttf', 'Ayla Handwritten'],
     ['rustling-sound', 'Rustling Sound.ttf', 'Rustling Sound'],
-    ['angelic-bonques', 'Angelic Bonques.ttf', 'Angelic Bonques'],
-    ['ayla-handwritten', 'Ayla Handwritten.ttf', 'Ayla Handwritten'],
+    ['kiss-me-or-not', 'Kiss Me or Not - OTF.otf', 'Kiss Me or Not'],
     ['right-strongline', 'Right Strongline.ttf', 'Right Strongline'],
     ['bebas', 'Bebas-Regular.otf', 'Bebas'],
     ['orange-gummy', 'Orange Gummy.otf', 'Orange Gummy'],
@@ -112,10 +112,24 @@
   }
 
   // Fonts for live text preview (same files the server letters with).
+  var fontReady = {};
+  function refreshFont(key) {
+    fontReady[key] = true;
+    if (!C) return;
+    try { if (fabric.util.clearFabricFontCache) fabric.util.clearFabricFontCache('gd-' + key); } catch (e) { /* cache clear is best-effort */ }
+    C.getObjects().forEach(function (o) {
+      if (o.gdType === 'text' && o.gdFont === key) {
+        o.dirty = true;
+        if (o.initDimensions) o.initDimensions();
+        o.setCoords();
+      }
+    });
+    C.requestRenderAll();
+  }
   if (cfg.fonts_base) {
     FONTS.forEach(function (f) {
       var face = new FontFace('gd-' + f[0], 'url("' + cfg.fonts_base + encodeURIComponent(f[1]) + '")');
-      face.load().then(function (loaded) { document.fonts.add(loaded); }).catch(function () { /* falls back */ });
+      face.load().then(function (loaded) { document.fonts.add(loaded); refreshFont(f[0]); }).catch(function () { /* falls back */ });
     });
   }
 
@@ -160,7 +174,11 @@
 
   // ---- editor ----------------------------------------------------------------
 
-  function mockFor(modelId) { return ((cfg.mocks || {}).mocks || {})[modelId] || null; }
+  function mockFor(modelId) {
+    var map = cfg.mocks || {};
+    if (map.mocks && !map.print) map = map.mocks; // tolerate the full-manifest shape
+    return map[modelId] || null;
+  }
 
   function renderEditor() {
     var mock = mockFor(S.modelId);
@@ -440,11 +458,25 @@
           colourKey = c[0];
           Array.prototype.forEach.call(colourRow.children, function (b) { b.classList.remove('sel'); });
           e.target.classList.add('sel');
+          refreshPreview();
         },
       }));
     });
+    var preview = el('div', { class: 'gd-fontpreview', text: (existing ? existing.gdText : '') || 'Aiman' });
+    function refreshPreview() {
+      preview.textContent = input.value.trim() || 'Aiman';
+      preview.style.fontFamily = "'gd-" + fontSel.value + "', cursive";
+      var hex = { ink: '#111111', white: '#FFFFFF', red: '#E4002B' }[colourKey];
+      preview.style.color = hex;
+      preview.style.background = colourKey === 'white' ? '#111111' : '#F5F5F3';
+    }
+    input.oninput = refreshPreview;
+    fontSel.onchange = refreshPreview;
+    refreshPreview();
+
     var overlay = sheet(COPY.textSheetH, [
       input,
+      preview,
       el('span', { class: 'gstudio-label', text: COPY.fontLabel }), fontSel,
       el('span', { class: 'gstudio-label', text: COPY.colourLabel }), colourRow,
       el('button', {
