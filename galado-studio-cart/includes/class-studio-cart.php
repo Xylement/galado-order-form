@@ -16,6 +16,8 @@ if (!defined('ABSPATH')) exit;
 class GSTUDIO_Cart {
 
     public static function init() {
+        add_filter('woocommerce_is_purchasable', [__CLASS__, 'force_purchasable'], 10, 2);
+        add_filter('woocommerce_variation_is_purchasable', [__CLASS__, 'force_purchasable'], 10, 2);
         add_action('rest_api_init', [__CLASS__, 'routes']);
         add_filter('woocommerce_get_item_data', [__CLASS__, 'cart_item_display'], 10, 2);
         add_action('woocommerce_checkout_create_order_line_item', [__CLASS__, 'order_line_item'], 10, 3);
@@ -31,6 +33,20 @@ class GSTUDIO_Cart {
 
     /** WC frontend singletons are absent on REST requests; boot them (same
      * pattern as the warranty plugin's pay-order fix). */
+    /**
+     * The Studio Case product stays PRIVATE until launch (silent QA), but
+     * WooCommerce refuses to sell private products. The HMAC artwork token
+     * is the real purchase gate, so the plugin vouches for its own product;
+     * privacy still hides it from the shop, search and feeds.
+     */
+    public static function force_purchasable($purchasable, $product) {
+        if ($purchasable) return $purchasable;
+        $pid = (int) gstudio_settings()['product_id'];
+        if (!$pid) return $purchasable;
+        if ((int) $product->get_id() === $pid || (int) $product->get_parent_id() === $pid) return true;
+        return $purchasable;
+    }
+
     private static function boot_wc() {
         if (!function_exists('WC')) return false;
         if (null === WC()->session && class_exists('WC_Session_Handler')) {

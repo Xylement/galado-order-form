@@ -262,9 +262,12 @@
     }
 
     var canvasEl = el('canvas', { class: 'gd-canvas' });
+    // Real cases have rounded corners; the print gets trimmed to them, so
+    // the canvas shows the same rounding (approx. 11 percent of width).
+    var cornerR = Math.round(plate.w * 0.11);
     stage.appendChild(el('div', {
       class: 'gd-plate',
-      style: 'left:' + plate.left + 'px;top:' + plate.top + 'px;width:' + plate.w + 'px;height:' + plate.h + 'px',
+      style: 'left:' + plate.left + 'px;top:' + plate.top + 'px;width:' + plate.w + 'px;height:' + plate.h + 'px;border-radius:' + cornerR + 'px',
     }, [canvasEl]));
 
     var warn = el('p', { class: 'gd-warn', text: '' });
