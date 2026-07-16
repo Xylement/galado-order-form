@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.9.1
+ * Version: 1.9.2
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.9.1');
+define('GWARR_VERSION', '1.9.2');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -364,6 +364,16 @@ add_action('plugins_loaded', function () {
         try {
             gwarr_install_table();
             update_option('gwarr_db_version', GWARR_VERSION);
+            // v1.9.2 one-time sweep: paid shipping orders that never got the
+            // admin notification get it now (idempotent per order).
+            add_action('init', function () {
+                if (class_exists('GWARR_Claims')) {
+                    $n = GWARR_Claims::backfill_paid_notifications();
+                    if ($n) {
+                        error_log('[galado-warranty] backfilled ' . $n . ' paid notification(s)');
+                    }
+                }
+            }, 99);
         } catch (Throwable $e) {
             error_log('[galado-warranty] install_table failed: ' . $e->getMessage());
         }
@@ -418,6 +428,14 @@ add_action('plugins_loaded', function () {
         // email is additionally routed to the warranty inbox for our orders.
         add_action('woocommerce_email_order_meta', ['GWARR_Claims', 'email_order_meta'], 10, 4);
         add_filter('woocommerce_email_recipient_new_order', ['GWARR_Claims', 'new_order_recipient'], 10, 3);
+
+        // GUARANTEED paid notification (v1.9.2): fee-only shipping orders can
+        // jump pending -> completed on payment, and Woo's own New Order email
+        // demonstrably did not fire for that path (order 404824). Trigger it
+        // explicitly at paid time for our orders, idempotent per order, and
+        // note the send on the order for auditability.
+        add_action('woocommerce_order_status_processing', ['GWARR_Claims', 'send_paid_notification'], 30);
+        add_action('woocommerce_order_status_completed', ['GWARR_Claims', 'send_paid_notification'], 30);
 
         // Link guest-checkout warranties to a customer's account by billing
         // email when they log in or register — so an order placed as a guest

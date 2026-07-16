@@ -219,3 +219,9 @@
   .gstudio-btn, .gstudio-btn:hover { transition: none; transform: none; }
   .gstudio-spin { animation-duration: 2.5s; }
 }
+
+/* Page furniture on /studio/ (this stylesheet only loads there):
+   breathe above and below the designer, and hide the white payments band
+   like every GALADO collection landing (dark nav + copyright stay). */
+.gstudio-root { margin-top: clamp(32px, 6vw, 64px); margin-bottom: clamp(40px, 7vw, 80px); }
+#footer .footer-widgets.footer-1 { display: none !important; }

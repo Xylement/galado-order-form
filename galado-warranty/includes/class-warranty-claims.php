@@ -694,6 +694,74 @@ class GWARR_Claims {
     }
 
     /**
+     * Explicitly send the admin New Order email when a warranty shipping
+     * order is PAID. WooCommerce is supposed to do this on the status
+     * transition, but fee-only orders go pending -> completed directly and
+     * that path demonstrably skipped the email (order 404824, 16 Jul). This
+     * is idempotent per order and defers to Woo when Woo already sent it.
+     */
+    public static function send_paid_notification($order_id) {
+        try {
+            $order = function_exists('wc_get_order') ? wc_get_order($order_id) : null;
+            if (!$order || 'galado-warranty' !== $order->get_created_via()) {
+                return;
+            }
+            if ($order->get_meta('_gwarr_paid_email_sent')) {
+                return; // already handled (by us)
+            }
+            if (!$order->is_paid()) {
+                return;
+            }
+
+            if ($order->get_meta('_new_order_email_sent')) {
+                // Woo's own trigger got there first this time; just record it.
+                $order->update_meta_data('_gwarr_paid_email_sent', current_time('mysql'));
+                $order->save();
+                return;
+            }
+
+            $mailer = function_exists('WC') ? WC()->mailer() : null;
+            $emails = $mailer ? $mailer->get_emails() : [];
+            if (empty($emails['WC_Email_New_Order'])) {
+                error_log('[galado-warranty] paid notification: New Order email class unavailable');
+                return;
+            }
+            $emails['WC_Email_New_Order']->trigger($order_id, $order);
+
+            $order->update_meta_data('_gwarr_paid_email_sent', current_time('mysql'));
+            $order->save();
+            $order->add_order_note('Warranty shipping fee paid: New Order email sent to the store inbox and ' . GWARR_Email::claim_notify_email() . '.');
+        } catch (Throwable $e) {
+            error_log('[galado-warranty] paid notification for order ' . $order_id . ' failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * One-time sweep after upgrade: send the paid notification for recently
+     * paid shipping orders that never got one (covers order 404824 and any
+     * other silent misses). Idempotent via the same per-order meta.
+     */
+    public static function backfill_paid_notifications($days = 14, $cap = 30) {
+        $done = 0;
+        foreach ((array) self::with_shipping_orders() as $claim) {
+            if ($done >= $cap || empty($claim->shipping_order_id)) {
+                continue;
+            }
+            $order = wc_get_order((int) $claim->shipping_order_id);
+            if (!$order || !$order->is_paid() || $order->get_meta('_gwarr_paid_email_sent')) {
+                continue;
+            }
+            $paid = $order->get_date_paid();
+            if (!$paid || $paid->getTimestamp() < time() - $days * DAY_IN_SECONDS) {
+                continue;
+            }
+            self::send_paid_notification($order->get_id());
+            $done++;
+        }
+        return $done;
+    }
+
+    /**
      * Route the admin New Order email for warranty shipping-fee orders to the
      * warranty inbox as well, so the paid notification lands where claims are
      * handled (in addition to WooCommerce's configured recipient).
