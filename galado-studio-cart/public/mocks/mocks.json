@@ -1,0 +1,141 @@
+{
+ "generated": "2026-07-16",
+ "source": "Master Mock/PNG (owner exports)",
+ "mocks": {
+  "iphone-17-pro": {
+   "file": "iphone17-pro-silver.webp",
+   "plate_pct": [
+    0.1241,
+    0.3601,
+    0.7413,
+    0.6106
+   ]
+  },
+  "iphone-17-pro-max": {
+   "file": "iphone17-pro-silver.webp",
+   "plate_pct": [
+    0.1241,
+    0.3601,
+    0.7413,
+    0.6106
+   ]
+  },
+  "iphone-17": {
+   "file": "iphone-17.webp",
+   "plate_pct": [
+    0.121,
+    0.3629,
+    0.743,
+    0.6182
+   ]
+  },
+  "iphone-16-pro": {
+   "file": "iphone16-pro.webp",
+   "plate_pct": [
+    0.1174,
+    0.3637,
+    0.7478,
+    0.6121
+   ]
+  },
+  "iphone-16-pro-max": {
+   "file": "iphone16-pro.webp",
+   "plate_pct": [
+    0.1174,
+    0.3637,
+    0.7478,
+    0.6121
+   ]
+  },
+  "iphone-air": {
+   "file": "iphone-air.webp",
+   "plate_pct": [
+    0.1166,
+    0.3592,
+    0.7527,
+    0.6132
+   ]
+  },
+  "samsung-galaxy-s24": {
+   "file": "s25.webp",
+   "plate_pct": [
+    0.101,
+    0.3621,
+    0.7911,
+    0.5998
+   ]
+  },
+  "samsung-galaxy-s24-plus": {
+   "file": "s25.webp",
+   "plate_pct": [
+    0.101,
+    0.3621,
+    0.7911,
+    0.5998
+   ]
+  },
+  "samsung-galaxy-s25": {
+   "file": "s25.webp",
+   "plate_pct": [
+    0.101,
+    0.3621,
+    0.7911,
+    0.5998
+   ]
+  },
+  "samsung-galaxy-s25-plus": {
+   "file": "s25.webp",
+   "plate_pct": [
+    0.101,
+    0.3621,
+    0.7911,
+    0.5998
+   ]
+  },
+  "samsung-galaxy-s26": {
+   "file": "s25.webp",
+   "plate_pct": [
+    0.101,
+    0.3621,
+    0.7911,
+    0.5998
+   ]
+  },
+  "samsung-galaxy-s26-plus": {
+   "file": "s25.webp",
+   "plate_pct": [
+    0.101,
+    0.3621,
+    0.7911,
+    0.5998
+   ]
+  },
+  "samsung-galaxy-s24-ultra": {
+   "file": "s26ultra.webp",
+   "plate_pct": [
+    0.0943,
+    0.3504,
+    0.8067,
+    0.6065
+   ]
+  },
+  "samsung-galaxy-s25-ultra": {
+   "file": "s26ultra.webp",
+   "plate_pct": [
+    0.0943,
+    0.3504,
+    0.8067,
+    0.6065
+   ]
+  },
+  "samsung-galaxy-s26-ultra": {
+   "file": "s26ultra.webp",
+   "plate_pct": [
+    0.0943,
+    0.3504,
+    0.8067,
+    0.6065
+   ]
+  }
+ }
+}
