@@ -21,6 +21,14 @@
     modelH: 'Choose your model',
     addPhoto: '+ Photo',
     addText: '+ Text',
+    addSticker: '+ Sticker',
+    stickerSheetH: 'Add a sticker',
+    stickerEmpty: 'Sticker packs are on their way. Check back soon.',
+    saving: 'Saving your design...',
+    addedH: 'In your cart!',
+    addedB: 'Your design is saved with this order.',
+    checkoutCta: 'Checkout',
+    againCta: 'Design another',
     photoSheetH: 'Add a photo',
     uploadHint: 'JPG, PNG or HEIC, up to 10MB',
     rights: 'This photo is mine or I have permission to use it, and I am happy for GALADO to print it.',
@@ -76,6 +84,7 @@
     modelId: '', modelLabel: '',
     token: '', turnstileToken: '',
     scene: null,
+    stickers: null,
   };
   var C = null; // fabric canvas
   var stageMeta = null; // { plateW, plateH, mock }
@@ -269,13 +278,14 @@
     var turnstileHolder = el('div', { class: 'gd-turnstile' });
     var toolbar = el('div', { class: 'gd-toolbar' }, [
       el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addPhoto, onclick: photoSheet }),
+      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addSticker, onclick: stickerSheet }),
       el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addText, onclick: function () { textSheet(null); } }),
     ]);
 
     mount(
       el('h2', { text: S.modelLabel }),
       stage, warn, selBar, toolbar, turnstileHolder,
-      el('button', { class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.doneCta, style: 'margin-top:14px', onclick: finishDesign }),
+      el('button', { class: 'gstudio-btn gstudio-btn--ink gd-done', type: 'button', text: COPY.doneCta, style: 'margin-top:14px', onclick: finishDesign }),
       el('p', { class: 'gstudio-note', text: COPY.retention })
     );
     ensureSession(turnstileHolder);
@@ -446,6 +456,52 @@
     }
   }
 
+  function stickerSheet() {
+    var body = el('div', {});
+    var overlay = sheet(COPY.stickerSheetH, [body]);
+    var render = function (manifest) {
+      var packs = (manifest && manifest.packs) || {};
+      var packIds = Object.keys(packs);
+      if (!packIds.length) { body.appendChild(el('p', { class: 'gstudio-note', text: COPY.stickerEmpty })); return; }
+      packIds.forEach(function (packId) {
+        var pack = packs[packId];
+        body.appendChild(el('div', { class: 'gd-packlabel', text: pack.label }));
+        var grid = el('div', { class: 'gd-stickergrid' });
+        (pack.stickers || []).forEach(function (st) {
+          var img = el('img', {
+            src: cfg.api + '/v1/stickers/' + packId + '/' + st.id + '.thumb',
+            alt: st.label, loading: 'lazy',
+          });
+          grid.appendChild(el('button', {
+            class: 'gd-sticker', type: 'button',
+            onclick: function () { placeSticker(packId, st.id); overlay.remove(); },
+          }, [img]));
+        });
+        body.appendChild(grid);
+      });
+    };
+    if (S.stickers) { render(S.stickers); return; }
+    fetch(cfg.api + '/v1/stickers')
+      .then(function (r) { return r.json(); })
+      .then(function (m) { S.stickers = m; render(m); })
+      .catch(function () { render(null); });
+  }
+
+  function placeSticker(packId, id) {
+    fabric.Image.fromURL(cfg.api + '/v1/stickers/' + packId + '/' + id, function (img) {
+      if (!img || !img.width) return;
+      var scale = (stageMeta.plateW * 0.34) / img.width;
+      img.set({
+        left: stageMeta.plateW / 2, top: stageMeta.plateH * 0.55,
+        originX: 'center', originY: 'center', scaleX: scale, scaleY: scale,
+      });
+      img.setControlsVisibility({ ml: false, mr: false, mt: false, mb: false });
+      img.gdType = 'image'; img.gdRef = 'sticker:' + packId + '/' + id;
+      C.add(img); C.setActiveObject(img); C.requestRenderAll();
+      ga('studio_designer_sticker', { pack: packId, sticker: id });
+    }, { crossOrigin: 'anonymous' });
+  }
+
   function textSheet(existing) {
     var input = el('input', {
       class: 'gstudio-input', type: 'text', maxlength: '24',
@@ -545,13 +601,53 @@
       return;
     }
     S.scene = scene;
+    var doneBtn = document.querySelector('.gd-done');
+    if (doneBtn) { doneBtn.disabled = true; doneBtn.textContent = COPY.saving; }
+    var restore = function (message) {
+      if (doneBtn) { doneBtn.disabled = false; doneBtn.textContent = COPY.doneCta; }
+      stageMeta.warn.textContent = message || '';
+      stageMeta.warn.className = 'gd-warn gd-warn--hard';
+    };
     ga('studio_designer_done', { elements: scene.elements.length });
+    api('/v1/designs', { method: 'POST', json: { scene: scene } })
+      .then(function (design) {
+        if (design.__status !== 200) { restore(design.human_message || COPY.errB); return null; }
+        return fetch(cfg.cart_url, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            artwork_token: design.artwork_token,
+            artwork_id: design.artwork_id,
+            model_id: S.modelId,
+            style_id: 'designer',
+            name_text: '',
+          }),
+        }).then(function (res) { return res.json().then(function (b) { b.__status = res.status; return b; }); });
+      })
+      .then(function (body) {
+        if (!body) return;
+        if (body.__status !== 200 || !body.ok) { restore(body.message || COPY.errB); return; }
+        ga('studio_cart', { style_id: 'designer', model_id: S.modelId, value: 169, currency: 'MYR' });
+        ga('add_to_cart', {
+          currency: 'MYR', value: 169,
+          items: [{ item_id: 'studio-case', item_name: 'Studio Case', item_variant: S.modelId, item_category: 'Studio Designer', price: 169, quantity: 1 }],
+        });
+        renderAdded(body.checkout || body.cart_url || '#');
+      })
+      .catch(function () { restore(COPY.errB); });
+  }
+
+  function renderAdded(checkoutUrl) {
     mount(
-      el('div', { class: 'gstudio-ok', text: '✓' }),
-      el('h2', { class: 'gstudio-center', text: COPY.doneH }),
-      el('p', { class: 'gstudio-sub gstudio-center', text: COPY.doneB }),
-      el('pre', { class: 'gd-scenedump', text: JSON.stringify(scene, null, 1) }),
-      el('button', { class: 'gstudio-btn gstudio-btn--ghost', type: 'button', text: COPY.backCta, onclick: renderEditor })
+      el('div', { class: 'gstudio-ok', text: '\u2713' }),
+      el('h2', { class: 'gstudio-center', text: COPY.addedH }),
+      el('p', { class: 'gstudio-sub gstudio-center', text: COPY.addedB }),
+      el('a', { class: 'gstudio-btn gstudio-btn--red', href: checkoutUrl, text: COPY.checkoutCta }),
+      el('button', {
+        class: 'gstudio-btn gstudio-btn--ghost', type: 'button', text: COPY.againCta, style: 'margin-top:10px',
+        onclick: function () { S.scene = null; renderModelSelect(); },
+      })
     );
   }
 

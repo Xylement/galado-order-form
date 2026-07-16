@@ -260,3 +260,8 @@
 .gd-scenedump { background: #F5F5F3; border-radius: 12px; padding: 12px; font-size: 11px; overflow-x: auto; text-align: left; max-height: 260px; }
 
 .gd-fontpreview { margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: #F5F5F3; font-size: 30px; line-height: 1.2; text-align: center; min-height: 44px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.gd-packlabel { margin: 12px 0 6px; font: 700 13px Inter, Arial, sans-serif; letter-spacing: .02em; }
+.gd-stickergrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.gd-sticker { border: 1.5px solid #ECECEA; border-radius: 12px; padding: 8px; background: #fff; cursor: pointer; min-height: 0; }
+.gd-sticker img { width: 100%; height: auto; display: block; }
+.gd-sticker:active { border-color: #111111; }
