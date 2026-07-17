@@ -2,13 +2,13 @@
 /**
  * Plugin Name: GALADO Studio Cart
  * Description: Bridge between GALADO Studio (studio-api) and WooCommerce: validated add-to-cart for Studio Case artwork, order meta display, and the order webhook back to Studio. Spec: SPEC-STUDIO.md section 6 item 2.
- * Version: 0.8.3
+ * Version: 0.9.0
  * Author: GALADO
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GSTUDIO_VERSION', '0.8.3');
+define('GSTUDIO_VERSION', '0.9.0');
 define('GSTUDIO_PATH', plugin_dir_path(__FILE__));
 define('GSTUDIO_URL', plugin_dir_url(__FILE__));
 
@@ -46,6 +46,7 @@ require_once GSTUDIO_PATH . 'includes/class-studio-token.php';
 require_once GSTUDIO_PATH . 'includes/class-studio-cart.php';
 require_once GSTUDIO_PATH . 'includes/class-studio-webhook.php';
 require_once GSTUDIO_PATH . 'includes/class-studio-page.php';
+require_once GSTUDIO_PATH . 'includes/class-studio-assets.php';
 
 add_action('plugins_loaded', function () {
     if (!class_exists('WooCommerce')) {
@@ -57,6 +58,7 @@ add_action('plugins_loaded', function () {
     GSTUDIO_Cart::init();
     GSTUDIO_Webhook::init();
     GSTUDIO_Page::init();
+    GSTUDIO_Assets::init();
 });
 
 // HPOS compatibility declaration (same as the other GALADO plugins).
