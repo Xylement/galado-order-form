@@ -22,6 +22,8 @@
     addPhoto: '+ Photo',
     addText: '+ Text',
     addSticker: '+ Sticker',
+    addFrame: '+ Frame',
+    frameSheetH: 'Add a frame',
     stickerSheetH: 'Add a sticker',
     stickerEmpty: 'Sticker packs are on their way. Check back soon.',
     saving: 'Saving your design...',
@@ -59,8 +61,8 @@
     outline: 'Outline',
     cuttingOut: 'Cutting out your subject... about 20 seconds.',
     multiOn: 'Select many',
-    multiOff: 'Done selecting',
-    multiHint: 'Tap layers to add them, then drag to move together.',
+    multiOff: 'Done',
+    multiHint: 'Tap layers to pick them (they glow red). Drag any picked layer to move them together.',
     layerUp: 'Forward',
     layerDown: 'Back',
     duplicate: 'Copy',
@@ -299,25 +301,29 @@
       el('button', { class: 'gd-tool', type: 'button', text: COPY.layerUp, onclick: function () { activeContent().forEach(function (o) { C.bringForward(o); }); C.requestRenderAll(); } }),
       el('button', { class: 'gd-tool', type: 'button', text: COPY.layerDown, onclick: function () { activeContent().forEach(function (o) { C.sendBackwards(o); }); C.requestRenderAll(); } }),
       el('button', { class: 'gd-tool', type: 'button', text: COPY.duplicate, onclick: duplicateActive }),
-      el('button', { class: 'gd-tool gd-tool--danger', type: 'button', text: COPY.remove, onclick: function () { activeContent().forEach(function (o) { C.remove(o); }); C.discardActiveObject(); C.requestRenderAll(); } }),
+      el('button', { class: 'gd-tool gd-tool--danger', type: 'button', text: COPY.remove, onclick: function () { activeContent().forEach(function (o) { C.remove(o); }); if (S.multiMode) { S.multiPicks = []; } C.discardActiveObject(); C.requestRenderAll(); updateSelUi(); } }),
     ]);
 
     var turnstileHolder = el('div', { class: 'gd-turnstile' });
     var multiBtn = el('button', {
       class: 'gd-multitoggle', type: 'button', text: COPY.multiOn,
       onclick: function () {
-        S.multiMode = !S.multiMode;
+        if (S.multiMode) { exitMulti(); updateSelUi(); return; }
+        S.multiMode = true;
         S.multiPicks = [];
-        multiBtn.textContent = S.multiMode ? COPY.multiOff : COPY.multiOn;
-        multiBtn.classList.toggle('on', S.multiMode);
-        stageMeta.warn.textContent = S.multiMode ? COPY.multiHint : '';
+        multiBtn.textContent = COPY.multiOff;
+        multiBtn.classList.add('on');
+        stageMeta.warn.textContent = COPY.multiHint;
         C.discardActiveObject();
+        contentObjects().forEach(function (o) { o.selectable = false; });
         C.requestRenderAll();
+        updateSelUi();
       },
     });
     var toolbar = el('div', { class: 'gd-toolbar' }, [
       el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addPhoto, onclick: photoSheet }),
-      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addSticker, onclick: stickerSheet }),
+      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addSticker, onclick: function () { stickerSheet('sticker'); } }),
+      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addFrame, onclick: function () { stickerSheet('frame'); } }),
       el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addText, onclick: function () { textSheet(null); } }),
     ]);
 
@@ -335,7 +341,7 @@
       selection: true,
       preserveObjectStacking: true,
     });
-    stageMeta = { plateW: Math.round(plate.w), plateH: Math.round(plate.h), mock: mock, warn: warn, selBar: selBar, progress: progress };
+    stageMeta = { plateW: Math.round(plate.w), plateH: Math.round(plate.h), mock: mock, warn: warn, selBar: selBar, progress: progress, multiBtn: multiBtn, exitMulti: exitMulti };
     window.__gd = { version: cfg.ver || 'dev', canvas: C, state: S, serialize: serializeScene }; // QA/support handle
 
     // Camera keep-out overlay (from the die-line, via mocks.json).
@@ -351,31 +357,78 @@
       C.add(camRect);
     }
 
+    var multiDrag = null;
+    function setGlow(o, on) {
+      o.set('shadow', on ? new fabric.Shadow({ color: 'rgba(228,0,43,0.95)', blur: 14, offsetX: 0, offsetY: 0, nonScaling: true }) : null);
+      o.gdPicked = !!on;
+    }
+    function exitMulti() {
+      if (!S.multiMode) return;
+      S.multiMode = false;
+      S.multiPicks = [];
+      contentObjects().forEach(function (o) { setGlow(o, false); o.selectable = true; });
+      if (stageMeta.multiBtn) {
+        stageMeta.multiBtn.textContent = COPY.multiOn;
+        stageMeta.multiBtn.classList.remove('on');
+      }
+      stageMeta.warn.textContent = '';
+      C.requestRenderAll();
+    }
+    function refreshMultiLabel() {
+      if (stageMeta.multiBtn && S.multiMode) {
+        stageMeta.multiBtn.textContent = COPY.multiOff + (S.multiPicks.length ? ' · ' + S.multiPicks.length + ' picked' : '');
+      }
+    }
     C.on('mouse:down', function (opt) {
       if (!S.multiMode) return;
-      // Restore absolute coordinates before hit-testing (group members
-      // hold group-relative positions).
-      C.discardActiveObject();
+      var t = opt.target && !opt.target.gdOverlay ? opt.target : null;
+      if (!t) { multiDrag = { tapOnly: true, emptyTap: true, moved: false }; return; }
+      var wasPicked = S.multiPicks.indexOf(t) >= 0;
+      if (!wasPicked) {
+        S.multiPicks.push(t);
+        setGlow(t, true);
+      }
       var p = C.getPointer(opt.e);
-      var hit = null;
-      var objs = contentObjects();
-      for (var i = objs.length - 1; i >= 0; i -= 1) {
-        if (objs[i].containsPoint(p)) { hit = objs[i]; break; }
+      multiDrag = {
+        target: t, wasPicked: wasPicked, moved: false,
+        startX: p.x, startY: p.y,
+        starts: S.multiPicks.map(function (o) { return { o: o, left: o.left, top: o.top }; }),
+      };
+      refreshMultiLabel();
+      C.requestRenderAll();
+    });
+    C.on('mouse:move', function (opt) {
+      if (!S.multiMode || !multiDrag || multiDrag.emptyTap || !multiDrag.starts) return;
+      var p = C.getPointer(opt.e);
+      var dx = p.x - multiDrag.startX;
+      var dy = p.y - multiDrag.startY;
+      if (Math.abs(dx) + Math.abs(dy) > 4) multiDrag.moved = true;
+      if (!multiDrag.moved) return;
+      multiDrag.starts.forEach(function (st) {
+        st.o.set({ left: st.left + dx, top: st.top + dy });
+        st.o.setCoords();
+      });
+      C.requestRenderAll();
+      checkPlacement();
+    });
+    C.on('mouse:up', function () {
+      if (!S.multiMode || !multiDrag) return;
+      if (multiDrag.emptyTap) {
+        // Tap on empty case clears the picks.
+        S.multiPicks.forEach(function (o) { setGlow(o, false); });
+        S.multiPicks = [];
+      } else if (!multiDrag.moved && multiDrag.wasPicked) {
+        // A still tap on an already-picked layer unpicks it.
+        var at = S.multiPicks.indexOf(multiDrag.target);
+        if (at >= 0) S.multiPicks.splice(at, 1);
+        setGlow(multiDrag.target, false);
       }
-      if (!hit) { S.multiPicks = []; C.requestRenderAll(); updateSelUi(); return; }
-      var at = S.multiPicks.indexOf(hit);
-      if (at >= 0) S.multiPicks.splice(at, 1); else S.multiPicks.push(hit);
-      S.multiPicks = S.multiPicks.filter(function (o) { return C.getObjects().indexOf(o) !== -1; });
-      if (S.multiPicks.length === 1) {
-        C.setActiveObject(S.multiPicks[0]);
-      } else if (S.multiPicks.length > 1) {
-        var sel = new fabric.ActiveSelection(S.multiPicks.slice(), { canvas: C });
-        C.setActiveObject(sel);
-      }
+      multiDrag = null;
+      refreshMultiLabel();
       C.requestRenderAll();
       updateSelUi();
     });
-    C.on('selection:created', updateSelUi);
+    C.on('selection:created', updateSelUi);    C.on('selection:created', updateSelUi);
     C.on('selection:updated', updateSelUi);
     C.on('selection:cleared', updateSelUi);
     C.on('object:modified', checkPlacement);
@@ -396,13 +449,15 @@
   }
 
   function activeContent() {
+    if (S.multiMode) return S.multiPicks.slice();
     return (C.getActiveObjects() || []).filter(function (o) { return !o.gdOverlay; });
   }
 
   function updateSelUi() {
     var o = C.getActiveObject();
     stageMeta.selBar.style.display = o ? 'flex' : 'none';
-    var multi = o && o.type === 'activeSelection';
+    var multi = (o && o.type === 'activeSelection') || (S.multiMode && S.multiPicks.length > 0);
+    if (S.multiMode) { stageMeta.selBar.style.display = S.multiPicks.length ? 'flex' : 'none'; }
     var cropBtn = stageMeta.selBar.children[0];
     var cutBtn = stageMeta.selBar.children[1];
     var eraseBtn = stageMeta.selBar.children[2];
@@ -541,6 +596,7 @@
   }
 
   function photoSheet() {
+    if (stageMeta && stageMeta.exitMulti) stageMeta.exitMulti();
     var file = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/heic,image/heif', style: 'display:none' });
     var rights = el('input', { type: 'checkbox', id: 'gd-rights' });
     var status = el('p', { class: 'gstudio-note', text: COPY.uploadHint });
@@ -591,12 +647,17 @@
     }
   }
 
-  function stickerSheet() {
+  function stickerSheet(category) {
+    if (stageMeta && stageMeta.exitMulti) stageMeta.exitMulti();
+    var isFrame = category === 'frame';
     var body = el('div', {});
-    var overlay = sheet(COPY.stickerSheetH, [body]);
+    var overlay = sheet(isFrame ? COPY.frameSheetH : COPY.stickerSheetH, [body]);
     var render = function (manifest) {
       var packs = (manifest && manifest.packs) || {};
-      var packIds = Object.keys(packs);
+      var packIds = Object.keys(packs).filter(function (packId) {
+        var cat = (packs[packId] && packs[packId].category) || (packId.indexOf('frame') === 0 ? 'frame' : 'sticker');
+        return isFrame ? cat === 'frame' : cat !== 'frame';
+      });
       if (!packIds.length) { body.appendChild(el('p', { class: 'gstudio-note', text: COPY.stickerEmpty })); return; }
       packIds.forEach(function (packId) {
         var pack = packs[packId];
@@ -638,6 +699,7 @@
   }
 
   function textSheet(existing) {
+    if (stageMeta && stageMeta.exitMulti) stageMeta.exitMulti();
     var input = el('input', {
       class: 'gstudio-input', type: 'text', maxlength: '24',
       placeholder: COPY.textPh, value: existing ? existing.gdText : '',
@@ -706,6 +768,7 @@
   }
 
   function cropSheet() {
+    if (stageMeta && stageMeta.exitMulti) stageMeta.exitMulti();
     var o = C.getActiveObject();
     if (!o || o.gdType !== 'image' || !o._element) return;
     var nW = o._element.naturalWidth || o._element.width;
@@ -787,6 +850,7 @@
   }
 
   function eraseSheet() {
+    if (stageMeta && stageMeta.exitMulti) stageMeta.exitMulti();
     var o = C.getActiveObject();
     if (!o || o.gdType !== 'image' || !o._element) return;
     var src = o._element;
@@ -915,6 +979,7 @@
   }
 
   function finishDesign() {
+    if (stageMeta && stageMeta.exitMulti) stageMeta.exitMulti();
     var scene = serializeScene();
     if (!scene.elements.length) {
       stageMeta.warn.textContent = COPY.emptyNote;

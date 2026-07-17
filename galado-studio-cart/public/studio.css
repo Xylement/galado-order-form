@@ -237,8 +237,8 @@
 .gd-selbar { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
 .gd-tool { border: 1.5px solid #111111; background: #fff; border-radius: 999px; padding: 7px 14px; font: 600 13px Inter, Arial, sans-serif; cursor: pointer; }
 .gd-tool--danger { border-color: #E4002B; color: #E4002B; }
-.gd-toolbar { display: flex; gap: 10px; margin-top: 12px; }
-.gd-toolbar .gd-add { flex: 1; }
+.gd-toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.gd-toolbar .gd-add { flex: 1 1 44%; }
 .gd-bgrow { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .gd-swatch { width: 34px; height: 34px; min-width: 34px; min-height: 34px; max-width: 34px; max-height: 34px; flex: 0 0 34px; box-sizing: border-box; border-radius: 50%; border: 2px solid rgba(17,17,17,0.18); cursor: pointer; padding: 0; line-height: 0; appearance: none; -webkit-appearance: none; }
 .gd-swatch.sel { border-color: #111111; box-shadow: 0 0 0 2.5px #fff inset; }

@@ -2,13 +2,13 @@
 /**
  * Plugin Name: GALADO Studio Cart
  * Description: Bridge between GALADO Studio (studio-api) and WooCommerce: validated add-to-cart for Studio Case artwork, order meta display, and the order webhook back to Studio. Spec: SPEC-STUDIO.md section 6 item 2.
- * Version: 0.5.1
+ * Version: 0.6.0
  * Author: GALADO
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GSTUDIO_VERSION', '0.5.1');
+define('GSTUDIO_VERSION', '0.6.0');
 define('GSTUDIO_PATH', plugin_dir_path(__FILE__));
 define('GSTUDIO_URL', plugin_dir_url(__FILE__));
 
