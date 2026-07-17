@@ -219,12 +219,17 @@
         },
       }));
     });
-    mount(
-      el('h1', { text: COPY.heroTitle }),
-      el('p', { class: 'gstudio-sub', text: COPY.heroSub + ' ' + COPY.priceLine + '.' }),
-      el('h2', { text: COPY.modelH }),
-      grid
-    );
+    if (document.querySelector('.gstudio-landing')) {
+      // The launch landing already carries the hero; no double headline.
+      mount(el('h2', { text: COPY.modelH }), grid);
+    } else {
+      mount(
+        el('h1', { text: COPY.heroTitle }),
+        el('p', { class: 'gstudio-sub', text: COPY.heroSub + ' ' + COPY.priceLine + '.' }),
+        el('h2', { text: COPY.modelH }),
+        grid
+      );
+    }
   }
 
   // ---- session (Turnstile) ---------------------------------------------------
