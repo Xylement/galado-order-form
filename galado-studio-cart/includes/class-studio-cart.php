@@ -34,6 +34,23 @@ class GSTUDIO_Cart {
         add_action('woocommerce_email_after_order_table', [__CLASS__, 'admin_email_links'], 10, 4);
         add_filter('woocommerce_product_single_add_to_cart_text', [__CLASS__, 'external_button_text'], 10, 2);
         add_filter('woocommerce_product_add_to_cart_text', [__CLASS__, 'external_button_text'], 10, 2);
+        add_filter('gettext', [__CLASS__, 'buy_product_label'], 10, 3);
+    }
+
+    /** The theme hardcodes __('Buy product') in its external-product
+     * template, bypassing WooCommerce's button-text methods entirely; the
+     * translation layer is the one place it still passes through. */
+    public static function buy_product_label($translation, $text, $domain) {
+        if ('Buy product' !== $text) return $translation;
+        if (!function_exists('is_product') || !is_product()) return $translation;
+        global $product;
+        $p = ($product instanceof WC_Product) ? $product
+           : (function_exists('wc_get_product') ? wc_get_product(get_the_ID()) : null);
+        if ($p && $p->is_type('external') && method_exists($p, 'get_button_text')) {
+            $custom = $p->get_button_text();
+            if ($custom) return $custom;
+        }
+        return $translation;
     }
 
     /** The theme's templates ignore an external product's custom button text
