@@ -10,7 +10,7 @@
   var cfg = window.GSTUDIO_CFG || {};
   var root = document.getElementById('galado-studio');
   if (!root) return;
-  if (window.location.search.indexOf('designer=1') !== -1) return; // designer.js owns the page
+  return; // The designer (designer.js) is the Studio experience now; the v1 AI flow is retired (owner call 18 Jul).
 
   // ---- copy deck (verbatim) -------------------------------------------------
   var COPY = {

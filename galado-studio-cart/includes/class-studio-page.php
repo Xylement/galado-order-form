@@ -29,7 +29,7 @@ class GSTUDIO_Page {
         wp_enqueue_style('gstudio', GSTUDIO_URL . 'public/studio.css', [], GSTUDIO_VERSION);
         wp_enqueue_script('gstudio', GSTUDIO_URL . 'public/studio.js', [], GSTUDIO_VERSION, true);
         wp_localize_script('gstudio', 'GSTUDIO_CFG', self::config());
-        // Designer mode (spec Addendum D), silent behind ?designer=1 until QA'd.
+        // The designer IS the Studio experience (v1 AI flow retired 18 Jul).
         wp_enqueue_script('gstudio-fabric', GSTUDIO_URL . 'public/vendor/fabric.min.js', [], GSTUDIO_VERSION, true);
         wp_enqueue_script('gstudio-designer', GSTUDIO_URL . 'public/designer.js', ['gstudio-fabric', 'gstudio'], GSTUDIO_VERSION, true);
 

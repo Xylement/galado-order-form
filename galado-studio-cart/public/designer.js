@@ -12,7 +12,6 @@
   var cfg = window.GSTUDIO_CFG || {};
   var root = document.getElementById('galado-studio');
   if (!root || !window.fabric) return;
-  if (window.location.search.indexOf('designer=1') === -1) return;
 
   var COPY = {
     heroTitle: 'Design a case that is completely you.',
