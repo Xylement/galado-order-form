@@ -46,6 +46,10 @@
     update: 'Update',
     cameraWarn: 'That sits under the camera, so it would be hidden. Drag it clear.',
     edgeWarn: 'Touching the very edge may get trimmed in printing.',
+    crop: 'Crop',
+    cropSheetH: 'Crop your photo',
+    applyCrop: 'Apply',
+    fullPhoto: 'Full photo',
     cutout: 'Cut out',
     outline: 'Outline',
     cuttingOut: 'Cutting out your subject... about 20 seconds.',
@@ -274,8 +278,10 @@
     }, [canvasEl]));
 
     var warn = el('p', { class: 'gd-warn', text: '' });
+    var cropBtn = el('button', { class: 'gd-tool', type: 'button', text: COPY.crop, onclick: cropSheet });
     var cutBtn = el('button', { class: 'gd-tool', type: 'button', text: COPY.cutout, onclick: doCutout });
     var selBar = el('div', { class: 'gd-selbar', style: 'display:none' }, [
+      cropBtn,
       cutBtn,
       el('button', { class: 'gd-tool', type: 'button', text: COPY.layerUp, onclick: function () { withActive(function (o) { C.bringForward(o); }); } }),
       el('button', { class: 'gd-tool', type: 'button', text: COPY.layerDown, onclick: function () { withActive(function (o) { C.sendBackwards(o); }); } }),
@@ -343,7 +349,12 @@
   function updateSelUi() {
     var o = C.getActiveObject();
     stageMeta.selBar.style.display = o ? 'flex' : 'none';
-    var cutBtn = stageMeta.selBar.firstChild;
+    var cropBtn = stageMeta.selBar.children[0];
+    var cutBtn = stageMeta.selBar.children[1];
+    if (cropBtn) {
+      var croppable = o && o.gdType === 'image' && String(o.gdRef).indexOf('sticker:') !== 0;
+      cropBtn.style.display = croppable ? '' : 'none';
+    }
     if (cutBtn) {
       var isPhoto = o && o.gdType === 'image' && String(o.gdRef).indexOf('upload:') === 0;
       cutBtn.style.display = isPhoto ? '' : 'none';
@@ -360,6 +371,8 @@
       .then(function (blob) {
         var url = URL.createObjectURL(blob);
         o.setSrc(url, function () {
+          o.gdCrop = null;
+          o.set({ cropX: 0, cropY: 0 });
           var scale = prevW / (o.width || 1);
           o.set({ scaleX: scale, scaleY: scale });
           o.gdRef = 'upload:' + uploadId;
@@ -626,6 +639,87 @@
     ]);
   }
 
+  function cropSheet() {
+    var o = C.getActiveObject();
+    if (!o || o.gdType !== 'image' || !o._element) return;
+    var nW = o._element.naturalWidth || o._element.width;
+    var nH = o._element.naturalHeight || o._element.height;
+    var r = o.gdCrop ? { x: o.gdCrop.x, y: o.gdCrop.y, w: o.gdCrop.w, h: o.gdCrop.h } : { x: 0, y: 0, w: 1, h: 1 };
+
+    var img = el('img', { class: 'gd-cropimg', src: o._element.src, alt: '' });
+    var rect = el('div', { class: 'gd-croprect' }, [
+      el('span', { class: 'gd-crophd nw' }), el('span', { class: 'gd-crophd ne' }),
+      el('span', { class: 'gd-crophd sw' }), el('span', { class: 'gd-crophd se' }),
+    ]);
+    var box = el('div', { class: 'gd-cropbox' }, [img, rect]);
+
+    function paint() {
+      rect.style.left = (r.x * 100) + '%';
+      rect.style.top = (r.y * 100) + '%';
+      rect.style.width = (r.w * 100) + '%';
+      rect.style.height = (r.h * 100) + '%';
+    }
+    paint();
+
+    var drag = null;
+    rect.onpointerdown = function (e) {
+      drag = { corner: e.target.className.indexOf('gd-crophd') === 0 ? e.target.className.split(' ')[1] : null,
+        sx: e.clientX, sy: e.clientY, r0: { x: r.x, y: r.y, w: r.w, h: r.h } };
+      try { rect.setPointerCapture(e.pointerId); } catch (err) { /* synthetic or lost pointers */ }
+      e.preventDefault();
+    };
+    rect.onpointermove = function (e) {
+      if (!drag) return;
+      var dx = (e.clientX - drag.sx) / (img.clientWidth || 1);
+      var dy = (e.clientY - drag.sy) / (img.clientHeight || 1);
+      var r0 = drag.r0, c = drag.corner;
+      var n = { x: r0.x, y: r0.y, w: r0.w, h: r0.h };
+      if (!c) { n.x = r0.x + dx; n.y = r0.y + dy; }
+      else {
+        if (c === 'nw') { n.x = r0.x + dx; n.y = r0.y + dy; n.w = r0.w - dx; n.h = r0.h - dy; }
+        if (c === 'ne') { n.y = r0.y + dy; n.w = r0.w + dx; n.h = r0.h - dy; }
+        if (c === 'sw') { n.x = r0.x + dx; n.w = r0.w - dx; n.h = r0.h + dy; }
+        if (c === 'se') { n.w = r0.w + dx; n.h = r0.h + dy; }
+      }
+      n.w = Math.max(0.05, Math.min(1, n.w));
+      n.h = Math.max(0.05, Math.min(1, n.h));
+      n.x = Math.min(Math.max(n.x, 0), 1 - n.w);
+      n.y = Math.min(Math.max(n.y, 0), 1 - n.h);
+      r = n;
+      paint();
+    };
+    rect.onpointerup = function () { drag = null; };
+    rect.onpointercancel = function () { drag = null; };
+
+    function applyTo(target, cropOrNull) {
+      var prevW = target.getScaledWidth();
+      if (cropOrNull) {
+        target.gdCrop = { x: +cropOrNull.x.toFixed(4), y: +cropOrNull.y.toFixed(4), w: +cropOrNull.w.toFixed(4), h: +cropOrNull.h.toFixed(4) };
+        target.set({ cropX: cropOrNull.x * nW, cropY: cropOrNull.y * nH, width: cropOrNull.w * nW, height: cropOrNull.h * nH });
+      } else {
+        target.gdCrop = null;
+        target.set({ cropX: 0, cropY: 0, width: nW, height: nH });
+      }
+      var scale = prevW / (target.width || 1);
+      target.set({ scaleX: scale, scaleY: scale });
+      target.setCoords();
+      C.requestRenderAll();
+      checkPlacement();
+    }
+
+    var overlay = sheet(COPY.cropSheetH, [
+      box,
+      el('button', {
+        class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.applyCrop,
+        onclick: function () { applyTo(o, r); ga('studio_designer_crop', {}); overlay.remove(); },
+      }),
+      el('button', {
+        class: 'gstudio-btn gstudio-btn--ghost', type: 'button', text: COPY.fullPhoto,
+        onclick: function () { applyTo(o, null); overlay.remove(); },
+      }),
+    ]);
+  }
+
   // ---- serialize + done ----------------------------------------------------
 
   function serializeScene() {
@@ -640,7 +734,9 @@
       if (o.gdType === 'text') {
         return { type: 'text', text: o.gdText, font: o.gdFont, colour: o.gdColour, cx: base.cx, cy: base.cy, w: base.w, rot: base.rot };
       }
-      return { type: 'image', ref: o.gdRef, cx: base.cx, cy: base.cy, w: base.w, rot: base.rot };
+      var imgEl = { type: 'image', ref: o.gdRef, cx: base.cx, cy: base.cy, w: base.w, rot: base.rot };
+      if (o.gdCrop) imgEl.crop = o.gdCrop;
+      return imgEl;
     });
     return {
       version: 1,

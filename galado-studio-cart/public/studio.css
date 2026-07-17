@@ -265,3 +265,9 @@
 .gd-sticker { border: 1.5px solid #ECECEA; border-radius: 12px; padding: 8px; background: #fff; cursor: pointer; min-height: 0; }
 .gd-sticker img { width: 100%; height: auto; display: block; }
 .gd-sticker:active { border-color: #111111; }
+.gd-cropbox { position: relative; touch-action: none; user-select: none; -webkit-user-select: none; margin-top: 8px; }
+.gd-cropbox img { display: block; width: 100%; height: auto; border-radius: 10px; pointer-events: none; }
+.gd-croprect { position: absolute; border: 2.5px solid #E4002B; border-radius: 4px; cursor: move; box-shadow: 0 0 0 9999px rgba(17,17,17,0.45); }
+.gd-crophd { position: absolute; width: 22px; height: 22px; margin: -11px; border-radius: 50%; background: #fff; border: 2.5px solid #E4002B; }
+.gd-crophd.nw { left: 0; top: 0; } .gd-crophd.ne { left: 100%; top: 0; }
+.gd-crophd.sw { left: 0; top: 100%; } .gd-crophd.se { left: 100%; top: 100%; }
