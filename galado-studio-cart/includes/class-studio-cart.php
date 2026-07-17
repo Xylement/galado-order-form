@@ -39,6 +39,36 @@ class GSTUDIO_Cart {
             'permission_callback' => '__return_true', // guarded by the HMAC artwork token
             'callback'            => [__CLASS__, 'add_to_cart'],
         ]);
+        register_rest_route('galado-studio/v1', '/resend-emails', [
+            'methods'             => 'POST',
+            'permission_callback' => '__return_true', // guarded by a signed ops token
+            'callback'            => [__CLASS__, 'resend_emails'],
+        ]);
+    }
+
+    /** Ops QA helper: re-fire the admin New Order and customer Processing
+     * emails for one order. Needs a short-lived signed token (t=resend)
+     * minted with the shared studio secret; no WP login involved. */
+    public static function resend_emails(WP_REST_Request $req) {
+        $token    = (string) $req->get_param('token');
+        $order_id = (int) $req->get_param('order_id');
+        $claim = GSTUDIO_Token::verify($token, gstudio_secret());
+        if (!$claim || ($claim['t'] ?? '') !== 'resend' || (int) ($claim['order_id'] ?? 0) !== $order_id) {
+            return new WP_Error('gstudio_bad_token', 'Not allowed.', ['status' => 403]);
+        }
+        $order = function_exists('wc_get_order') ? wc_get_order($order_id) : null;
+        if (!$order) {
+            return new WP_Error('gstudio_no_order', 'Order not found.', ['status' => 404]);
+        }
+        $emails = WC()->mailer()->get_emails();
+        $sent = [];
+        foreach (['WC_Email_New_Order', 'WC_Email_Customer_Processing_Order'] as $cls) {
+            if (isset($emails[$cls])) {
+                $emails[$cls]->trigger($order_id);
+                $sent[] = $cls;
+            }
+        }
+        return ['ok' => true, 'sent' => $sent];
     }
 
     /** WC frontend singletons are absent on REST requests; boot them (same
