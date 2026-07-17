@@ -79,6 +79,10 @@
     duplicate: 'Copy',
     remove: 'Remove',
     doneCta: 'Looks good',
+    confirmH: 'Here is your case',
+    confirmB: 'This is exactly how we will print it. Happy with it?',
+    confirmCta: 'Add to cart',
+    confirmBack: 'Keep editing',
     emptyNote: 'Add a photo or some words to start.',
     doneH: 'Your design is saved',
     doneB: 'Checkout wiring arrives in the next build. This design serialised cleanly:',
@@ -1209,8 +1213,29 @@
     ga('studio_designer_done', { elements: scene.elements.length });
     api('/v1/designs', { method: 'POST', json: { scene: scene } })
       .then(function (design) {
-        if (design.__status !== 200) { restore(design.human_message || COPY.errB); return null; }
-        return fetch(cfg.cart_url, {
+        if (design.__status !== 200) { restore(design.human_message || COPY.errB); return; }
+        // (round 13 #9) show the server-rendered artwork and ask before
+        // anything reaches the cart.
+        restore('');
+        confirmSheet(design);
+      })
+      .catch(function () { restore(COPY.errB); });
+  }
+
+  function confirmSheet(design) {
+    var img = el('img', {
+      class: 'gd-confirmimg',
+      src: cfg.api + design.preview_url,
+      alt: 'Your design, exactly as it prints',
+    });
+    var note = el('p', { class: 'gstudio-note', text: COPY.confirmB });
+    var err = el('p', { class: 'gd-warn gd-warn--hard', text: '' });
+    var addBtn = el('button', {
+      class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.confirmCta,
+      onclick: function () {
+        addBtn.disabled = true;
+        addBtn.textContent = COPY.saving;
+        fetch(cfg.cart_url, {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'content-type': 'application/json' },
@@ -1221,19 +1246,37 @@
             style_id: 'designer',
             name_text: '',
           }),
-        }).then(function (res) { return res.json().then(function (b) { b.__status = res.status; return b; }); });
-      })
-      .then(function (body) {
-        if (!body) return;
-        if (body.__status !== 200 || !body.ok) { restore(body.message || COPY.errB); return; }
-        ga('studio_cart', { style_id: 'designer', model_id: S.modelId, value: 169, currency: 'MYR' });
-        ga('add_to_cart', {
-          currency: 'MYR', value: 169,
-          items: [{ item_id: 'studio-case', item_name: 'Studio Case', item_variant: S.modelId, item_category: 'Studio Designer', price: 169, quantity: 1 }],
-        });
-        renderAdded(body.checkout || body.cart_url || '#');
-      })
-      .catch(function () { restore(COPY.errB); });
+        })
+          .then(function (res) { return res.json().then(function (b) { b.__status = res.status; return b; }); })
+          .then(function (body) {
+            if (body.__status !== 200 || !body.ok) {
+              addBtn.disabled = false;
+              addBtn.textContent = COPY.confirmCta;
+              err.textContent = body.message || COPY.errB;
+              return;
+            }
+            ga('studio_cart', { style_id: 'designer', model_id: S.modelId, value: 169, currency: 'MYR' });
+            ga('add_to_cart', {
+              currency: 'MYR', value: 169,
+              items: [{ item_id: 'studio-case', item_name: 'Studio Case', item_variant: S.modelId, item_category: 'Studio Designer', price: 169, quantity: 1 }],
+            });
+            overlay.remove();
+            renderAdded(body.checkout || body.cart_url || '#');
+          })
+          .catch(function () {
+            addBtn.disabled = false;
+            addBtn.textContent = COPY.confirmCta;
+            err.textContent = COPY.errB;
+          });
+      },
+    });
+    var overlay = sheet(COPY.confirmH, [
+      img,
+      note,
+      addBtn,
+      el('button', { class: 'gstudio-btn gstudio-btn--ghost', type: 'button', text: COPY.confirmBack, onclick: function () { overlay.remove(); } }),
+      err,
+    ]);
   }
 
   function renderAdded(checkoutUrl) {

@@ -287,3 +287,6 @@
 .gd-eraseview .gd-erasecanvas { position: absolute; left: 0; top: 0; max-width: none; }
 .gd-sliderrow { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; margin-top: 10px; }
 .gstudio-range { width: 100%; accent-color: #E4002B; height: 28px; }
+
+.gd-confirmimg { display: block; width: 100%; max-width: 300px; margin: 0 auto 6px; border-radius: 14px;
+  background: repeating-conic-gradient(#E8E6E1 0% 25%, #F5F5F3 0% 50%) 0 0 / 18px 18px; padding: 8px; box-sizing: border-box; }
