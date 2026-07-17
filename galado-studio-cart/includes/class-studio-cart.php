@@ -15,9 +15,15 @@ if (!defined('ABSPATH')) exit;
 
 class GSTUDIO_Cart {
 
+    /** True only while our token-checked REST route is adding to the cart.
+     * The Studio Case must never enter a cart without a verified design, so
+     * native ?add-to-cart= requests for it are rejected outright. */
+    private static $vouching = false;
+
     public static function init() {
         add_filter('woocommerce_is_purchasable', [__CLASS__, 'force_purchasable'], 10, 2);
         add_filter('woocommerce_variation_is_purchasable', [__CLASS__, 'force_purchasable'], 10, 2);
+        add_filter('woocommerce_add_to_cart_validation', [__CLASS__, 'block_native_add'], 10, 4);
         add_action('rest_api_init', [__CLASS__, 'routes']);
         add_filter('woocommerce_get_item_data', [__CLASS__, 'cart_item_display'], 10, 2);
         add_filter('woocommerce_cart_item_thumbnail', [__CLASS__, 'cart_item_thumbnail'], 10, 2);
@@ -46,6 +52,30 @@ class GSTUDIO_Cart {
         if (!$pid) return $purchasable;
         if ((int) $product->get_id() === $pid || (int) $product->get_parent_id() === $pid) return true;
         return $purchasable;
+    }
+
+    /** Reject any add of the Studio product that is not our vouched route:
+     * without an artwork there is nothing to print. */
+    public static function block_native_add($passed, $product_id, $quantity, $variation_id = 0) {
+        if (self::$vouching || !$passed) return $passed;
+        $pid = (int) gstudio_settings()['product_id'];
+        if (!$pid) return $passed;
+        $hit = ((int) $product_id === $pid);
+        if (!$hit && $variation_id) {
+            $v = wc_get_product($variation_id);
+            $hit = $v && (int) $v->get_parent_id() === $pid;
+        }
+        if (!$hit) {
+            $p = wc_get_product($product_id);
+            $hit = $p && (int) $p->get_parent_id() === $pid;
+        }
+        if ($hit) {
+            if (function_exists('wc_add_notice')) {
+                wc_add_notice('Studio cases are created in the Studio designer.', 'error');
+            }
+            return false;
+        }
+        return $passed;
     }
 
     private static function boot_wc() {
@@ -114,6 +144,7 @@ class GSTUDIO_Cart {
         );
         $master_url = gstudio_api_base() . '/v1/artwork-file/' . rawurlencode($artwork_id) . '?s=' . rawurlencode($master_sig);
 
+        self::$vouching = true;
         $cart_key = WC()->cart->add_to_cart($product_id, 1, $variation_id, $attributes, [
             'galado_studio' => [
                 'artwork_id' => $artwork_id,
@@ -126,6 +157,7 @@ class GSTUDIO_Cart {
                 'preview_url' => $master_url . '&w=480',
             ],
         ]);
+        self::$vouching = false;
         if (!$cart_key) {
             return new WP_Error('gstudio_cart_failed', 'Could not add to cart.', ['status' => 500]);
         }
