@@ -59,6 +59,7 @@
     applyCrop: 'Apply',
     fullPhoto: 'Full photo',
     cutout: 'Cut out',
+    undoCutout: 'Undo cut out',
     outline: 'Outline',
     cuttingOut: 'Cutting out your subject... about 20 seconds.',
     multiOn: 'Select many',
@@ -300,10 +301,22 @@
     var cropBtn = el('button', { class: 'gd-tool', type: 'button', text: COPY.crop, onclick: cropSheet });
     var cutBtn = el('button', { class: 'gd-tool', type: 'button', text: COPY.cutout, onclick: doCutout });
     var eraseBtn = el('button', { class: 'gd-tool', type: 'button', text: COPY.erase, onclick: eraseSheet });
+    var undoCutBtn = el('button', {
+      class: 'gd-tool', type: 'button', text: COPY.undoCutout,
+      onclick: function () {
+        withActive(function (o) {
+          if (!o.gdVariants || !o.gdVariants.original) return;
+          var orig = o.gdVariants.original;
+          o.gdVariants = null;
+          swapImageSrc(o, orig);
+        });
+      },
+    });
     var selBar = el('div', { class: 'gd-selbar', style: 'display:none' }, [
       cropBtn,
       cutBtn,
       eraseBtn,
+      undoCutBtn,
       el('button', { class: 'gd-tool', type: 'button', text: COPY.layerUp, onclick: function () { activeContent().forEach(function (o) { C.bringForward(o); }); C.requestRenderAll(); } }),
       el('button', { class: 'gd-tool', type: 'button', text: COPY.layerDown, onclick: function () { activeContent().forEach(function (o) { C.sendBackwards(o); }); C.requestRenderAll(); } }),
       el('button', { class: 'gd-tool', type: 'button', text: COPY.duplicate, onclick: duplicateActive }),
@@ -531,6 +544,16 @@
       cutBtn.textContent = o && o.gdVariants ? (o.gdRef === 'upload:' + o.gdVariants.sticker ? COPY.cutout : COPY.outline) : COPY.cutout;
       if (o && o.gdVariants && o.gdRef === 'upload:' + o.gdVariants.cutout) cutBtn.textContent = COPY.outline;
     }
+    var undoCut = stageMeta.selBar.children[3];
+    if (undoCut) {
+      undoCut.style.display = (!multi && o && o.gdVariants && o.gdVariants.original) ? '' : 'none';
+    }
+    var removeBtn = stageMeta.selBar.children[6];
+    if (removeBtn) {
+      // The X badge on the object handles single removal (round 13 #10); the
+      // bar button stays only for multi-select batches.
+      removeBtn.style.display = multi ? '' : 'none';
+    }
     checkPlacement();
   }
 
@@ -570,7 +593,7 @@
       .then(function (b) {
         stageMeta.progress.style.display = 'none';
         if (b.__status !== 200) { stageMeta.warn.textContent = b.human_message || COPY.errB; return; }
-        o.gdVariants = { cutout: b.cutout_id, sticker: b.sticker_id };
+        o.gdVariants = { original: srcId, cutout: b.cutout_id, sticker: b.sticker_id };
         stageMeta.warn.textContent = '';
         swapImageSrc(o, b.cutout_id);
         ga('studio_designer_cutout', {});
