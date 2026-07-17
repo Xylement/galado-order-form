@@ -279,3 +279,5 @@
   background: repeating-conic-gradient(#ECECEA 0% 25%, #FFFFFF 0% 50%) 0 0 / 18px 18px; cursor: crosshair; }
 .gd-tool.sel { background: #111111; color: #fff; }
 @media (prefers-reduced-motion: reduce) { .gd-progressbar { animation: none; width: 100%; opacity: .35; } }
+.gd-multitoggle { display: block; margin: 10px auto 0; border: 1.5px dashed #9C9A93; background: transparent; color: #6B6B66; border-radius: 999px; padding: 9px 18px; font: 600 13px Inter, Arial, sans-serif; cursor: pointer; }
+.gd-multitoggle.on { border-style: solid; border-color: #111111; color: #111111; background: #fff; }

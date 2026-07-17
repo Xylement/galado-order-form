@@ -58,6 +58,9 @@
     cutout: 'Cut out',
     outline: 'Outline',
     cuttingOut: 'Cutting out your subject... about 20 seconds.',
+    multiOn: 'Select many',
+    multiOff: 'Done selecting',
+    multiHint: 'Tap layers to add them, then drag to move together.',
     layerUp: 'Forward',
     layerDown: 'Back',
     duplicate: 'Copy',
@@ -97,6 +100,8 @@
     token: '', turnstileToken: '',
     scene: null,
     stickers: null,
+    multiMode: false,
+    multiPicks: [],
   };
   var C = null; // fabric canvas
   var stageMeta = null; // { plateW, plateH, mock }
@@ -298,6 +303,18 @@
     ]);
 
     var turnstileHolder = el('div', { class: 'gd-turnstile' });
+    var multiBtn = el('button', {
+      class: 'gd-multitoggle', type: 'button', text: COPY.multiOn,
+      onclick: function () {
+        S.multiMode = !S.multiMode;
+        S.multiPicks = [];
+        multiBtn.textContent = S.multiMode ? COPY.multiOff : COPY.multiOn;
+        multiBtn.classList.toggle('on', S.multiMode);
+        stageMeta.warn.textContent = S.multiMode ? COPY.multiHint : '';
+        C.discardActiveObject();
+        C.requestRenderAll();
+      },
+    });
     var toolbar = el('div', { class: 'gd-toolbar' }, [
       el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addPhoto, onclick: photoSheet }),
       el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addSticker, onclick: stickerSheet }),
@@ -306,7 +323,7 @@
 
     mount(
       el('h2', { text: S.modelLabel }),
-      stage, warn, progress, selBar, toolbar, turnstileHolder,
+      stage, warn, progress, selBar, toolbar, multiBtn, turnstileHolder,
       el('button', { class: 'gstudio-btn gstudio-btn--ink gd-done', type: 'button', text: COPY.doneCta, style: 'margin-top:14px', onclick: finishDesign }),
       el('p', { class: 'gstudio-note', text: COPY.retention })
     );
@@ -334,6 +351,30 @@
       C.add(camRect);
     }
 
+    C.on('mouse:down', function (opt) {
+      if (!S.multiMode) return;
+      // Restore absolute coordinates before hit-testing (group members
+      // hold group-relative positions).
+      C.discardActiveObject();
+      var p = C.getPointer(opt.e);
+      var hit = null;
+      var objs = contentObjects();
+      for (var i = objs.length - 1; i >= 0; i -= 1) {
+        if (objs[i].containsPoint(p)) { hit = objs[i]; break; }
+      }
+      if (!hit) { S.multiPicks = []; C.requestRenderAll(); updateSelUi(); return; }
+      var at = S.multiPicks.indexOf(hit);
+      if (at >= 0) S.multiPicks.splice(at, 1); else S.multiPicks.push(hit);
+      S.multiPicks = S.multiPicks.filter(function (o) { return C.getObjects().indexOf(o) !== -1; });
+      if (S.multiPicks.length === 1) {
+        C.setActiveObject(S.multiPicks[0]);
+      } else if (S.multiPicks.length > 1) {
+        var sel = new fabric.ActiveSelection(S.multiPicks.slice(), { canvas: C });
+        C.setActiveObject(sel);
+      }
+      C.requestRenderAll();
+      updateSelUi();
+    });
     C.on('selection:created', updateSelUi);
     C.on('selection:updated', updateSelUi);
     C.on('selection:cleared', updateSelUi);
