@@ -35,6 +35,16 @@ class GSTUDIO_Cart {
         add_filter('woocommerce_product_single_add_to_cart_text', [__CLASS__, 'external_button_text'], 10, 2);
         add_filter('woocommerce_product_add_to_cart_text', [__CLASS__, 'external_button_text'], 10, 2);
         add_filter('gettext', [__CLASS__, 'buy_product_label'], 10, 3);
+        add_filter('wc_get_template', [__CLASS__, 'external_template'], 10, 2);
+    }
+
+    /** Serve our external add-to-cart template (see templates/ for why). */
+    public static function external_template($template, $template_name) {
+        if ('single-product/add-to-cart/external.php' === $template_name) {
+            $ours = GSTUDIO_PATH . 'templates/external-add-to-cart.php';
+            if (file_exists($ours)) return $ours;
+        }
+        return $template;
     }
 
     /** The theme hardcodes __('Buy product') in its external-product
