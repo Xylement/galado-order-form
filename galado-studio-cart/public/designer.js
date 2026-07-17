@@ -52,7 +52,11 @@
     crop: 'Crop',
     erase: 'Erase',
     eraseSheetH: 'Erase parts',
-    eraseHint: 'Rub over anything that should not be in the picture. Pinch nothing; one finger erases.',
+    eraseHint: 'Rub over anything that should not be in the picture.',
+    eraseBrush: 'Brush size',
+    eraseZoom: 'Zoom',
+    eraseMove: 'Move',
+    eraseDraw: 'Erase',
     applyErase: 'Apply',
     undo: 'Undo',
     cropSheetH: 'Crop your photo',
@@ -960,7 +964,28 @@
       return [ (e.clientX - r.left) * (cw / r.width), (e.clientY - r.top) * (ch / r.height) ];
     }
     work.style.touchAction = 'none';
+    work.style.transformOrigin = '0 0';
+
+    // (round 13 #4) zoom + pan for precise erasing; brush is a slider.
+    var zoom = 1, panX = 0, panY = 0, mode = 'erase';
+    var view = el('div', { class: 'gd-eraseview' }, [work]);
+    function applyView() {
+      var vw = view.clientWidth || 1, vh = view.clientHeight || 1;
+      var dw = work.clientWidth * zoom, dh = work.clientHeight * zoom;
+      panX = Math.min(0, Math.max(vw - dw, panX));
+      panY = Math.min(0, Math.max(vh - dh, panY));
+      if (dw <= vw) panX = (vw - dw) / 2;
+      if (dh <= vh) panY = (vh - dh) / 2;
+      work.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + zoom + ')';
+    }
+    var panStart = null;
     work.onpointerdown = function (e) {
+      if (mode === 'move') {
+        panStart = { x: e.clientX - panX, y: e.clientY - panY };
+        try { work.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointers */ }
+        e.preventDefault();
+        return;
+      }
       if (undoStack.length >= 5) undoStack.shift();
       undoStack.push(ctx.getImageData(0, 0, cw, ch));
       drawing = true;
@@ -970,26 +995,31 @@
       e.preventDefault();
     };
     work.onpointermove = function (e) {
+      if (mode === 'move' && panStart) {
+        panX = e.clientX - panStart.x;
+        panY = e.clientY - panStart.y;
+        applyView();
+        return;
+      }
       if (!drawing) return;
       var p = toCanvasXY(e);
       eraseAt(p[0], p[1]);
     };
-    work.onpointerup = function () { drawing = false; };
-    work.onpointercancel = function () { drawing = false; };
+    work.onpointerup = function () { drawing = false; panStart = null; };
+    work.onpointercancel = function () { drawing = false; panStart = null; };
 
-    var sizes = [['S', 0.028], ['M', 0.05], ['L', 0.09]];
-    var sizeRow = el('div', { class: 'gd-bgrow' });
-    sizes.forEach(function (sz, i) {
-      sizeRow.appendChild(el('button', {
-        class: 'gd-tool' + (i === 1 ? ' sel' : ''), type: 'button', text: sz[0],
+    var modeRow = el('div', { class: 'gd-bgrow' });
+    [['erase', COPY.eraseDraw], ['move', COPY.eraseMove]].forEach(function (m, i) {
+      modeRow.appendChild(el('button', {
+        class: 'gd-tool' + (i === 0 ? ' sel' : ''), type: 'button', text: m[1],
         onclick: function (e) {
-          brush = Math.round(Math.max(cw, ch) * sz[1]);
-          Array.prototype.forEach.call(sizeRow.children, function (b) { b.classList.remove('sel'); });
+          mode = m[0];
+          Array.prototype.forEach.call(modeRow.children, function (b) { b.classList.remove('sel'); });
           e.target.classList.add('sel');
         },
       }));
     });
-    sizeRow.appendChild(el('button', {
+    modeRow.appendChild(el('button', {
       class: 'gd-tool', type: 'button', text: COPY.undo,
       onclick: function () {
         var snap = undoStack.pop();
@@ -997,10 +1027,30 @@
       },
     }));
 
+    var brushSlider = el('input', { class: 'gstudio-range', type: 'range', min: '12', max: '120', value: '50' });
+    brushSlider.oninput = function () {
+      brush = Math.round(Math.max(cw, ch) * (parseInt(brushSlider.value, 10) / 1000));
+    };
+    var zoomSlider = el('input', { class: 'gstudio-range', type: 'range', min: '100', max: '400', value: '100' });
+    zoomSlider.oninput = function () {
+      var vw = view.clientWidth || 1, vh = view.clientHeight || 1;
+      var oldZoom = zoom;
+      zoom = parseInt(zoomSlider.value, 10) / 100;
+      // keep the viewport centre stable while zooming
+      panX = vw / 2 - (vw / 2 - panX) * (zoom / oldZoom);
+      panY = vh / 2 - (vh / 2 - panY) * (zoom / oldZoom);
+      applyView();
+    };
+    var sliderRow = el('div', { class: 'gd-sliderrow' }, [
+      el('label', { class: 'gstudio-note', text: COPY.eraseBrush }), brushSlider,
+      el('label', { class: 'gstudio-note', text: COPY.eraseZoom }), zoomSlider,
+    ]);
+
     var status = el('p', { class: 'gstudio-note', text: COPY.eraseHint });
     var overlay = sheet(COPY.eraseSheetH, [
-      work,
-      sizeRow,
+      view,
+      modeRow,
+      sliderRow,
       status,
       el('button', {
         class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.applyErase,
@@ -1025,6 +1075,7 @@
         },
       }),
     ]);
+    setTimeout(applyView, 0);
   }
 
   // ---- serialize + done ----------------------------------------------------
