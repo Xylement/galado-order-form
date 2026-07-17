@@ -20,6 +20,7 @@ class GSTUDIO_Cart {
         add_filter('woocommerce_variation_is_purchasable', [__CLASS__, 'force_purchasable'], 10, 2);
         add_action('rest_api_init', [__CLASS__, 'routes']);
         add_filter('woocommerce_get_item_data', [__CLASS__, 'cart_item_display'], 10, 2);
+        add_filter('woocommerce_cart_item_thumbnail', [__CLASS__, 'cart_item_thumbnail'], 10, 2);
         add_action('woocommerce_checkout_create_order_line_item', [__CLASS__, 'order_line_item'], 10, 3);
     }
 
@@ -120,6 +121,9 @@ class GSTUDIO_Cart {
                 'model_id'   => $model_id,
                 'name_text'  => $name_text,
                 'master_url' => $master_url,
+                // Small inline render of the actual design for cart/mini-cart
+                // thumbnails (same signed link, api serves a cached resize).
+                'preview_url' => $master_url . '&w=480',
             ],
         ]);
         if (!$cart_key) {
@@ -131,6 +135,19 @@ class GSTUDIO_Cart {
             'cart_url' => wc_get_cart_url(),
             'checkout' => wc_get_checkout_url(),
         ];
+    }
+
+    /** Cart + mini-cart: the line item image is the customer's own design,
+     * not the generic product photo. Older cart sessions without a stored
+     * preview_url fall back to the master link with the resize hint. */
+    public static function cart_item_thumbnail($thumbnail, $cart_item) {
+        if (empty($cart_item['galado_studio'])) return $thumbnail;
+        $meta = $cart_item['galado_studio'];
+        $url  = !empty($meta['preview_url']) ? $meta['preview_url']
+              : (!empty($meta['master_url']) ? $meta['master_url'] . '&w=480' : '');
+        if (!$url) return $thumbnail;
+        return '<img src="' . esc_url($url) . '" alt="Your Studio design"'
+             . ' style="width:100%;max-width:96px;height:auto;border-radius:10px;background:#F5F5F3;padding:6px;box-sizing:border-box;" />';
     }
 
     /** Cart page: show the design context under the line item. */
