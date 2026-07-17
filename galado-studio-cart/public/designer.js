@@ -52,7 +52,7 @@
     effectColourLabel: 'Outline colour',
     place: 'Place it',
     update: 'Update',
-    cameraWarn: 'That sits under the camera, so it would be hidden. Drag it clear.',
+    cameraWarn: 'Heads up: anything over the camera area is cut away in printing. You can still keep it there.',
     edgeWarn: 'Touching the very edge may get trimmed in printing.',
     crop: 'Crop',
     erase: 'Erase',
@@ -70,8 +70,18 @@
     cutout: 'Cut out',
     undoCutout: 'Undo cut out',
     outline: 'Outline',
+    outlineOff: 'Remove outline',
     cuttingOut: 'Cutting out your subject... about 20 seconds.',
     multiOn: 'Select many',
+    tourBtn: '? How to',
+    tour1H: 'Move and shape anything',
+    tour1B: 'Drag to move. Use the corner dots to resize and the arrow above to rotate. Tap the red X to remove.',
+    tour2H: 'Change what is in front',
+    tour2B: 'Hold a layer for a moment, then slide your finger up or down to bring it in front or push it behind.',
+    tour3H: 'Move a few together',
+    tour3B: 'Tap Select many, tap the layers you want (they glow red), then drag or resize the whole group at once.',
+    tourNext: 'Next',
+    tourDone: 'Got it',
     multiOff: 'Done',
     multiHint: 'Tap layers to pick them (they glow red). Two or more get handles to move and resize together.',
     layerHold: 'Slide up to bring in front, down to send behind. Let go when done.',
@@ -351,6 +361,38 @@
     ]);
 
     var turnstileHolder = el('div', { class: 'gd-turnstile' });
+    function showTour(step) {
+      var steps = [
+        [COPY.tour1H, COPY.tour1B],
+        [COPY.tour2H, COPY.tour2B],
+        [COPY.tour3H, COPY.tour3B],
+      ];
+      var i = step || 0;
+      var wrap = el('div', { class: 'gd-tour' }, [
+        el('div', { class: 'gd-tourcard' }, [
+          el('div', { class: 'gd-tourdots', text: (i + 1) + ' / ' + steps.length }),
+          el('h3', { text: steps[i][0] }),
+          el('p', { text: steps[i][1] }),
+          el('button', {
+            class: 'gstudio-btn gstudio-btn--ink', type: 'button',
+            text: i < steps.length - 1 ? COPY.tourNext : COPY.tourDone,
+            onclick: function () {
+              wrap.remove();
+              if (i < steps.length - 1) showTour(i + 1);
+              else { try { localStorage.setItem('gd_tour_v1', '1'); } catch (e) { /* private mode */ } }
+            },
+          }),
+        ]),
+      ]);
+      document.body.appendChild(wrap);
+    }
+    var tourSeen = false;
+    try { tourSeen = localStorage.getItem('gd_tour_v1') === '1'; } catch (e) { /* private mode */ }
+    if (!tourSeen) setTimeout(function () { showTour(0); }, 600);
+    var tourBtn = el('button', {
+      class: 'gd-multitoggle', type: 'button', text: COPY.tourBtn,
+      onclick: function () { showTour(0); },
+    });
     var multiBtn = el('button', {
       class: 'gd-multitoggle', type: 'button', text: COPY.multiOn,
       onclick: function () {
@@ -375,7 +417,7 @@
 
     mount(
       el('h2', { text: S.modelLabel }),
-      stage, warn, progress, selBar, toolbar, multiBtn, turnstileHolder,
+      stage, warn, progress, selBar, toolbar, el('div', { class: 'gd-pillrow' }, [multiBtn, tourBtn]), turnstileHolder,
       el('button', { class: 'gstudio-btn gstudio-btn--ink gd-done', type: 'button', text: COPY.doneCta, style: 'margin-top:14px', onclick: finishDesign }),
       el('p', { class: 'gstudio-note', text: COPY.printNote }),
       el('p', { class: 'gstudio-note', text: COPY.retention })
@@ -397,7 +439,7 @@
       var camRect = new fabric.Rect({
         left: cam.x0 * plate.w, top: cam.y0 * plate.h,
         width: (cam.x1 - cam.x0) * plate.w, height: (cam.y1 - cam.y0) * plate.h,
-        fill: 'rgba(17,17,17,0.16)', stroke: 'rgba(17,17,17,0.35)', strokeDashArray: [4, 3],
+        fill: 'rgba(17,17,17,0.04)', stroke: 'rgba(17,17,17,0.45)', strokeDashArray: [4, 3],
         selectable: false, evented: false, excludeFromExport: true,
       });
       camRect.gdOverlay = true;
@@ -624,8 +666,13 @@
     if (cutBtn) {
       var isPhoto = !multi && o && o.gdType === 'image' && String(o.gdRef).indexOf('upload:') === 0;
       cutBtn.style.display = isPhoto ? '' : 'none';
-      cutBtn.textContent = o && o.gdVariants ? (o.gdRef === 'upload:' + o.gdVariants.sticker ? COPY.cutout : COPY.outline) : COPY.cutout;
-      if (o && o.gdVariants && o.gdRef === 'upload:' + o.gdVariants.cutout) cutBtn.textContent = COPY.outline;
+      if (!o || !o.gdVariants) {
+        cutBtn.textContent = COPY.cutout;
+      } else if (o.gdRef === 'upload:' + o.gdVariants.sticker) {
+        cutBtn.textContent = COPY.outlineOff; // outlined now; tapping removes it
+      } else {
+        cutBtn.textContent = COPY.outline;
+      }
     }
     var undoCut = stageMeta.selBar.children[3];
     if (undoCut) {
@@ -712,7 +759,7 @@
       });
     }
     stageMeta.warn.textContent = msg;
-    stageMeta.warn.className = 'gd-warn' + (msg === COPY.cameraWarn ? ' gd-warn--hard' : '');
+    stageMeta.warn.className = 'gd-warn';
   }
 
   function duplicateActive() {
