@@ -35,6 +35,7 @@
     uploadHint: 'JPG, PNG or HEIC, up to 10MB',
     rights: 'This photo is mine or I have permission to use it, and I am happy for GALADO to print it.',
     retention: 'We keep uploads for 30 days, then they are gone for good.',
+    printNote: 'Preview is for illustration. The actual print can shift by a few pixels in size and position.',
     checking: 'Checking your photo...',
     choosePhoto: 'Choose a photo',
     rightsFirst: 'Tick the box above first, then choose your photo.',
@@ -336,6 +337,7 @@
       el('h2', { text: S.modelLabel }),
       stage, warn, progress, selBar, toolbar, multiBtn, turnstileHolder,
       el('button', { class: 'gstudio-btn gstudio-btn--ink gd-done', type: 'button', text: COPY.doneCta, style: 'margin-top:14px', onclick: finishDesign }),
+      el('p', { class: 'gstudio-note', text: COPY.printNote }),
       el('p', { class: 'gstudio-note', text: COPY.retention })
     );
     ensureSession(turnstileHolder);
@@ -445,6 +447,55 @@
     fabric.Object.prototype.set({
       transparentCorners: false, cornerStyle: 'circle', cornerColor: '#FFFFFF',
       cornerStrokeColor: '#111111', borderColor: '#111111', cornerSize: 12, padding: 4,
+    });
+    // (round 13 #10) an X badge on the object replaces hunting for the
+    // Remove button; (#11) the rotate handle draws a curved arrow, not a dot.
+    var deleteControl = new fabric.Control({
+      x: 0.5, y: -0.5, offsetX: 14, offsetY: -14, sizeX: 26, sizeY: 26, cursorStyle: 'pointer',
+      mouseUpHandler: function (eventData, transform) {
+        var t = transform.target, cv = t.canvas;
+        if (!cv) return true;
+        (t.type === 'activeSelection' ? t.getObjects() : [t]).forEach(function (o) { cv.remove(o); });
+        cv.discardActiveObject();
+        cv.requestRenderAll();
+        updateSelUi();
+        return true;
+      },
+      render: function (ctx, left, top) {
+        ctx.save();
+        ctx.translate(left, top);
+        ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2);
+        ctx.fillStyle = '#E4002B'; ctx.fill();
+        ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-4, -4); ctx.lineTo(4, 4);
+        ctx.moveTo(4, -4); ctx.lineTo(-4, 4);
+        ctx.stroke();
+        ctx.restore();
+      },
+    });
+    function rotateRender(ctx, left, top) {
+      ctx.save();
+      ctx.translate(left, top);
+      ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFFFF'; ctx.fill();
+      ctx.strokeStyle = '#111111'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, 0, 5.5, -Math.PI * 0.2, Math.PI * 1.1); ctx.stroke();
+      var ax = 5.5 * Math.cos(-Math.PI * 0.2), ay = 5.5 * Math.sin(-Math.PI * 0.2);
+      ctx.beginPath();
+      ctx.moveTo(ax - 3.2, ay - 1.4); ctx.lineTo(ax, ay); ctx.lineTo(ax + 0.6, ay - 3.8);
+      ctx.stroke();
+      ctx.restore();
+    }
+    [fabric.Object, fabric.Textbox].forEach(function (cls) {
+      if (!cls || !cls.prototype || !cls.prototype.controls) return;
+      cls.prototype.controls.gdDelete = deleteControl;
+      if (cls.prototype.controls.mtr) {
+        cls.prototype.controls.mtr.render = rotateRender;
+        cls.prototype.controls.mtr.sizeX = 26;
+        cls.prototype.controls.mtr.sizeY = 26;
+      }
     });
   }
 
