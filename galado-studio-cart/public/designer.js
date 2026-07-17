@@ -832,7 +832,7 @@
     var effectKey = (existing && existing.gdEffect) || 'none';
     var effectColourKey = (existing && existing.gdEffectColour)
       || (LIGHT_COLOURS[colourKey] ? 'ink' : 'white');
-    var effectColourRow = el('div', { class: 'gd-swatches' });
+    var effectColourRow = el('div', { class: 'gd-bgrow' });
     TEXT_COLOURS.forEach(function (c) {
       effectColourRow.appendChild(el('button', {
         class: 'gd-swatch' + (effectColourKey === c[0] ? ' sel' : ''), type: 'button', style: 'background:' + c[1],
