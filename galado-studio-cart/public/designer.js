@@ -73,9 +73,8 @@
     cuttingOut: 'Cutting out your subject... about 20 seconds.',
     multiOn: 'Select many',
     multiOff: 'Done',
-    multiHint: 'Tap layers to pick them (they glow red). Drag any picked layer to move them together.',
-    layerUp: 'Forward',
-    layerDown: 'Back',
+    multiHint: 'Tap layers to pick them (they glow red). Two or more get handles to move and resize together.',
+    layerHold: 'Slide up to bring in front, down to send behind. Let go when done.',
     duplicate: 'Copy',
     remove: 'Remove',
     doneCta: 'Looks good',
@@ -347,8 +346,6 @@
       cutBtn,
       eraseBtn,
       undoCutBtn,
-      el('button', { class: 'gd-tool', type: 'button', text: COPY.layerUp, onclick: function () { activeContent().forEach(function (o) { C.bringForward(o); }); C.requestRenderAll(); } }),
-      el('button', { class: 'gd-tool', type: 'button', text: COPY.layerDown, onclick: function () { activeContent().forEach(function (o) { C.sendBackwards(o); }); C.requestRenderAll(); } }),
       el('button', { class: 'gd-tool', type: 'button', text: COPY.duplicate, onclick: duplicateActive }),
       el('button', { class: 'gd-tool gd-tool--danger', type: 'button', text: COPY.remove, onclick: function () { activeContent().forEach(function (o) { C.remove(o); }); if (S.multiMode) { S.multiPicks = []; } C.discardActiveObject(); C.requestRenderAll(); updateSelUi(); } }),
     ]);
@@ -407,7 +404,6 @@
       C.add(camRect);
     }
 
-    var multiDrag = null;
     function setGlow(o, on) {
       o.set('shadow', on ? new fabric.Shadow({ color: 'rgba(228,0,43,0.95)', blur: 14, offsetX: 0, offsetY: 0, nonScaling: true }) : null);
       o.gdPicked = !!on;
@@ -416,6 +412,7 @@
       if (!S.multiMode) return;
       S.multiMode = false;
       S.multiPicks = [];
+      C.discardActiveObject();
       contentObjects().forEach(function (o) { setGlow(o, false); o.selectable = true; });
       if (stageMeta.multiBtn) {
         stageMeta.multiBtn.textContent = COPY.multiOn;
@@ -426,59 +423,115 @@
     }
     function refreshMultiLabel() {
       if (stageMeta.multiBtn && S.multiMode) {
-        stageMeta.multiBtn.textContent = COPY.multiOff + (S.multiPicks.length ? ' · ' + S.multiPicks.length + ' picked' : '');
+        stageMeta.multiBtn.textContent = COPY.multiOff + (S.multiPicks.length ? ' \u00b7 ' + S.multiPicks.length + ' picked' : '');
       }
     }
-    C.on('mouse:down', function (opt) {
-      if (!S.multiMode) return;
-      var t = opt.target && !opt.target.gdOverlay ? opt.target : null;
-      if (!t) { multiDrag = { tapOnly: true, emptyTap: true, moved: false }; return; }
-      var wasPicked = S.multiPicks.indexOf(t) >= 0;
-      if (!wasPicked) {
-        S.multiPicks.push(t);
-        setGlow(t, true);
+    // Picks >= 2 live inside ONE ActiveSelection (built once per toggle, so
+    // no per-tap rebuild churn): fabric's own handles then move AND resize
+    // the set together (round 13 #13).
+    function rebuildPickSelection() {
+      C.discardActiveObject();
+      if (S.multiPicks.length >= 2) {
+        var as = new fabric.ActiveSelection(S.multiPicks.slice(), { canvas: C });
+        C.setActiveObject(as);
       }
-      var p = C.getPointer(opt.e);
-      multiDrag = {
-        target: t, wasPicked: wasPicked, moved: false,
-        startX: p.x, startY: p.y,
-        starts: S.multiPicks.map(function (o) { return { o: o, left: o.left, top: o.top }; }),
-      };
-      refreshMultiLabel();
-      C.requestRenderAll();
-    });
-    C.on('mouse:move', function (opt) {
-      if (!S.multiMode || !multiDrag || multiDrag.emptyTap || !multiDrag.starts) return;
-      var p = C.getPointer(opt.e);
-      var dx = p.x - multiDrag.startX;
-      var dy = p.y - multiDrag.startY;
-      if (Math.abs(dx) + Math.abs(dy) > 4) multiDrag.moved = true;
-      if (!multiDrag.moved) return;
-      multiDrag.starts.forEach(function (st) {
-        st.o.set({ left: st.left + dx, top: st.top + dy });
-        st.o.setCoords();
-      });
-      C.requestRenderAll();
-      checkPlacement();
-    });
-    C.on('mouse:up', function () {
-      if (!S.multiMode || !multiDrag) return;
-      if (multiDrag.emptyTap) {
-        // Tap on empty case clears the picks.
-        S.multiPicks.forEach(function (o) { setGlow(o, false); });
-        S.multiPicks = [];
-      } else if (!multiDrag.moved && multiDrag.wasPicked) {
-        // A still tap on an already-picked layer unpicks it.
-        var at = S.multiPicks.indexOf(multiDrag.target);
-        if (at >= 0) S.multiPicks.splice(at, 1);
-        setGlow(multiDrag.target, false);
-      }
-      multiDrag = null;
       refreshMultiLabel();
       C.requestRenderAll();
       updateSelUi();
+    }
+    var multiTap = null;
+    C.on('mouse:down', function (opt) {
+      if (!S.multiMode) return;
+      var t = opt.target;
+      if (t && t.type === 'activeSelection') { multiTap = null; return; } // fabric transforms the set
+      var p = C.getPointer(opt.e);
+      multiTap = { target: (!t || t.gdOverlay) ? null : t, x: p.x, y: p.y };
     });
-    C.on('selection:created', updateSelUi);    C.on('selection:created', updateSelUi);
+    C.on('mouse:up', function (opt) {
+      if (!S.multiMode || multiTap === null) return;
+      var tap = multiTap;
+      multiTap = null;
+      var p = C.getPointer(opt.e);
+      if (Math.abs(p.x - tap.x) + Math.abs(p.y - tap.y) > 8) return; // drag, not a tap
+      // Apply AFTER fabric finishes its own up-cycle, or it clears the set.
+      setTimeout(function () {
+        if (!S.multiMode) return;
+        if (!tap.target) {
+          S.multiPicks.forEach(function (o) { setGlow(o, false); });
+          S.multiPicks = [];
+        } else {
+          var at = S.multiPicks.indexOf(tap.target);
+          if (at >= 0) {
+            S.multiPicks.splice(at, 1);
+            setGlow(tap.target, false);
+          } else {
+            S.multiPicks.push(tap.target);
+            setGlow(tap.target, true);
+          }
+        }
+        rebuildPickSelection();
+      }, 0);
+    });
+
+    // (round 13 #1 + #5) hold a layer    // (round 13 #1 + #5) hold a layer, then slide up or down to change its
+    // stacking order; replaces the Forward/Back buttons.
+    var holdTimer = null, layerDrag = null;
+    function contentBaseIndex() {
+      var all = C.getObjects();
+      for (var i = 0; i < all.length; i += 1) if (!all[i].gdOverlay) return i;
+      return all.length;
+    }
+    C.on('mouse:down', function (opt) {
+      if (S.multiMode) return;
+      var t = opt.target;
+      if (!t || t.gdOverlay || t.type === 'activeSelection') return;
+      var p = C.getPointer(opt.e);
+      holdTimer = setTimeout(function () {
+        holdTimer = null;
+        var content = contentObjects();
+        if (content.length < 2) return;
+        t.lockMovementX = true; t.lockMovementY = true;
+        setGlow(t, true);
+        layerDrag = { obj: t, startY: p.y, fromIdx: content.indexOf(t), count: content.length };
+        stageMeta.warn.className = 'gd-warn';
+        stageMeta.warn.textContent = COPY.layerHold;
+        C.requestRenderAll();
+      }, 450);
+      layerDrag = null;
+      C.once('mouse:up', function () {
+        if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+      });
+    });
+    C.on('mouse:move', function (opt) {
+      if (!layerDrag) return;
+      var p = C.getPointer(opt.e);
+      var steps = Math.round((layerDrag.startY - p.y) / 34);
+      var target = Math.max(0, Math.min(layerDrag.count - 1, layerDrag.fromIdx + steps));
+      layerDrag.lastTarget = target;
+      C.moveTo(layerDrag.obj, contentBaseIndex() + target);
+      stageMeta.warn.textContent = 'Layer ' + (target + 1) + ' of ' + layerDrag.count;
+      C.requestRenderAll();
+    });
+    C.on('mouse:up', function () {
+      if (!layerDrag) return;
+      var obj = layerDrag.obj;
+      var finalIdx = layerDrag.lastTarget;
+      layerDrag = null;
+      obj.lockMovementX = false;
+      obj.lockMovementY = false;
+      setGlow(obj, false);
+      stageMeta.warn.textContent = '';
+      setTimeout(function () {
+        if (typeof finalIdx === 'number') C.moveTo(obj, contentBaseIndex() + finalIdx);
+        C.requestRenderAll();
+        checkPlacement();
+      }, 0);
+    });
+    // Any early movement cancels the pending hold (it is a normal drag).
+    C.on('object:moving', function () {
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    });
+    C.on('selection:created', updateSelUi);    C.on('selection:created', updateSelUi);    C.on('selection:created', updateSelUi);
     C.on('selection:updated', updateSelUi);
     C.on('selection:cleared', updateSelUi);
     C.on('object:modified', checkPlacement);
@@ -578,7 +631,7 @@
     if (undoCut) {
       undoCut.style.display = (!multi && o && o.gdVariants && o.gdVariants.original) ? '' : 'none';
     }
-    var removeBtn = stageMeta.selBar.children[6];
+    var removeBtn = stageMeta.selBar.children[5];
     if (removeBtn) {
       // The X badge on the object handles single removal (round 13 #10); the
       // bar button stays only for multi-select batches.
