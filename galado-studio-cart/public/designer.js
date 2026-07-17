@@ -190,6 +190,11 @@
 
   function ensureSession(holder) {
     var open = function (t) {
+      // One session per page, ever. Turnstile auto-refreshes its token every
+      // few minutes and re-fires the callback; minting a new session then
+      // would orphan every upload made under the old one (live bug 17 Jul:
+      // long design sessions 404'd at Looks Good).
+      if (S.token) return;
       api('/v1/session', { method: 'POST', json: { turnstile_token: t, wp_claim: cfg.wp_claim || '' } })
         .then(function (b) { if (b.__status === 200) { S.token = b.token; holder.style.display = 'none'; } })
         .catch(function () { /* retried via waitForToken when the customer acts */ });
@@ -197,7 +202,7 @@
     if (cfg.sitekey && window.turnstile) {
       window.turnstile.render(holder, {
         sitekey: cfg.sitekey,
-        callback: function (t) { S.turnstileToken = t; open(t); },
+        callback: function (t) { S.turnstileToken = t; if (!S.token) open(t); },
       });
     } else {
       open(''); // dev harness / test config (production always carries a sitekey)
