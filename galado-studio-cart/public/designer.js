@@ -368,9 +368,17 @@
         [COPY.tour3H, COPY.tour3B],
       ];
       var i = step || 0;
+      var anims = [
+        [['sq', '']],
+        [['sq back', ''], ['sq front alt', ''], ['finger', '']],
+        [['sq one', ''], ['sq two alt', '']],
+      ];
+      var anim = el('div', { class: 'gd-touranim gd-touranim--' + (i + 1) },
+        anims[i].map(function (a) { return el('div', { class: a[0] }); }));
       var wrap = el('div', { class: 'gd-tour' }, [
         el('div', { class: 'gd-tourcard' }, [
           el('div', { class: 'gd-tourdots', text: (i + 1) + ' / ' + steps.length }),
+          anim,
           el('h3', { text: steps[i][0] }),
           el('p', { text: steps[i][1] }),
           el('button', {
