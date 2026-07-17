@@ -49,6 +49,7 @@
     effectNone: 'None',
     effectShadow: 'Shadow',
     effectOutline: 'Outline',
+    effectColourLabel: 'Outline colour',
     place: 'Place it',
     update: 'Update',
     cameraWarn: 'That sits under the camera, so it would be hidden. Drag it clear.',
@@ -115,7 +116,7 @@
     } else if (o.gdEffect === 'outline') {
       o.set('shadow', null);
       o.set({
-        stroke: LIGHT_COLOURS[o.gdColour] ? '#111111' : '#FFFFFF',
+        stroke: COLOUR_HEX[o.gdEffectColour] || (LIGHT_COLOURS[o.gdColour] ? '#111111' : '#FFFFFF'),
         strokeWidth: fs * 0.09, paintFirst: 'stroke', strokeLineJoin: 'round',
       });
     } else {
@@ -665,7 +666,7 @@
         copy.set({ left: o.left + 14, top: o.top + 14 });
         copy.gdType = o.gdType; copy.gdRef = o.gdRef;
         copy.gdText = o.gdText; copy.gdFont = o.gdFont; copy.gdColour = o.gdColour;
-        copy.gdEffect = o.gdEffect; if (copy.gdType === 'text') applyTextEffect(copy);
+        copy.gdEffect = o.gdEffect; copy.gdEffectColour = o.gdEffectColour; if (copy.gdType === 'text') applyTextEffect(copy);
         copy.gdCrop = o.gdCrop; copy.gdVariants = o.gdVariants;
         C.add(copy);
         if (targets.length === 1) C.setActiveObject(copy);
@@ -829,6 +830,21 @@
       }));
     });
     var effectKey = (existing && existing.gdEffect) || 'none';
+    var effectColourKey = (existing && existing.gdEffectColour)
+      || (LIGHT_COLOURS[colourKey] ? 'ink' : 'white');
+    var effectColourRow = el('div', { class: 'gd-swatches' });
+    TEXT_COLOURS.forEach(function (c) {
+      effectColourRow.appendChild(el('button', {
+        class: 'gd-swatch' + (effectColourKey === c[0] ? ' sel' : ''), type: 'button', style: 'background:' + c[1],
+        onclick: function (e) {
+          effectColourKey = c[0];
+          Array.prototype.forEach.call(effectColourRow.children, function (b) { b.classList.remove('sel'); });
+          e.target.classList.add('sel');
+          refreshPreview();
+        },
+      }));
+    });
+    var effectColourLabel = el('span', { class: 'gstudio-label', text: COPY.effectColourLabel });
     var effectRow = el('div', { class: 'gd-bgrow' });
     [['none', COPY.effectNone], ['shadow', COPY.effectShadow], ['outline', COPY.effectOutline]].forEach(function (ef) {
       effectRow.appendChild(el('button', {
@@ -847,9 +863,25 @@
       preview.style.fontFamily = "'gd-" + fontSel.value + "', cursive";
       preview.style.color = COLOUR_HEX[colourKey];
       preview.style.background = LIGHT_COLOURS[colourKey] ? '#111111' : '#F5F5F3';
-      preview.style.textShadow = effectKey === 'shadow' ? '2px 2px 5px rgba(17,17,17,0.55)' : 'none';
-      preview.style.webkitTextStroke = effectKey === 'outline'
-        ? '1.5px ' + (LIGHT_COLOURS[colourKey] ? '#111111' : '#FFFFFF') : '0';
+      // The canvas strokes UNDER the glyph fill; -webkit-text-stroke paints
+      // half inside and looked wrong (owner catch). Eight hard shadows fake
+      // the under-fill stroke faithfully.
+      if (effectKey === 'outline') {
+        var oc = COLOUR_HEX[effectColourKey] || '#FFFFFF';
+        var w2 = '2px';
+        preview.style.textShadow = [
+          w2 + ' 0 0 ' + oc, '-' + w2 + ' 0 0 ' + oc,
+          '0 ' + w2 + ' 0 ' + oc, '0 -' + w2 + ' 0 ' + oc,
+          '1.4px 1.4px 0 ' + oc, '-1.4px 1.4px 0 ' + oc,
+          '1.4px -1.4px 0 ' + oc, '-1.4px -1.4px 0 ' + oc,
+        ].join(', ');
+      } else if (effectKey === 'shadow') {
+        preview.style.textShadow = '2px 2px 5px rgba(17,17,17,0.55)';
+      } else {
+        preview.style.textShadow = 'none';
+      }
+      effectColourLabel.style.display = effectKey === 'outline' ? '' : 'none';
+      effectColourRow.style.display = effectKey === 'outline' ? '' : 'none';
       fontSel.style.fontFamily = "'gd-" + fontSel.value + "', Inter, Arial, sans-serif";
     }
     input.oninput = refreshPreview;
@@ -862,6 +894,7 @@
       el('span', { class: 'gstudio-label', text: COPY.fontLabel }), fontSel,
       el('span', { class: 'gstudio-label', text: COPY.colourLabel }), colourRow,
       el('span', { class: 'gstudio-label', text: COPY.effectLabel }), effectRow,
+      effectColourLabel, effectColourRow,
       el('button', {
         class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: existing ? COPY.update : COPY.place,
         onclick: function () {
@@ -871,6 +904,7 @@
             existing.set({ text: text, fontFamily: 'gd-' + fontSel.value, fill: COLOUR_HEX[colourKey] });
             existing.gdText = text; existing.gdFont = fontSel.value; existing.gdColour = colourKey;
             existing.gdEffect = effectKey;
+            existing.gdEffectColour = effectColourKey;
             applyTextEffect(existing);
           } else {
             var t = new fabric.Text(text, {
@@ -882,6 +916,7 @@
             t.setControlsVisibility({ ml: false, mr: false, mt: false, mb: false });
             t.gdType = 'text'; t.gdText = text; t.gdFont = fontSel.value; t.gdColour = colourKey;
             t.gdEffect = effectKey;
+            t.gdEffectColour = effectColourKey;
             applyTextEffect(t);
             C.add(t); C.setActiveObject(t);
           }
@@ -1138,7 +1173,10 @@
       };
       if (o.gdType === 'text') {
         var textEl = { type: 'text', text: o.gdText, font: o.gdFont, colour: o.gdColour, cx: base.cx, cy: base.cy, w: base.w, rot: base.rot };
-        if (o.gdEffect && o.gdEffect !== 'none') textEl.effect = o.gdEffect;
+        if (o.gdEffect && o.gdEffect !== 'none') {
+          textEl.effect = o.gdEffect;
+          if (o.gdEffect === 'outline' && o.gdEffectColour) textEl.effect_colour = o.gdEffectColour;
+        }
         return textEl;
       }
       var imgEl = { type: 'image', ref: o.gdRef, cx: base.cx, cy: base.cy, w: base.w, rot: base.rot };
