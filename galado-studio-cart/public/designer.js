@@ -45,6 +45,10 @@
     textPh: 'Up to 24 characters',
     fontLabel: 'Lettering style',
     colourLabel: 'Colour',
+    effectLabel: 'Stand out on busy photos',
+    effectNone: 'None',
+    effectShadow: 'Shadow',
+    effectOutline: 'Outline',
     place: 'Place it',
     update: 'Update',
     cameraWarn: 'That sits under the camera, so it would be hidden. Drag it clear.',
@@ -102,6 +106,23 @@
   var COLOUR_HEX = {};
   TEXT_COLOURS.forEach(function (c) { COLOUR_HEX[c[0]] = c[1]; });
   var LIGHT_COLOURS = { white: 1, sunshine: 1 };
+  // (round 13 #12) legibility pass mirrored server-side in nameSvg().
+  function applyTextEffect(o) {
+    var fs = o.fontSize || 40;
+    if (o.gdEffect === 'shadow') {
+      o.set({ stroke: null, strokeWidth: 0 });
+      o.set('shadow', new fabric.Shadow({ color: 'rgba(17,17,17,0.55)', blur: fs * 0.12, offsetX: fs * 0.05, offsetY: fs * 0.05 }));
+    } else if (o.gdEffect === 'outline') {
+      o.set('shadow', null);
+      o.set({
+        stroke: LIGHT_COLOURS[o.gdColour] ? '#111111' : '#FFFFFF',
+        strokeWidth: fs * 0.09, paintFirst: 'stroke', strokeLineJoin: 'round',
+      });
+    } else {
+      o.set('shadow', null);
+      o.set({ stroke: null, strokeWidth: 0 });
+    }
+  }
 
   var S = {
     modelId: '', modelLabel: '',
@@ -644,6 +665,7 @@
         copy.set({ left: o.left + 14, top: o.top + 14 });
         copy.gdType = o.gdType; copy.gdRef = o.gdRef;
         copy.gdText = o.gdText; copy.gdFont = o.gdFont; copy.gdColour = o.gdColour;
+        copy.gdEffect = o.gdEffect; if (copy.gdType === 'text') applyTextEffect(copy);
         copy.gdCrop = o.gdCrop; copy.gdVariants = o.gdVariants;
         C.add(copy);
         if (targets.length === 1) C.setActiveObject(copy);
@@ -806,12 +828,28 @@
         },
       }));
     });
+    var effectKey = (existing && existing.gdEffect) || 'none';
+    var effectRow = el('div', { class: 'gd-bgrow' });
+    [['none', COPY.effectNone], ['shadow', COPY.effectShadow], ['outline', COPY.effectOutline]].forEach(function (ef) {
+      effectRow.appendChild(el('button', {
+        class: 'gd-tool' + (effectKey === ef[0] ? ' sel' : ''), type: 'button', text: ef[1],
+        onclick: function (e) {
+          effectKey = ef[0];
+          Array.prototype.forEach.call(effectRow.children, function (b) { b.classList.remove('sel'); });
+          e.target.classList.add('sel');
+          refreshPreview();
+        },
+      }));
+    });
     var preview = el('div', { class: 'gd-fontpreview', text: (existing ? existing.gdText : '') || 'Aiman' });
     function refreshPreview() {
       preview.textContent = input.value.trim() || 'Aiman';
       preview.style.fontFamily = "'gd-" + fontSel.value + "', cursive";
       preview.style.color = COLOUR_HEX[colourKey];
       preview.style.background = LIGHT_COLOURS[colourKey] ? '#111111' : '#F5F5F3';
+      preview.style.textShadow = effectKey === 'shadow' ? '2px 2px 5px rgba(17,17,17,0.55)' : 'none';
+      preview.style.webkitTextStroke = effectKey === 'outline'
+        ? '1.5px ' + (LIGHT_COLOURS[colourKey] ? '#111111' : '#FFFFFF') : '0';
       fontSel.style.fontFamily = "'gd-" + fontSel.value + "', Inter, Arial, sans-serif";
     }
     input.oninput = refreshPreview;
@@ -823,6 +861,7 @@
       preview,
       el('span', { class: 'gstudio-label', text: COPY.fontLabel }), fontSel,
       el('span', { class: 'gstudio-label', text: COPY.colourLabel }), colourRow,
+      el('span', { class: 'gstudio-label', text: COPY.effectLabel }), effectRow,
       el('button', {
         class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: existing ? COPY.update : COPY.place,
         onclick: function () {
@@ -831,6 +870,8 @@
           if (existing) {
             existing.set({ text: text, fontFamily: 'gd-' + fontSel.value, fill: COLOUR_HEX[colourKey] });
             existing.gdText = text; existing.gdFont = fontSel.value; existing.gdColour = colourKey;
+            existing.gdEffect = effectKey;
+            applyTextEffect(existing);
           } else {
             var t = new fabric.Text(text, {
               left: stageMeta.plateW / 2, top: stageMeta.plateH * 0.8,
@@ -840,6 +881,8 @@
             });
             t.setControlsVisibility({ ml: false, mr: false, mt: false, mb: false });
             t.gdType = 'text'; t.gdText = text; t.gdFont = fontSel.value; t.gdColour = colourKey;
+            t.gdEffect = effectKey;
+            applyTextEffect(t);
             C.add(t); C.setActiveObject(t);
           }
           C.requestRenderAll();
@@ -1094,7 +1137,9 @@
         rot: Math.round(((o.angle % 360) + 540) % 360 - 180),
       };
       if (o.gdType === 'text') {
-        return { type: 'text', text: o.gdText, font: o.gdFont, colour: o.gdColour, cx: base.cx, cy: base.cy, w: base.w, rot: base.rot };
+        var textEl = { type: 'text', text: o.gdText, font: o.gdFont, colour: o.gdColour, cx: base.cx, cy: base.cy, w: base.w, rot: base.rot };
+        if (o.gdEffect && o.gdEffect !== 'none') textEl.effect = o.gdEffect;
+        return textEl;
       }
       var imgEl = { type: 'image', ref: o.gdRef, cx: base.cx, cy: base.cy, w: base.w, rot: base.rot };
       if (o.gdCrop) imgEl.crop = o.gdCrop;
