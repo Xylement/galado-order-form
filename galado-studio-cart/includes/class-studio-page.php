@@ -118,9 +118,10 @@ class GSTUDIO_Page {
             <h1>Design a case that is completely you.</h1>
             <p class="gsl-sub">Your photos, your words, your stickers. Arranged by you, printed by us on a crystal clear ProGuard case.</p>
             <div class="gsl-shots">
-              <img src="<?php echo esc_url($shots . 'product-playful.png'); ?>" alt="A designed GALADO Studio case with a golden retriever artwork" loading="eager" fetchpriority="high" />
-              <img src="<?php echo esc_url($shots . 'product-minimal.png'); ?>" alt="A minimal Studio case design with a name" loading="lazy" />
-              <img src="<?php echo esc_url($shots . 'product-travel.png'); ?>" alt="A travel themed Studio case design" loading="lazy" />
+              <img src="<?php echo esc_url($shots . 'dyoc-1.jpg'); ?>" alt="A Studio case with a photo, paw prints and Good Day lettering" loading="eager" fetchpriority="high" />
+              <img src="<?php echo esc_url($shots . 'dyoc-2.jpg'); ?>" alt="A Studio case with a family photo in a crayon scribble frame" loading="lazy" />
+              <img src="<?php echo esc_url($shots . 'dyoc-3.jpg'); ?>" alt="A Studio case with a golden retriever and the name Bella" loading="lazy" />
+              <img src="<?php echo esc_url($shots . 'dyoc-4.jpg'); ?>" alt="A Samsung Studio case with a campervan and towers artwork" loading="lazy" />
             </div>
             <a class="gstudio-btn gstudio-btn--red gsl-cta" href="#galado-studio">Start designing</a>
             <p class="gsl-price">RM169, free shipping included. Made one at a time, just for you.</p>
