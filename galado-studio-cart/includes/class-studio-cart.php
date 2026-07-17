@@ -32,6 +32,19 @@ class GSTUDIO_Cart {
         add_filter('woocommerce_order_item_get_formatted_meta_data', [__CLASS__, 'hide_raw_master_meta'], 10, 1);
         add_filter('woocommerce_order_item_thumbnail', [__CLASS__, 'order_item_thumbnail'], 10, 2);
         add_action('woocommerce_email_after_order_table', [__CLASS__, 'admin_email_links'], 10, 4);
+        add_filter('woocommerce_product_single_add_to_cart_text', [__CLASS__, 'external_button_text'], 10, 2);
+        add_filter('woocommerce_product_add_to_cart_text', [__CLASS__, 'external_button_text'], 10, 2);
+    }
+
+    /** The theme's templates ignore an external product's custom button text
+     * ("Buy product" showed on the Design Your Own Case tile); restore
+     * WooCommerce's own behaviour. */
+    public static function external_button_text($text, $product) {
+        if ($product && $product->is_type('external')) {
+            $custom = method_exists($product, 'get_button_text') ? $product->get_button_text() : '';
+            if ($custom) return $custom;
+        }
+        return $text;
     }
 
     /** Admin order email: a compact download link per Studio item (short
