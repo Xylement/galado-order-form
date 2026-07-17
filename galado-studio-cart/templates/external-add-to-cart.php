@@ -14,6 +14,11 @@ if (!$gd_label) $gd_label = isset($button_text) && $button_text ? $button_text :
 
 do_action('woocommerce_before_add_to_cart_form'); ?>
 
+<style>
+  /* Breathing room between the rewards line and the CTA (owner, 18 Jul). */
+  form.cart .wc-points-rewards-product-message { display: block; margin: 0 0 16px; }
+  form.cart .single_add_to_cart_button { margin-top: 4px; }
+</style>
 <form class="cart" action="<?php echo esc_url($product_url); ?>" method="get">
     <?php do_action('woocommerce_before_add_to_cart_button'); ?>
     <button type="submit" class="single_add_to_cart_button button alt"><?php echo esc_html($gd_label); ?></button>
