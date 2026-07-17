@@ -2,7 +2,7 @@
    Light storefront surface: canvas grey, white cards, Ink text, one red
    commerce CTA per screen, pills only. Mobile-first (primary QA 390x844). */
 
-.gstudio-root, .gd-sheet, .gd-tour {
+.gstudio-root, .gd-sheet, .gd-tour, .gstudio-landing {
   --g-ink: #111111;
   --g-red: #E4002B;
   --g-canvas: #F5F5F3;
@@ -343,3 +343,30 @@
   100% { box-shadow: none; transform: translateX(0); }
 }
 @media (prefers-reduced-motion: reduce) { .gd-touranim * { animation: none !important; } }
+
+/* Launch landing (above the designer). Photography-led, generous air. */
+.gstudio-landing { max-width: 560px; margin: 0 auto 20px; padding: clamp(16px, 4vw, 32px);
+  font-family: var(--g-body); color: var(--g-ink); box-sizing: border-box; }
+.gstudio-landing h1 { font-family: var(--g-display); font-weight: 800; letter-spacing: -0.02em;
+  font-size: clamp(28px, 7vw, 38px); line-height: 1.1; margin: 0 0 10px; text-wrap: balance; }
+.gsl-sub { color: var(--g-muted); font-size: 15.5px; line-height: 1.6; margin: 0 0 18px; }
+.gsl-shots { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+  margin: 0 0 18px; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
+.gsl-shots img { width: 78%; max-width: 320px; flex: 0 0 auto; border-radius: 18px;
+  scroll-snap-align: center; box-shadow: var(--g-shadow); }
+.gsl-cta { display: block; max-width: 340px; margin: 0 auto; }
+.gsl-price { text-align: center; color: var(--g-muted); font-size: 13px; margin: 12px 0 0; }
+.gsl-steps { display: grid; gap: 12px; margin: 26px 0 0; }
+.gsl-step { background: var(--g-surface); border: 1px solid var(--g-border); border-radius: var(--g-r-inner);
+  padding: 14px 16px; display: grid; grid-template-columns: 34px 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; }
+.gsl-step span { grid-row: 1 / span 2; width: 34px; height: 34px; border-radius: 50%; background: var(--g-ink);
+  color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.gsl-step strong { font-size: 15px; }
+.gsl-step em { font-style: normal; color: var(--g-muted); font-size: 13px; line-height: 1.45; }
+.gsl-library { margin: 26px 0 6px; text-align: center; }
+.gsl-libline { font-weight: 700; font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--g-faint); margin: 0 0 10px; }
+.gsl-thumbs { display: flex; gap: 10px; justify-content: flex-start; overflow-x: auto; padding: 4px 2px 8px; }
+.gsl-thumbs img { width: 52px; height: 52px; object-fit: contain; background: var(--g-surface);
+  border: 1px solid var(--g-border); border-radius: 12px; padding: 5px; flex: 0 0 auto; }
+@media (min-width: 480px) { .gsl-shots img { width: 46%; } }

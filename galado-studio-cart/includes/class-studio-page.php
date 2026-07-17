@@ -100,10 +100,49 @@ class GSTUDIO_Page {
         return $models;
     }
 
+    /** Launch landing sections above the designer mount: photography-led
+     * hero, three steps, library teaser, the shared ProGuard USP band. */
+    private static function landing_html() {
+        $shots = 'https://raw.githubusercontent.com/Xylement/threads-card-assets/main/studio/';
+        $api   = esc_url(gstudio_api_base());
+        $thumbs = ['pets/golden', 'daily-cute/boba', 'minis/heart', 'frames/polka-border', 'travel/campervan', 'celebrate/balloons', 'minis/star', 'makan/nasi-lemak'];
+        $thumb_html = '';
+        foreach ($thumbs as $t) {
+            $parts = explode('/', $t);
+            $thumb_html .= '<img loading="lazy" alt="" src="' . $api . '/v1/stickers/' . esc_attr($parts[0]) . '/' . esc_attr($parts[1]) . '.thumb" />';
+        }
+        ob_start();
+        ?>
+        <section class="gstudio-landing">
+          <div class="gsl-hero">
+            <h1>Design a case that is completely you.</h1>
+            <p class="gsl-sub">Your photos, your words, your stickers. Arranged by you, printed by us on a crystal clear ProGuard case.</p>
+            <div class="gsl-shots">
+              <img src="<?php echo esc_url($shots . 'product-playful.png'); ?>" alt="A designed GALADO Studio case with a golden retriever artwork" loading="eager" fetchpriority="high" />
+              <img src="<?php echo esc_url($shots . 'product-minimal.png'); ?>" alt="A minimal Studio case design with a name" loading="lazy" />
+              <img src="<?php echo esc_url($shots . 'product-travel.png'); ?>" alt="A travel themed Studio case design" loading="lazy" />
+            </div>
+            <a class="gstudio-btn gstudio-btn--red gsl-cta" href="#galado-studio">Start designing</a>
+            <p class="gsl-price">RM169, free shipping included. Made one at a time, just for you.</p>
+          </div>
+          <div class="gsl-steps">
+            <div class="gsl-step"><span>1</span><strong>Pick your model</strong><em>iPhone and Samsung, always the ProGuard case.</em></div>
+            <div class="gsl-step"><span>2</span><strong>Make it yours</strong><em>Photos, ten lettering styles, 100+ stickers and frames.</em></div>
+            <div class="gsl-step"><span>3</span><strong>We print and ship</strong><em>Checked by hand, delivered free to your door.</em></div>
+          </div>
+          <div class="gsl-library">
+            <p class="gsl-libline">A growing library of house stickers and frames</p>
+            <div class="gsl-thumbs"><?php echo $thumb_html; // escaped above ?></div>
+          </div>
+        </section>
+        <?php
+        return ob_get_clean();
+    }
+
     public static function render() {
         if (!self::is_studio_page()) {
             return '';
         }
-        return '<div id="galado-studio" class="gstudio-root" data-version="' . esc_attr(GSTUDIO_VERSION) . '"></div>';
+        return self::landing_html() . '<div id="galado-studio" class="gstudio-root" data-version="' . esc_attr(GSTUDIO_VERSION) . '"></div>';
     }
 }
