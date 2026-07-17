@@ -31,6 +31,24 @@ class GSTUDIO_Cart {
         add_action('woocommerce_after_order_itemmeta', [__CLASS__, 'admin_item_link'], 10, 2);
         add_filter('woocommerce_order_item_get_formatted_meta_data', [__CLASS__, 'hide_raw_master_meta'], 10, 1);
         add_filter('woocommerce_order_item_thumbnail', [__CLASS__, 'order_item_thumbnail'], 10, 2);
+        add_action('woocommerce_email_after_order_table', [__CLASS__, 'admin_email_links'], 10, 4);
+    }
+
+    /** Admin order email: a compact download link per Studio item (short
+     * anchor text so the 300-char signed href cannot break the layout).
+     * Customer emails never carry it. */
+    public static function admin_email_links($order, $sent_to_admin = false, $plain_text = false, $email = null) {
+        if (!$sent_to_admin || !is_callable([$order, 'get_items'])) return;
+        foreach ($order->get_items() as $item) {
+            $url = self::master_url_for($item);
+            if (!$url) continue;
+            if ($plain_text) {
+                echo "\nStudio print file (" . $item->get_name() . "): " . esc_url_raw($url) . "\n";
+            } else {
+                echo '<p style="margin:12px 0 0"><strong>Studio print file:</strong> '
+                   . '<a href="' . esc_url($url) . '">Download PNG</a> (' . esc_html($item->get_name()) . ')</p>';
+            }
+        }
     }
 
     public static function routes() {
