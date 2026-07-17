@@ -17,6 +17,9 @@
     heroTitle: 'Design a case that is completely you.',
     heroSub: 'Your photos, your words, your layout. Straight onto the case.',
     priceLine: 'RM169, free shipping included',
+    brandH: 'Choose your phone',
+    brandApple: 'Apple',
+    brandSamsung: 'Samsung',
     modelH: 'Choose your model',
     colourH: 'Choose your case colour',
     colourBlack: 'Black (MagSafe)',
@@ -211,9 +214,27 @@
 
   // ---- step 1: model --------------------------------------------------------
 
-  function renderModelSelect() {
+  function renderBrandSelect() {
     var grid = el('div', { class: 'gstudio-models' });
-    (cfg.models || []).forEach(function (m) {
+    [['apple', COPY.brandApple], ['samsung', COPY.brandSamsung]].forEach(function (b) {
+      grid.appendChild(el('button', {
+        class: 'gstudio-model', type: 'button', text: b[1],
+        onclick: function () {
+          ga('studio_designer_brand', { brand: b[0] });
+          renderModelSelect(b[0]);
+        },
+      }));
+    });
+    mount(el('h2', { text: COPY.brandH }), grid);
+  }
+
+  function renderModelSelect(brand) {
+    var grid = el('div', { class: 'gstudio-models' });
+    (cfg.models || []).filter(function (m) {
+      var id = m.model_id || m.id || '';
+      var isSamsung = id.indexOf('samsung') === 0;
+      return brand === 'samsung' ? isSamsung : !isSamsung;
+    }).forEach(function (m) {
       grid.appendChild(el('button', {
         class: 'gstudio-model', type: 'button', text: m.label,
         onclick: function () {
@@ -1430,10 +1451,10 @@
       el('a', { class: 'gstudio-btn gstudio-btn--red', href: checkoutUrl, text: COPY.checkoutCta }),
       el('button', {
         class: 'gstudio-btn gstudio-btn--ghost', type: 'button', text: COPY.againCta, style: 'margin-top:10px',
-        onclick: function () { S.scene = null; renderModelSelect(); },
+        onclick: function () { S.scene = null; renderBrandSelect(); },
       })
     );
   }
 
-  renderModelSelect();
+  renderBrandSelect();
 })();
