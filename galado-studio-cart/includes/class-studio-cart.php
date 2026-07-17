@@ -28,6 +28,9 @@ class GSTUDIO_Cart {
         add_filter('woocommerce_get_item_data', [__CLASS__, 'cart_item_display'], 10, 2);
         add_filter('woocommerce_cart_item_thumbnail', [__CLASS__, 'cart_item_thumbnail'], 10, 2);
         add_action('woocommerce_checkout_create_order_line_item', [__CLASS__, 'order_line_item'], 10, 3);
+        add_action('woocommerce_after_order_itemmeta', [__CLASS__, 'admin_item_link'], 10, 2);
+        add_filter('woocommerce_order_item_get_formatted_meta_data', [__CLASS__, 'hide_raw_master_meta'], 10, 1);
+        add_filter('woocommerce_order_item_thumbnail', [__CLASS__, 'order_item_thumbnail'], 10, 2);
     }
 
     public static function routes() {
@@ -193,6 +196,43 @@ class GSTUDIO_Cart {
         return $item_data;
     }
 
+    /** Signed master link for an order item; tolerates legacy orders that
+     * stored it as visible "Studio artwork" meta (pre 0.7.3). */
+    private static function master_url_for($item) {
+        if (!is_callable([$item, 'get_meta'])) return '';
+        $url = (string) $item->get_meta('_studio_master_url');
+        if (!$url) $url = (string) $item->get_meta('Studio artwork');
+        return $url;
+    }
+
+    /** Admin order screen: a clean download button instead of a raw token URL
+     * (the 300-char signed link broke email and table layouts, 17 Jul). */
+    public static function admin_item_link($item_id, $item) {
+        $url = self::master_url_for($item);
+        if (!$url) return;
+        echo '<p><a class="button" target="_blank" rel="noopener" href="' . esc_url($url) . '">Download print file (PNG)</a></p>';
+    }
+
+    /** Hide the raw signed URL from every rendered meta list (emails, order
+     * screens, My Account). Storage is untouched; the admin button and the
+     * hidden meta carry the link. */
+    public static function hide_raw_master_meta($formatted_meta) {
+        if (!is_array($formatted_meta)) return $formatted_meta;
+        foreach ($formatted_meta as $k => $m) {
+            if (isset($m->display_key) && 'Studio artwork' === $m->display_key) unset($formatted_meta[$k]);
+        }
+        return $formatted_meta;
+    }
+
+    /** Order emails and order pages show the customer's design, not the bare
+     * product placeholder (mirrors the cart thumbnail). */
+    public static function order_item_thumbnail($image, $item) {
+        $url = self::master_url_for($item);
+        if (!$url) return $image;
+        return '<img src="' . esc_url($url . '&w=480') . '" alt="Your Studio design"'
+             . ' style="width:96px;max-width:96px;height:auto;border-radius:10px;background:#F5F5F3;padding:6px;box-sizing:border-box;" />';
+    }
+
     /** Checkout: persist onto the order line item, exactly where ops look for
      * photo-case files. Visible: style, name, artwork link. Hidden: ids. */
     public static function order_line_item($item, $cart_item_key, $values) {
@@ -202,7 +242,7 @@ class GSTUDIO_Cart {
         if (!empty($meta['name_text'])) {
             $item->add_meta_data('Studio name', $meta['name_text']);
         }
-        $item->add_meta_data('Studio artwork', $meta['master_url']);
+        $item->add_meta_data('_studio_master_url', $meta['master_url']);
         $item->add_meta_data('_studio_artwork_id', $meta['artwork_id']);
         $item->add_meta_data('_studio_model', $meta['model_id']);
         $item->add_meta_data('_studio_style', $meta['style_id']);
