@@ -47,6 +47,11 @@
     cameraWarn: 'That sits under the camera, so it would be hidden. Drag it clear.',
     edgeWarn: 'Touching the very edge may get trimmed in printing.',
     crop: 'Crop',
+    erase: 'Erase',
+    eraseSheetH: 'Erase parts',
+    eraseHint: 'Rub over anything that should not be in the picture. Pinch nothing; one finger erases.',
+    applyErase: 'Apply',
+    undo: 'Undo',
     cropSheetH: 'Crop your photo',
     applyCrop: 'Apply',
     fullPhoto: 'Full photo',
@@ -278,15 +283,18 @@
     }, [canvasEl]));
 
     var warn = el('p', { class: 'gd-warn', text: '' });
+    var progress = el('div', { class: 'gd-progresswrap', style: 'display:none' }, [el('div', { class: 'gd-progressbar' })]);
     var cropBtn = el('button', { class: 'gd-tool', type: 'button', text: COPY.crop, onclick: cropSheet });
     var cutBtn = el('button', { class: 'gd-tool', type: 'button', text: COPY.cutout, onclick: doCutout });
+    var eraseBtn = el('button', { class: 'gd-tool', type: 'button', text: COPY.erase, onclick: eraseSheet });
     var selBar = el('div', { class: 'gd-selbar', style: 'display:none' }, [
       cropBtn,
       cutBtn,
-      el('button', { class: 'gd-tool', type: 'button', text: COPY.layerUp, onclick: function () { withActive(function (o) { C.bringForward(o); }); } }),
-      el('button', { class: 'gd-tool', type: 'button', text: COPY.layerDown, onclick: function () { withActive(function (o) { C.sendBackwards(o); }); } }),
+      eraseBtn,
+      el('button', { class: 'gd-tool', type: 'button', text: COPY.layerUp, onclick: function () { activeContent().forEach(function (o) { C.bringForward(o); }); C.requestRenderAll(); } }),
+      el('button', { class: 'gd-tool', type: 'button', text: COPY.layerDown, onclick: function () { activeContent().forEach(function (o) { C.sendBackwards(o); }); C.requestRenderAll(); } }),
       el('button', { class: 'gd-tool', type: 'button', text: COPY.duplicate, onclick: duplicateActive }),
-      el('button', { class: 'gd-tool gd-tool--danger', type: 'button', text: COPY.remove, onclick: function () { withActive(function (o) { C.remove(o); C.discardActiveObject(); C.requestRenderAll(); } ); } }),
+      el('button', { class: 'gd-tool gd-tool--danger', type: 'button', text: COPY.remove, onclick: function () { activeContent().forEach(function (o) { C.remove(o); }); C.discardActiveObject(); C.requestRenderAll(); } }),
     ]);
 
     var turnstileHolder = el('div', { class: 'gd-turnstile' });
@@ -298,7 +306,7 @@
 
     mount(
       el('h2', { text: S.modelLabel }),
-      stage, warn, selBar, toolbar, turnstileHolder,
+      stage, warn, progress, selBar, toolbar, turnstileHolder,
       el('button', { class: 'gstudio-btn gstudio-btn--ink gd-done', type: 'button', text: COPY.doneCta, style: 'margin-top:14px', onclick: finishDesign }),
       el('p', { class: 'gstudio-note', text: COPY.retention })
     );
@@ -307,10 +315,10 @@
     C = new fabric.Canvas(canvasEl, {
       width: Math.round(plate.w),
       height: Math.round(plate.h),
-      selection: false,
+      selection: true,
       preserveObjectStacking: true,
     });
-    stageMeta = { plateW: Math.round(plate.w), plateH: Math.round(plate.h), mock: mock, warn: warn, selBar: selBar };
+    stageMeta = { plateW: Math.round(plate.w), plateH: Math.round(plate.h), mock: mock, warn: warn, selBar: selBar, progress: progress };
     window.__gd = { version: cfg.ver || 'dev', canvas: C, state: S, serialize: serializeScene }; // QA/support handle
 
     // Camera keep-out overlay (from the die-line, via mocks.json).
@@ -346,17 +354,27 @@
     if (o) { fn(o); C.requestRenderAll(); }
   }
 
+  function activeContent() {
+    return (C.getActiveObjects() || []).filter(function (o) { return !o.gdOverlay; });
+  }
+
   function updateSelUi() {
     var o = C.getActiveObject();
     stageMeta.selBar.style.display = o ? 'flex' : 'none';
+    var multi = o && o.type === 'activeSelection';
     var cropBtn = stageMeta.selBar.children[0];
     var cutBtn = stageMeta.selBar.children[1];
+    var eraseBtn = stageMeta.selBar.children[2];
     if (cropBtn) {
-      var croppable = o && o.gdType === 'image' && String(o.gdRef).indexOf('sticker:') !== 0;
+      var croppable = !multi && o && o.gdType === 'image' && String(o.gdRef).indexOf('sticker:') !== 0;
       cropBtn.style.display = croppable ? '' : 'none';
     }
+    if (eraseBtn) {
+      var erasable = !multi && o && o.gdType === 'image' && String(o.gdRef).indexOf('upload:') === 0;
+      eraseBtn.style.display = erasable ? '' : 'none';
+    }
     if (cutBtn) {
-      var isPhoto = o && o.gdType === 'image' && String(o.gdRef).indexOf('upload:') === 0;
+      var isPhoto = !multi && o && o.gdType === 'image' && String(o.gdRef).indexOf('upload:') === 0;
       cutBtn.style.display = isPhoto ? '' : 'none';
       cutBtn.textContent = o && o.gdVariants ? (o.gdRef === 'upload:' + o.gdVariants.sticker ? COPY.cutout : COPY.outline) : COPY.cutout;
       if (o && o.gdVariants && o.gdRef === 'upload:' + o.gdVariants.cutout) cutBtn.textContent = COPY.outline;
@@ -395,15 +413,17 @@
     }
     var srcId = String(o.gdRef).slice(7);
     stageMeta.warn.textContent = COPY.cuttingOut;
+    stageMeta.progress.style.display = '';
     api('/v1/uploads/' + srcId + '/cutout', { method: 'POST' })
       .then(function (b) {
+        stageMeta.progress.style.display = 'none';
         if (b.__status !== 200) { stageMeta.warn.textContent = b.human_message || COPY.errB; return; }
         o.gdVariants = { cutout: b.cutout_id, sticker: b.sticker_id };
         stageMeta.warn.textContent = '';
         swapImageSrc(o, b.cutout_id);
         ga('studio_designer_cutout', {});
       })
-      .catch(function () { stageMeta.warn.textContent = COPY.errB; });
+      .catch(function () { stageMeta.progress.style.display = 'none'; stageMeta.warn.textContent = COPY.errB; });
   }
 
   function contentObjects() {
@@ -438,14 +458,19 @@
   }
 
   function duplicateActive() {
-    withActive(function (o) {
+    var targets = activeContent();
+    C.discardActiveObject();
+    targets.forEach(function (o) {
       o.clone(function (copy) {
         copy.set({ left: o.left + 14, top: o.top + 14 });
         copy.gdType = o.gdType; copy.gdRef = o.gdRef;
         copy.gdText = o.gdText; copy.gdFont = o.gdFont; copy.gdColour = o.gdColour;
-        C.add(copy); C.setActiveObject(copy);
+        copy.gdCrop = o.gdCrop; copy.gdVariants = o.gdVariants;
+        C.add(copy);
+        if (targets.length === 1) C.setActiveObject(copy);
       });
     });
+    C.requestRenderAll();
   }
 
 
@@ -720,9 +745,111 @@
     ]);
   }
 
+  function eraseSheet() {
+    var o = C.getActiveObject();
+    if (!o || o.gdType !== 'image' || !o._element) return;
+    var src = o._element;
+    var nW = src.naturalWidth || src.width;
+    var nH = src.naturalHeight || src.height;
+    var cap = 1000;
+    var scale = Math.min(1, cap / Math.max(nW, nH));
+    var cw = Math.round(nW * scale), ch = Math.round(nH * scale);
+
+    var work = document.createElement('canvas');
+    work.width = cw; work.height = ch;
+    work.className = 'gd-erasecanvas';
+    var ctx = work.getContext('2d');
+    ctx.drawImage(src, 0, 0, cw, ch);
+
+    var brush = Math.round(Math.max(cw, ch) * 0.05);
+    var undoStack = [];
+    var drawing = false;
+
+    function eraseAt(x, y) {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(x, y, brush / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    function toCanvasXY(e) {
+      var r = work.getBoundingClientRect();
+      return [ (e.clientX - r.left) * (cw / r.width), (e.clientY - r.top) * (ch / r.height) ];
+    }
+    work.style.touchAction = 'none';
+    work.onpointerdown = function (e) {
+      if (undoStack.length >= 5) undoStack.shift();
+      undoStack.push(ctx.getImageData(0, 0, cw, ch));
+      drawing = true;
+      try { work.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointers */ }
+      var p = toCanvasXY(e);
+      eraseAt(p[0], p[1]);
+      e.preventDefault();
+    };
+    work.onpointermove = function (e) {
+      if (!drawing) return;
+      var p = toCanvasXY(e);
+      eraseAt(p[0], p[1]);
+    };
+    work.onpointerup = function () { drawing = false; };
+    work.onpointercancel = function () { drawing = false; };
+
+    var sizes = [['S', 0.028], ['M', 0.05], ['L', 0.09]];
+    var sizeRow = el('div', { class: 'gd-bgrow' });
+    sizes.forEach(function (sz, i) {
+      sizeRow.appendChild(el('button', {
+        class: 'gd-tool' + (i === 1 ? ' sel' : ''), type: 'button', text: sz[0],
+        onclick: function (e) {
+          brush = Math.round(Math.max(cw, ch) * sz[1]);
+          Array.prototype.forEach.call(sizeRow.children, function (b) { b.classList.remove('sel'); });
+          e.target.classList.add('sel');
+        },
+      }));
+    });
+    sizeRow.appendChild(el('button', {
+      class: 'gd-tool', type: 'button', text: COPY.undo,
+      onclick: function () {
+        var snap = undoStack.pop();
+        if (snap) { ctx.globalCompositeOperation = 'source-over'; ctx.putImageData(snap, 0, 0); }
+      },
+    }));
+
+    var status = el('p', { class: 'gstudio-note', text: COPY.eraseHint });
+    var overlay = sheet(COPY.eraseSheetH, [
+      work,
+      sizeRow,
+      status,
+      el('button', {
+        class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.applyErase,
+        onclick: function () {
+          status.textContent = COPY.saving;
+          work.toBlob(function (blob) {
+            if (!blob) { status.textContent = COPY.errB; return; }
+            var fd = new FormData();
+            fd.append('file', new File([blob], 'erased.png', { type: 'image/png' }));
+            api('/v1/uploads', { method: 'POST', body: fd })
+              .then(function (b) {
+                if (b.__status !== 200) { status.textContent = b.human_message || COPY.errB; return; }
+                o.gdVariants = null;
+                o.gdCrop = null;
+                o.set({ cropX: 0, cropY: 0 });
+                swapImageSrc(o, b.upload_id);
+                ga('studio_designer_erase', {});
+                overlay.remove();
+              })
+              .catch(function () { status.textContent = COPY.errB; });
+          }, 'image/png');
+        },
+      }),
+    ]);
+  }
+
   // ---- serialize + done ----------------------------------------------------
 
   function serializeScene() {
+    // A live multi-selection stores member coordinates relative to the
+    // group; drop it so every object reports absolute print coordinates.
+    var act = C.getActiveObject();
+    if (act && act.type === 'activeSelection') { C.discardActiveObject(); C.requestRenderAll(); }
     var pw = stageMeta.plateW, ph = stageMeta.plateH;
     var elements = contentObjects().map(function (o) {
       var base = {
