@@ -191,6 +191,7 @@ class GSTUDIO_Cart {
         $model_id   = sanitize_title((string) $req->get_param('model_id'));
         $style_id   = sanitize_title((string) $req->get_param('style_id'));
         $name_text  = sanitize_text_field((string) $req->get_param('name_text'));
+        $colour     = ('white' === $req->get_param('case_colour')) ? 'white' : 'black';
 
         $claim = GSTUDIO_Token::verify($token, gstudio_secret());
         if (!$claim || ($claim['t'] ?? '') !== 'artwork'
@@ -242,6 +243,7 @@ class GSTUDIO_Cart {
                 'style_id'   => $style_id,
                 'model_id'   => $model_id,
                 'name_text'  => $name_text,
+                'case_colour' => $colour,
                 'master_url' => $master_url,
                 // Small inline render of the actual design for cart/mini-cart
                 // thumbnails (same signed link, api serves a cached resize).
@@ -278,6 +280,9 @@ class GSTUDIO_Cart {
         if (empty($cart_item['galado_studio'])) return $item_data;
         $meta = $cart_item['galado_studio'];
         $item_data[] = ['key' => 'Studio design', 'value' => esc_html(ucwords(str_replace('-', ' ', $meta['style_id']))) . ' (designed with you in Studio)'];
+        if (!empty($meta['case_colour'])) {
+            $item_data[] = ['key' => 'Case colour', 'value' => 'white' === $meta['case_colour'] ? 'White (MagSafe)' : 'Black (MagSafe)'];
+        }
         if (!empty($meta['name_text'])) {
             $item_data[] = ['key' => 'Name', 'value' => esc_html($meta['name_text'])];
         }
@@ -327,6 +332,9 @@ class GSTUDIO_Cart {
         if (empty($values['galado_studio'])) return;
         $meta = $values['galado_studio'];
         $item->add_meta_data('Studio design', ucwords(str_replace('-', ' ', $meta['style_id'])) . ' (designed with you in Studio)');
+        if (!empty($meta['case_colour'])) {
+            $item->add_meta_data('Case colour', 'white' === $meta['case_colour'] ? 'White (MagSafe)' : 'Black (MagSafe)');
+        }
         if (!empty($meta['name_text'])) {
             $item->add_meta_data('Studio name', $meta['name_text']);
         }

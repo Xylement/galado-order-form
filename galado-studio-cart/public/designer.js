@@ -19,6 +19,10 @@
     heroSub: 'Your photos, your words, your layout. Straight onto the case.',
     priceLine: 'RM169, free shipping included',
     modelH: 'Choose your model',
+    colourH: 'Choose your case colour',
+    colourBlack: 'Black (MagSafe)',
+    colourWhite: 'White (MagSafe)',
+    caseLine: 'Case: ',
     addPhoto: '+ Photo',
     addText: '+ Text',
     addSticker: '+ Sticker',
@@ -140,6 +144,7 @@
 
   var S = {
     modelId: '', modelLabel: '',
+    caseColour: 'black',
     token: '', turnstileToken: '',
     scene: null,
     stickers: null,
@@ -215,7 +220,14 @@
         onclick: function () {
           S.modelId = m.model_id || m.id; S.modelLabel = m.label;
           ga('studio_designer_model', { model_id: m.id });
-          renderEditor();
+          var mock = mockFor(S.modelId);
+          var colours = (mock && mock.colours) || ['black'];
+          if (colours.length > 1) {
+            renderColourSelect(colours);
+          } else {
+            S.caseColour = colours[0] || 'black';
+            renderEditor();
+          }
         },
       }));
     });
@@ -230,6 +242,22 @@
         grid
       );
     }
+  }
+
+  function renderColourSelect(colours) {
+    var grid = el('div', { class: 'gstudio-models' });
+    colours.forEach(function (c) {
+      grid.appendChild(el('button', {
+        class: 'gstudio-model', type: 'button',
+        text: c === 'white' ? COPY.colourWhite : COPY.colourBlack,
+        onclick: function () {
+          S.caseColour = c;
+          ga('studio_designer_colour', { colour: c });
+          renderEditor();
+        },
+      }));
+    });
+    mount(el('h2', { text: COPY.colourH }), grid);
   }
 
   // ---- session (Turnstile) ---------------------------------------------------
@@ -286,9 +314,10 @@
     var maxH = Math.min(Math.round((window.innerHeight || 700) * 0.56), 560);
     var stage, plate;
 
-    if (mock && mock.print && mock.file) {
+    var mockFile = (S.caseColour === 'white' && mock && mock.file_white) ? mock.file_white : (mock && mock.file);
+    if (mock && mock.print && mockFile) {
       var img = new Image();
-      img.src = cfg.mocks_base + mock.file;
+      img.src = cfg.mocks_base + mockFile;
       var natural = (mock.img && mock.img.h) ? mock.img.w / mock.img.h : 0.507;
       var stageH = maxH;
       var stageW = Math.min(Math.round(stageH * natural), (root.clientWidth - 20) || 370);
@@ -1341,7 +1370,8 @@
       src: cfg.api + design.preview_url,
       alt: 'Your design, exactly as it prints',
     });
-    var note = el('p', { class: 'gstudio-note', text: COPY.confirmB });
+    var caseLabel = S.caseColour === 'white' ? COPY.colourWhite : COPY.colourBlack;
+    var note = el('p', { class: 'gstudio-note', text: COPY.caseLine + caseLabel + '. ' + COPY.confirmB });
     var err = el('p', { class: 'gd-warn gd-warn--hard', text: '' });
     var addBtn = el('button', {
       class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.confirmCta,
@@ -1357,6 +1387,7 @@
             artwork_id: design.artwork_id,
             model_id: S.modelId,
             style_id: 'designer',
+            case_colour: S.caseColour,
             name_text: '',
           }),
         })

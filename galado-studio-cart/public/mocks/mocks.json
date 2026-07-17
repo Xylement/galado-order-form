@@ -36,7 +36,12 @@
     "y": 0.0492,
     "w": 0.8942,
     "h": 0.9197
-   }
+   },
+   "file_white": "iphone17-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
   },
   "iphone-17-pro-max": {
    "file": "iphone17-pro-silver.webp",
@@ -72,7 +77,12 @@
     "y": 0.0385,
     "w": 0.8942,
     "h": 0.9304
-   }
+   },
+   "file_white": "iphone17-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
   },
   "iphone-17": {
    "file": "iphone-17.webp",
@@ -108,7 +118,12 @@
     "y": 0.0211,
     "w": 0.8997,
     "h": 0.9545
-   }
+   },
+   "file_white": "iphone-17-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
   },
   "iphone-16-pro": {
    "file": "iphone16-pro.webp",
@@ -144,7 +159,12 @@
     "y": 0.022,
     "w": 0.8954,
     "h": 0.9547
-   }
+   },
+   "file_white": "iphone16-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
   },
   "iphone-16-pro-max": {
    "file": "iphone16-pro.webp",
@@ -180,7 +200,12 @@
     "y": 0.022,
     "w": 0.8954,
     "h": 0.9547
-   }
+   },
+   "file_white": "iphone16-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
   },
   "iphone-air": {
    "file": "iphone-air.webp",
@@ -216,7 +241,12 @@
     "y": 0.0503,
     "w": 0.8953,
     "h": 0.9208
-   }
+   },
+   "file_white": "iphone-air-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
   },
   "samsung-galaxy-s24": {
    "file": "s25.webp",
@@ -252,7 +282,10 @@
     "y": 0.0153,
     "w": 0.8829,
     "h": 0.948
-   }
+   },
+   "colours": [
+    "white"
+   ]
   },
   "samsung-galaxy-s24-plus": {
    "file": "s25.webp",
@@ -288,7 +321,10 @@
     "y": 0.0153,
     "w": 0.8829,
     "h": 0.948
-   }
+   },
+   "colours": [
+    "white"
+   ]
   },
   "samsung-galaxy-s25": {
    "file": "s25.webp",
@@ -324,7 +360,10 @@
     "y": 0.0153,
     "w": 0.8829,
     "h": 0.948
-   }
+   },
+   "colours": [
+    "white"
+   ]
   },
   "samsung-galaxy-s25-plus": {
    "file": "s25.webp",
@@ -360,7 +399,10 @@
     "y": 0.0153,
     "w": 0.8829,
     "h": 0.948
-   }
+   },
+   "colours": [
+    "white"
+   ]
   },
   "samsung-galaxy-s26": {
    "file": "s25.webp",
@@ -396,7 +438,10 @@
     "y": 0.0153,
     "w": 0.8829,
     "h": 0.948
-   }
+   },
+   "colours": [
+    "white"
+   ]
   },
   "samsung-galaxy-s26-plus": {
    "file": "s25.webp",
@@ -432,7 +477,10 @@
     "y": 0.0153,
     "w": 0.8829,
     "h": 0.948
-   }
+   },
+   "colours": [
+    "white"
+   ]
   },
   "samsung-galaxy-s24-ultra": {
    "file": "s26ultra.webp",
@@ -468,7 +516,10 @@
     "y": 0.0459,
     "w": 0.9299,
     "h": 0.9304
-   }
+   },
+   "colours": [
+    "white"
+   ]
   },
   "samsung-galaxy-s25-ultra": {
    "file": "s26ultra.webp",
@@ -504,7 +555,10 @@
     "y": 0.0295,
     "w": 0.9299,
     "h": 0.9468
-   }
+   },
+   "colours": [
+    "white"
+   ]
   },
   "samsung-galaxy-s26-ultra": {
    "file": "s26ultra.webp",
@@ -540,7 +594,10 @@
     "y": 0.0407,
     "w": 0.9299,
     "h": 0.9356
-   }
+   },
+   "colours": [
+    "white"
+   ]
   },
   "iphone-16": {
    "file": "iphone-17.webp",
@@ -571,7 +628,12 @@
     "y": 0.0209,
     "w": 0.9093,
     "h": 0.9547
-   }
+   },
+   "file_white": "iphone-17-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
   },
   "iphone-16-plus": {
    "file": "iphone-17.webp",
@@ -602,7 +664,340 @@
     "y": 0.0209,
     "w": 0.9093,
     "h": 0.9547
-   }
+   },
+   "file_white": "iphone-17-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
+  },
+  "iphone-14": {
+   "file": "iphone16-pro.webp",
+   "plate_pct": [
+    0.1174,
+    0.3637,
+    0.7478,
+    0.6121
+   ],
+   "print": {
+    "w": 1516,
+    "h": 3031
+   },
+   "safe": {
+    "x": 0.0389,
+    "y": 0.0195,
+    "w": 0.9222,
+    "h": 0.9611
+   },
+   "keepout": 0.0389,
+   "camera": {
+    "x0": 0.0,
+    "y0": 0.0335,
+    "x1": 0.6505,
+    "y1": 0.3124
+   },
+   "img": {
+    "w": 456,
+    "h": 900
+   },
+   "plate_img": {
+    "x": 0.047,
+    "y": 0.022,
+    "w": 0.8954,
+    "h": 0.9547
+   },
+   "file_white": "iphone16-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
+  },
+  "iphone-14-plus": {
+   "file": "iphone16-pro.webp",
+   "plate_pct": [
+    0.1174,
+    0.3637,
+    0.7478,
+    0.6121
+   ],
+   "print": {
+    "w": 1516,
+    "h": 3031
+   },
+   "safe": {
+    "x": 0.0389,
+    "y": 0.0195,
+    "w": 0.9222,
+    "h": 0.9611
+   },
+   "keepout": 0.0389,
+   "camera": {
+    "x0": 0.0,
+    "y0": 0.0335,
+    "x1": 0.6505,
+    "y1": 0.3124
+   },
+   "img": {
+    "w": 456,
+    "h": 900
+   },
+   "plate_img": {
+    "x": 0.047,
+    "y": 0.022,
+    "w": 0.8954,
+    "h": 0.9547
+   },
+   "file_white": "iphone16-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
+  },
+  "iphone-14-pro": {
+   "file": "iphone16-pro.webp",
+   "plate_pct": [
+    0.1174,
+    0.3637,
+    0.7478,
+    0.6121
+   ],
+   "print": {
+    "w": 1516,
+    "h": 3031
+   },
+   "safe": {
+    "x": 0.0389,
+    "y": 0.0195,
+    "w": 0.9222,
+    "h": 0.9611
+   },
+   "keepout": 0.0389,
+   "camera": {
+    "x0": 0.0,
+    "y0": 0.0335,
+    "x1": 0.6505,
+    "y1": 0.3124
+   },
+   "img": {
+    "w": 456,
+    "h": 900
+   },
+   "plate_img": {
+    "x": 0.047,
+    "y": 0.022,
+    "w": 0.8954,
+    "h": 0.9547
+   },
+   "file_white": "iphone16-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
+  },
+  "iphone-14-pro-max": {
+   "file": "iphone16-pro.webp",
+   "plate_pct": [
+    0.1174,
+    0.3637,
+    0.7478,
+    0.6121
+   ],
+   "print": {
+    "w": 1516,
+    "h": 3031
+   },
+   "safe": {
+    "x": 0.0389,
+    "y": 0.0195,
+    "w": 0.9222,
+    "h": 0.9611
+   },
+   "keepout": 0.0389,
+   "camera": {
+    "x0": 0.0,
+    "y0": 0.0335,
+    "x1": 0.6505,
+    "y1": 0.3124
+   },
+   "img": {
+    "w": 456,
+    "h": 900
+   },
+   "plate_img": {
+    "x": 0.047,
+    "y": 0.022,
+    "w": 0.8954,
+    "h": 0.9547
+   },
+   "file_white": "iphone16-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
+  },
+  "iphone-15": {
+   "file": "iphone16-pro.webp",
+   "plate_pct": [
+    0.1174,
+    0.3637,
+    0.7478,
+    0.6121
+   ],
+   "print": {
+    "w": 1516,
+    "h": 3031
+   },
+   "safe": {
+    "x": 0.0389,
+    "y": 0.0195,
+    "w": 0.9222,
+    "h": 0.9611
+   },
+   "keepout": 0.0389,
+   "camera": {
+    "x0": 0.0,
+    "y0": 0.0335,
+    "x1": 0.6505,
+    "y1": 0.3124
+   },
+   "img": {
+    "w": 456,
+    "h": 900
+   },
+   "plate_img": {
+    "x": 0.047,
+    "y": 0.022,
+    "w": 0.8954,
+    "h": 0.9547
+   },
+   "file_white": "iphone16-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
+  },
+  "iphone-15-plus": {
+   "file": "iphone16-pro.webp",
+   "plate_pct": [
+    0.1174,
+    0.3637,
+    0.7478,
+    0.6121
+   ],
+   "print": {
+    "w": 1516,
+    "h": 3031
+   },
+   "safe": {
+    "x": 0.0389,
+    "y": 0.0195,
+    "w": 0.9222,
+    "h": 0.9611
+   },
+   "keepout": 0.0389,
+   "camera": {
+    "x0": 0.0,
+    "y0": 0.0335,
+    "x1": 0.6505,
+    "y1": 0.3124
+   },
+   "img": {
+    "w": 456,
+    "h": 900
+   },
+   "plate_img": {
+    "x": 0.047,
+    "y": 0.022,
+    "w": 0.8954,
+    "h": 0.9547
+   },
+   "file_white": "iphone16-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
+  },
+  "iphone-15-pro": {
+   "file": "iphone16-pro.webp",
+   "plate_pct": [
+    0.1174,
+    0.3637,
+    0.7478,
+    0.6121
+   ],
+   "print": {
+    "w": 1516,
+    "h": 3031
+   },
+   "safe": {
+    "x": 0.0389,
+    "y": 0.0195,
+    "w": 0.9222,
+    "h": 0.9611
+   },
+   "keepout": 0.0389,
+   "camera": {
+    "x0": 0.0,
+    "y0": 0.0335,
+    "x1": 0.6505,
+    "y1": 0.3124
+   },
+   "img": {
+    "w": 456,
+    "h": 900
+   },
+   "plate_img": {
+    "x": 0.047,
+    "y": 0.022,
+    "w": 0.8954,
+    "h": 0.9547
+   },
+   "file_white": "iphone16-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
+  },
+  "iphone-15-pro-max": {
+   "file": "iphone16-pro.webp",
+   "plate_pct": [
+    0.1174,
+    0.3637,
+    0.7478,
+    0.6121
+   ],
+   "print": {
+    "w": 1516,
+    "h": 3031
+   },
+   "safe": {
+    "x": 0.0389,
+    "y": 0.0195,
+    "w": 0.9222,
+    "h": 0.9611
+   },
+   "keepout": 0.0389,
+   "camera": {
+    "x0": 0.0,
+    "y0": 0.0335,
+    "x1": 0.6505,
+    "y1": 0.3124
+   },
+   "img": {
+    "w": 456,
+    "h": 900
+   },
+   "plate_img": {
+    "x": 0.047,
+    "y": 0.022,
+    "w": 0.8954,
+    "h": 0.9547
+   },
+   "file_white": "iphone16-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
   }
  }
 }
