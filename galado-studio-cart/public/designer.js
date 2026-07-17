@@ -22,13 +22,6 @@
     addPhoto: '+ Photo',
     addText: '+ Text',
     addSticker: '+ Sticker',
-    magicBtn: '\u2728 Make my own with AI',
-    magicH: 'Make your own sticker',
-    magicPh: 'Describe your sticker idea',
-    magicGo: 'Generate',
-    magicWorking: 'Drawing your sticker. This takes about half a minute.',
-    magicPick: 'Tap the one you like best.',
-    magicMore: 'Generate again',
     addFrame: '+ Frame',
     frameSheetH: 'Add a frame',
     stickerSheetH: 'Add a sticker',
@@ -659,12 +652,6 @@
     var isFrame = category === 'frame';
     var body = el('div', {});
     var overlay = sheet(isFrame ? COPY.frameSheetH : COPY.stickerSheetH, [body]);
-    if (!isFrame) {
-      body.appendChild(el('button', {
-        class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.magicBtn,
-        onclick: function () { overlay.remove(); magicSheet(); },
-      }));
-    }
     var render = function (manifest) {
       var packs = (manifest && manifest.packs) || {};
       var packIds = Object.keys(packs).filter(function (packId) {
@@ -694,90 +681,6 @@
       .then(function (r) { return r.json(); })
       .then(function (m) { S.stickers = m; render(m); })
       .catch(function () { render(null); });
-  }
-
-  function magicSheet() {
-    if (stageMeta && stageMeta.exitMulti) stageMeta.exitMulti();
-    var input = el('input', { class: 'gstudio-input', type: 'text', maxlength: '80', placeholder: COPY.magicPh });
-    var status = el('p', { class: 'gstudio-note', text: '' });
-    var results = el('div', { class: 'gd-stickergrid' });
-    var progress = el('div', { class: 'gd-progresswrap', style: 'display:none' }, [el('div', { class: 'gd-progressbar' })]);
-    var goBtn = el('button', {
-      class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.magicGo,
-      onclick: function () { waitForToken(function () { generate(); }, status); },
-    });
-    var overlay = sheet(COPY.magicH, [input, goBtn, progress, status, results]);
-
-    function generate() {
-      var idea = input.value.trim();
-      if (!idea) { input.focus(); return; }
-      goBtn.disabled = true;
-      results.textContent = '';
-      status.textContent = COPY.magicWorking;
-      progress.style.display = '';
-      api('/v1/generate', { method: 'POST', json: { style_id: 'illustrated', model_id: S.modelId, input: { text: idea } } })
-        .then(function (b) {
-          if (b.__status !== 202) { fail(b.human_message || COPY.errB); return; }
-          poll(b.job_id, 0);
-        })
-        .catch(function () { fail(COPY.errB); });
-    }
-    function poll(jobId, tries) {
-      if (tries > 60) { fail(COPY.errB); return; }
-      api('/v1/jobs/' + jobId)
-        .then(function (job) {
-          if (job.status === 'done') { show(job.renders || []); return; }
-          if (job.status === 'error') { fail(job.human_message || COPY.errB); return; }
-          setTimeout(function () { poll(jobId, tries + 1); }, 2000);
-        })
-        .catch(function () { fail(COPY.errB); });
-    }
-    function show(renders) {
-      progress.style.display = 'none';
-      var usable = renders.filter(function (r) { return !r.blocked && r.preview_url; });
-      if (!usable.length) { fail(COPY.errB); return; }
-      status.textContent = COPY.magicPick;
-      usable.forEach(function (r) {
-        var img = el('img', { src: cfg.api + r.preview_url, alt: 'Sticker option' });
-        results.appendChild(el('button', {
-          class: 'gd-sticker', type: 'button',
-          onclick: function () { pick(r.render_id); },
-        }, [img]));
-      });
-      goBtn.disabled = false;
-      goBtn.textContent = COPY.magicMore;
-    }
-    function pick(renderId) {
-      status.textContent = COPY.checking;
-      api('/v1/renders/' + renderId + '/stickerize', { method: 'POST' })
-        .then(function (b) {
-          if (b.__status !== 200) { fail(b.human_message || COPY.errB); return; }
-          return fetch(cfg.api + '/v1/uploads/' + b.upload_id, { headers: { authorization: 'Bearer ' + S.token } })
-            .then(function (r) { return r.blob(); })
-            .then(function (blob) {
-              var url = URL.createObjectURL(blob);
-              fabric.Image.fromURL(url, function (img) {
-                var scale = (stageMeta.plateW * 0.4) / (img.width || 1);
-                img.set({
-                  left: stageMeta.plateW / 2, top: stageMeta.plateH / 2,
-                  originX: 'center', originY: 'center', scaleX: scale, scaleY: scale,
-                });
-                img.setControlsVisibility({ ml: false, mr: false, mt: false, mb: false });
-                img.gdType = 'image'; img.gdRef = 'upload:' + b.upload_id;
-                C.add(img); C.setActiveObject(img); C.requestRenderAll();
-                ga('studio_designer_magic', {});
-              });
-              overlay.remove();
-            });
-        })
-        .catch(function () { fail(COPY.errB); });
-    }
-    function fail(msg) {
-      progress.style.display = 'none';
-      status.textContent = msg;
-      goBtn.disabled = false;
-      goBtn.textContent = COPY.magicGo;
-    }
   }
 
   function placeSticker(packId, id) {
