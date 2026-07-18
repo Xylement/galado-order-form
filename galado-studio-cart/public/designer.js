@@ -671,7 +671,31 @@
     var pinch = null;
     function twoDist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
     function twoAngle(t) { return Math.atan2(t[1].clientY - t[0].clientY, t[1].clientX - t[0].clientX) * 180 / Math.PI; }
+    // Kill any Fabric drag/scale/rotate/marquee the first finger already began;
+    // lockMovement alone stops only translation, not a handle transform or a
+    // rubber-band, so those would otherwise fight the pinch.
+    function abortFabricGesture() {
+      try { if (C._currentTransform) C._currentTransform = null; } catch (e) { /* internal */ }
+      try { if (C._groupSelector) C._groupSelector = null; } catch (e) { /* internal */ }
+    }
+    // A layer-reorder hold may already have locked + glowed a layer; undo that
+    // before the pinch captures state, or the layer stays stuck for the session.
+    function clearEngagedHold() {
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+      if (layerDrag) {
+        layerDrag.obj.lockMovementX = false;
+        layerDrag.obj.lockMovementY = false;
+        setGlow(layerDrag.obj, false);
+        stageMeta.warn.textContent = '';
+        layerDrag = null;
+      }
+    }
     function pinchTarget(t) {
+      // "Select many": only ever pinch a real 2+ group, never hijack tap-to-pick.
+      if (S.multiMode) {
+        var g = C.getActiveObject();
+        return (g && g.type === 'activeSelection') ? g : null;
+      }
       var act = C.getActiveObject();
       if (act && !act.gdOverlay) return act;
       var r = upperEl.getBoundingClientRect();
@@ -681,25 +705,31 @@
       for (var i = objs.length - 1; i >= 0; i -= 1) {
         if (objs[i].containsPoint(new fabric.Point(mx, my))) return objs[i];
       }
-      return objs.length ? objs[objs.length - 1] : null;
+      return null; // fingers on empty case: do nothing (there is no pan gesture)
+    }
+    function seedPinch(t) {
+      pinch.dist = twoDist(t) || 1;
+      pinch.ang = twoAngle(t);
+      pinch.scaleX = pinch.obj.scaleX || 1;
+      pinch.scaleY = pinch.obj.scaleY || 1;
+      pinch.angle = pinch.obj.angle || 0;
+      pinch.frozen = false;
     }
     upperEl.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 2) return;
-      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-      layerDrag = null;
+      clearEngagedHold();
+      if (pinch) { seedPinch(e.touches); e.preventDefault(); return; } // resumed after a lift
       var obj = pinchTarget(e.touches);
       if (!obj || obj.gdOverlay) { pinch = null; return; }
       if (C.getActiveObject() !== obj) C.setActiveObject(obj);
-      pinch = {
-        obj: obj, dist: twoDist(e.touches) || 1, ang: twoAngle(e.touches),
-        scaleX: obj.scaleX || 1, scaleY: obj.scaleY || 1, angle: obj.angle || 0,
-        baseW: obj.width || 1, lockX: obj.lockMovementX, lockY: obj.lockMovementY, sel: C.selection,
-      };
+      abortFabricGesture();
+      pinch = { obj: obj, baseW: obj.width || 1, lockX: obj.lockMovementX, lockY: obj.lockMovementY, sel: C.selection };
+      seedPinch(e.touches);
       obj.lockMovementX = true; obj.lockMovementY = true; C.selection = false;
       e.preventDefault();
     }, { passive: false });
     upperEl.addEventListener('touchmove', function (e) {
-      if (!pinch || e.touches.length !== 2) return;
+      if (!pinch || pinch.frozen || e.touches.length !== 2) return;
       e.preventDefault();
       var ratio = twoDist(e.touches) / pinch.dist;
       var startW = pinch.baseW * pinch.scaleX;
@@ -716,7 +746,15 @@
     }, { passive: false });
     function endPinch(e) {
       if (!pinch) return;
-      if (e.touches && e.touches.length >= 2) return;
+      var remaining = e.touches ? e.touches.length : 0;
+      if (remaining >= 2) return; // still pinching
+      if (remaining === 1) {
+        // One finger left: stop resizing but keep the layer locked so the stray
+        // finger cannot drag it, and cancel any Fabric transform.
+        pinch.frozen = true;
+        abortFabricGesture();
+        return;
+      }
       pinch.obj.lockMovementX = pinch.lockX;
       pinch.obj.lockMovementY = pinch.lockY;
       C.selection = pinch.sel;
