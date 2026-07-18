@@ -81,7 +81,7 @@
     multiOn: 'Select many',
     tourBtn: '? How to',
     tour1H: 'Move and shape anything',
-    tour1B: 'Drag to move. Use the corner dots to resize and the arrow above to rotate. Tap the red X to remove.',
+    tour1B: 'Drag to move. Pinch with two fingers to resize, or use the corner dots. The arrow rotates, the red X removes.',
     tour2H: 'Change what is in front',
     tour2B: 'Hold a layer for a moment, then slide your finger up or down to bring it in front or push it behind.',
     tour3H: 'Move a few together',
@@ -175,7 +175,23 @@
   function mount() {
     root.innerHTML = '';
     for (var i = 0; i < arguments.length; i += 1) root.appendChild(arguments[i]);
-    root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // Bring the designer into view WITHOUT the on-load auto-scroll that used to
+  // dump customers onto the footer (the landing must show first). #galado-studio
+  // carries min-height:100vh so the footer always stays below the fold here.
+  function scrollToStudio() {
+    try { root.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    catch (e) { try { root.scrollIntoView(); } catch (e2) { /* ancient browser */ } }
+  }
+  var booted = false;
+
+  // A full-height, vertically-centred wrapper for the short selection steps so
+  // the two or three buttons sit comfortably and the footer never competes.
+  function screenWrap() {
+    var w = el('div', { class: 'gd-screen' });
+    for (var i = 0; i < arguments.length; i += 1) w.appendChild(arguments[i]);
+    return w;
   }
 
   function api(path, opts) {
@@ -225,7 +241,9 @@
         },
       }));
     });
-    mount(el('h2', { text: COPY.brandH }), grid);
+    mount(screenWrap(el('h2', { text: COPY.brandH }), grid));
+    if (booted) scrollToStudio(); // "Design another" restart; not the first load
+    booted = true;
   }
 
   function renderModelSelect(brand) {
@@ -253,14 +271,14 @@
     });
     if (document.querySelector('.gstudio-landing')) {
       // The launch landing already carries the hero; no double headline.
-      mount(el('h2', { text: COPY.modelH }), grid);
+      mount(screenWrap(el('h2', { text: COPY.modelH }), grid));
     } else {
-      mount(
+      mount(screenWrap(
         el('h1', { text: COPY.heroTitle }),
         el('p', { class: 'gstudio-sub', text: COPY.heroSub + ' ' + COPY.priceLine + '.' }),
         el('h2', { text: COPY.modelH }),
         grid
-      );
+      ));
     }
   }
 
@@ -277,7 +295,7 @@
         },
       }));
     });
-    mount(el('h2', { text: COPY.colourH }), grid);
+    mount(screenWrap(el('h2', { text: COPY.colourH }), grid));
   }
 
   // ---- session (Turnstile) ---------------------------------------------------
@@ -635,7 +653,7 @@
     C.on('object:moving', function () {
       if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
     });
-    C.on('selection:created', updateSelUi);    C.on('selection:created', updateSelUi);    C.on('selection:created', updateSelUi);
+    C.on('selection:created', updateSelUi);
     C.on('selection:updated', updateSelUi);
     C.on('selection:cleared', updateSelUi);
     C.on('object:modified', checkPlacement);
@@ -644,6 +662,72 @@
       var t = opt.target;
       if (t && t.gdType === 'text') textSheet(t);
     });
+
+    // Two-finger pinch to resize (and rotate) the active layer, especially for
+    // mobile where the corner handles are fiddly. Native touch listeners on the
+    // Fabric upper canvas: while two fingers are down we drive scale/angle
+    // directly and lock Fabric's own move/select so they never fight.
+    var upperEl = C.upperCanvasEl;
+    var pinch = null;
+    function twoDist(t) { return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY); }
+    function twoAngle(t) { return Math.atan2(t[1].clientY - t[0].clientY, t[1].clientX - t[0].clientX) * 180 / Math.PI; }
+    function pinchTarget(t) {
+      var act = C.getActiveObject();
+      if (act && !act.gdOverlay) return act;
+      var r = upperEl.getBoundingClientRect();
+      var mx = ((t[0].clientX + t[1].clientX) / 2 - r.left) * (C.getWidth() / r.width);
+      var my = ((t[0].clientY + t[1].clientY) / 2 - r.top) * (C.getHeight() / r.height);
+      var objs = contentObjects();
+      for (var i = objs.length - 1; i >= 0; i -= 1) {
+        if (objs[i].containsPoint(new fabric.Point(mx, my))) return objs[i];
+      }
+      return objs.length ? objs[objs.length - 1] : null;
+    }
+    upperEl.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 2) return;
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+      layerDrag = null;
+      var obj = pinchTarget(e.touches);
+      if (!obj || obj.gdOverlay) { pinch = null; return; }
+      if (C.getActiveObject() !== obj) C.setActiveObject(obj);
+      pinch = {
+        obj: obj, dist: twoDist(e.touches) || 1, ang: twoAngle(e.touches),
+        scaleX: obj.scaleX || 1, scaleY: obj.scaleY || 1, angle: obj.angle || 0,
+        baseW: obj.width || 1, lockX: obj.lockMovementX, lockY: obj.lockMovementY, sel: C.selection,
+      };
+      obj.lockMovementX = true; obj.lockMovementY = true; C.selection = false;
+      e.preventDefault();
+    }, { passive: false });
+    upperEl.addEventListener('touchmove', function (e) {
+      if (!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      var ratio = twoDist(e.touches) / pinch.dist;
+      var startW = pinch.baseW * pinch.scaleX;
+      var targetW = Math.max(24, Math.min(stageMeta.plateW * 3, startW * ratio));
+      var newScaleX = targetW / pinch.baseW;
+      pinch.obj.set({
+        scaleX: newScaleX,
+        scaleY: newScaleX * (pinch.scaleY / pinch.scaleX),
+        angle: pinch.angle + (twoAngle(e.touches) - pinch.ang),
+      });
+      pinch.obj.setCoords();
+      C.requestRenderAll();
+      checkPlacement();
+    }, { passive: false });
+    function endPinch(e) {
+      if (!pinch) return;
+      if (e.touches && e.touches.length >= 2) return;
+      pinch.obj.lockMovementX = pinch.lockX;
+      pinch.obj.lockMovementY = pinch.lockY;
+      C.selection = pinch.sel;
+      pinch.obj.setCoords();
+      pinch = null;
+      C.requestRenderAll();
+      checkPlacement();
+      updateSelUi();
+    }
+    upperEl.addEventListener('touchend', endPinch, { passive: false });
+    upperEl.addEventListener('touchcancel', endPinch, { passive: false });
     fabric.Object.prototype.set({
       transparentCorners: false, cornerStyle: 'circle', cornerColor: '#FFFFFF',
       cornerStrokeColor: '#111111', borderColor: '#111111', cornerSize: 12, padding: 4,
@@ -1444,6 +1528,7 @@
   }
 
   function renderAdded(checkoutUrl) {
+    scrollToStudio();
     mount(
       el('div', { class: 'gstudio-ok', text: '\u2713' }),
       el('h2', { class: 'gstudio-center', text: COPY.addedH }),

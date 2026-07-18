@@ -370,3 +370,11 @@
 .gsl-thumbs img { width: 52px; height: 52px; object-fit: contain; background: var(--g-surface);
   border: 1px solid var(--g-border); border-radius: 12px; padding: 5px; flex: 0 0 auto; }
 @media (min-width: 480px) { .gsl-shots img { width: 46%; } }
+
+/* Designer mount: full-height so the site footer stays below the fold and
+   the "Start designing" anchor lands cleanly (round 16). scroll-margin-top
+   keeps a hair of breathing room above the target. */
+#galado-studio { min-height: 100vh; scroll-margin-top: 10px; }
+/* Short selection steps (brand / model / colour) sit centred in the space. */
+.gd-screen { min-height: 74vh; display: flex; flex-direction: column; justify-content: center; }
+.gd-screen .gstudio-models { max-height: none; }
