@@ -63,9 +63,9 @@ class GSTUDIO_Assets {
             <?php wp_nonce_field('gstudio_asset_upload'); ?>
             <input type="hidden" name="action" value="gstudio_asset_upload" />
             <table class="form-table" role="presentation">
-              <tr><th scope="row">PNG file</th>
-                <td><input type="file" name="gstudio_png" accept="image/png" required />
-                <p class="description">Transparent PNG, up to 5MB. It is resized to a 1600px box.</p></td></tr>
+              <tr><th scope="row">PNG files</th>
+                <td><input type="file" name="gstudio_png[]" accept="image/png" multiple required />
+                <p class="description">Transparent PNGs, up to 5MB each. Select as many as you like; each is resized to a 1600px box and named after its filename.</p></td></tr>
               <tr><th scope="row">Pack</th>
                 <td>
                   <select name="pack_select">
@@ -81,7 +81,8 @@ class GSTUDIO_Assets {
                 <td><label><input type="radio" name="category" value="sticker" checked /> Sticker</label>
                 &nbsp;&nbsp;<label><input type="radio" name="category" value="frame" /> Frame</label></td></tr>
               <tr><th scope="row">Asset name</th>
-                <td><input type="text" name="asset_id" placeholder="e.g. red-ribbon (optional, from filename otherwise)" /></td></tr>
+                <td><input type="text" name="asset_id" placeholder="e.g. red-ribbon (optional, single file only)" />
+                <p class="description">Leave empty for bulk uploads; every file is named from its filename (spaces become dashes).</p></td></tr>
             </table>
             <?php submit_button('Upload to Studio'); ?>
           </form>
@@ -120,31 +121,59 @@ class GSTUDIO_Assets {
     public static function handle_upload() {
         if (!current_user_can('manage_woocommerce')) wp_die('Not allowed.');
         check_admin_referer('gstudio_asset_upload');
-        if (empty($_FILES['gstudio_png']) || UPLOAD_ERR_OK !== (int) $_FILES['gstudio_png']['error']) {
-            self::back('The file did not upload. Try again.', true);
+        if (function_exists('set_time_limit')) @set_time_limit(300);
+
+        // Normalise single and multiple uploads into one list.
+        $files = [];
+        if (!empty($_FILES['gstudio_png']['name'])) {
+            $names = (array) $_FILES['gstudio_png']['name'];
+            foreach ($names as $i => $n) {
+                $files[] = [
+                    'name'     => is_array($_FILES['gstudio_png']['name']) ? $_FILES['gstudio_png']['name'][$i] : $_FILES['gstudio_png']['name'],
+                    'tmp_name' => is_array($_FILES['gstudio_png']['tmp_name']) ? $_FILES['gstudio_png']['tmp_name'][$i] : $_FILES['gstudio_png']['tmp_name'],
+                    'size'     => is_array($_FILES['gstudio_png']['size']) ? $_FILES['gstudio_png']['size'][$i] : $_FILES['gstudio_png']['size'],
+                    'error'    => is_array($_FILES['gstudio_png']['error']) ? $_FILES['gstudio_png']['error'][$i] : $_FILES['gstudio_png']['error'],
+                ];
+            }
         }
-        $file = $_FILES['gstudio_png'];
-        if ((int) $file['size'] > 5 * 1024 * 1024) self::back('That PNG is over 5MB.', true);
-        $finfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : null;
-        $mime  = $finfo ? finfo_file($finfo, $file['tmp_name']) : ($file['type'] ?: '');
-        if ('image/png' !== $mime) self::back('Only PNG files are accepted.', true);
+        if (!$files) self::back('No files arrived. Try again.', true);
 
         $pack = sanitize_title(wp_unslash($_POST['pack_select'] ?? ''));
         if ('__new' === $pack) $pack = sanitize_title(wp_unslash($_POST['new_pack'] ?? ''));
-        $id = sanitize_title(wp_unslash($_POST['asset_id'] ?? ''));
-        if (!$id) $id = sanitize_title(pathinfo($file['name'], PATHINFO_FILENAME));
         $category = ('frame' === ($_POST['category'] ?? '')) ? 'frame' : 'sticker';
-        if (!$pack || !$id) self::back('Give the pack and asset simple names (letters, numbers, dashes).', true);
+        $custom_id = sanitize_title(wp_unslash($_POST['asset_id'] ?? ''));
+        if (!$pack) self::back('Give the pack a simple name (letters, numbers, dashes).', true);
 
-        $out = self::api_post('/v1/admin-assets', [
-            'token'      => self::assets_token(),
-            'pack'       => $pack,
-            'id'         => $id,
-            'category'   => $category,
-            'png_base64' => base64_encode(file_get_contents($file['tmp_name'])),
-        ]);
-        if (empty($out['ok'])) self::back('Upload failed: ' . ($out['error'] ?? 'unknown error'), true);
-        self::back(sprintf('%s added to %s. It is live in the Studio now.', $id, $pack));
+        $finfo = function_exists('finfo_open') ? finfo_open(FILEINFO_MIME_TYPE) : null;
+        $added = [];
+        $failed = [];
+        foreach ($files as $file) {
+            $label = sanitize_file_name((string) $file['name']);
+            if (UPLOAD_ERR_OK !== (int) $file['error']) { $failed[$label] = 'did not upload'; continue; }
+            if ((int) $file['size'] > 5 * 1024 * 1024) { $failed[$label] = 'over 5MB'; continue; }
+            $mime = $finfo ? finfo_file($finfo, $file['tmp_name']) : '';
+            if ('image/png' !== $mime) { $failed[$label] = 'not a PNG'; continue; }
+            $id = (1 === count($files) && $custom_id) ? $custom_id : sanitize_title(pathinfo($file['name'], PATHINFO_FILENAME));
+            if (!$id) { $failed[$label] = 'unusable filename'; continue; }
+            $out = self::api_post('/v1/admin-assets', [
+                'token'      => self::assets_token(),
+                'pack'       => $pack,
+                'id'         => $id,
+                'category'   => $category,
+                'png_base64' => base64_encode(file_get_contents($file['tmp_name'])),
+            ]);
+            if (empty($out['ok'])) { $failed[$label] = $out['error'] ?? 'API refused it'; continue; }
+            $added[] = $id;
+        }
+
+        if ($added && !$failed) {
+            self::back(sprintf('%d asset%s added to %s and live in the Studio: %s.',
+                count($added), 1 === count($added) ? '' : 's', $pack, implode(', ', $added)));
+        }
+        $bits = [];
+        if ($added) $bits[] = sprintf('%d added to %s (%s)', count($added), $pack, implode(', ', $added));
+        foreach ($failed as $name => $why) $bits[] = sprintf('%s failed: %s', $name, $why);
+        self::back(implode('. ', $bits) . '.', !$added);
     }
 
     public static function handle_delete() {
