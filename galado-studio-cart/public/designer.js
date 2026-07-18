@@ -937,12 +937,12 @@
         var grid = el('div', { class: 'gd-stickergrid' });
         (pack.stickers || []).forEach(function (st) {
           var img = el('img', {
-            src: cfg.api + '/v1/stickers/' + packId + '/' + st.id + '.thumb',
+            src: cfg.api + '/v1/stickers/' + packId + '/' + st.id + '.thumb' + (st.v ? '?v=' + st.v : ''),
             alt: st.label, loading: 'lazy',
           });
           grid.appendChild(el('button', {
             class: 'gd-sticker', type: 'button',
-            onclick: function () { placeSticker(packId, st.id); overlay.remove(); },
+            onclick: function () { placeSticker(packId, st.id, st.v); overlay.remove(); },
           }, [img]));
         });
         body.appendChild(grid);
@@ -955,8 +955,8 @@
       .catch(function () { render(null); });
   }
 
-  function placeSticker(packId, id) {
-    fabric.Image.fromURL(cfg.api + '/v1/stickers/' + packId + '/' + id, function (img) {
+  function placeSticker(packId, id, v) {
+    fabric.Image.fromURL(cfg.api + '/v1/stickers/' + packId + '/' + id + (v ? '?v=' + v : ''), function (img) {
       if (!img || !img.width) return;
       var scale = (stageMeta.plateW * 0.34) / img.width;
       img.set({

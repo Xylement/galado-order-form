@@ -16,6 +16,7 @@ class GSTUDIO_Assets {
         add_action('admin_menu', [__CLASS__, 'menu']);
         add_action('admin_post_gstudio_asset_upload', [__CLASS__, 'handle_upload']);
         add_action('admin_post_gstudio_asset_delete', [__CLASS__, 'handle_delete']);
+        add_action('admin_post_gstudio_asset_bulk_delete', [__CLASS__, 'handle_bulk_delete']);
     }
 
     public static function menu() {
@@ -88,6 +89,12 @@ class GSTUDIO_Assets {
           </form>
 
           <h2 style="margin-top:28px">Current library</h2>
+          <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>"
+                onsubmit="return confirm('Remove every ticked asset from the Studio?');">
+            <?php wp_nonce_field('gstudio_asset_bulk_delete'); ?>
+            <input type="hidden" name="action" value="gstudio_asset_bulk_delete" />
+            <p><button type="submit" class="button button-secondary">Delete selected</button>
+               <span class="description">Tick assets below, then delete them in one go.</span></p>
           <?php foreach ($manifest as $pid => $p) : if ('qa' === $pid) continue; ?>
             <h3><?php echo esc_html(isset($p['label']) ? $p['label'] : $pid); ?>
               <?php if (!empty($p['category']) && 'frame' === $p['category']) : ?><span class="dashicons dashicons-format-image" title="Frames"></span><?php endif; ?>
@@ -95,19 +102,16 @@ class GSTUDIO_Assets {
             <div style="display:flex;flex-wrap:wrap;gap:10px">
               <?php foreach ($p['stickers'] as $st) : ?>
                 <div style="background:#fff;border:1px solid #ccd0d4;border-radius:6px;padding:6px;text-align:center;width:96px">
-                  <img src="<?php echo esc_url($api . '/v1/stickers/' . rawurlencode($pid) . '/' . rawurlencode($st['id']) . '.thumb'); ?>" style="width:80px;height:80px;object-fit:contain;background:repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 0 0/12px 12px" alt="" />
+                  <img src="<?php echo esc_url($api . '/v1/stickers/' . rawurlencode($pid) . '/' . rawurlencode($st['id']) . '.thumb' . (!empty($st['v']) ? '?v=' . rawurlencode($st['v']) : '')); ?>" style="width:80px;height:80px;object-fit:contain;background:repeating-conic-gradient(#eee 0% 25%, #fff 0% 50%) 0 0/12px 12px" alt="" />
                   <div style="font-size:11px;overflow:hidden;text-overflow:ellipsis"><?php echo esc_html($st['id']); ?></div>
-                  <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return confirm('Remove <?php echo esc_js($st['id']); ?> from the Studio?');">
-                    <?php wp_nonce_field('gstudio_asset_delete'); ?>
-                    <input type="hidden" name="action" value="gstudio_asset_delete" />
-                    <input type="hidden" name="pack" value="<?php echo esc_attr($pid); ?>" />
-                    <input type="hidden" name="asset_id" value="<?php echo esc_attr($st['id']); ?>" />
-                    <button type="submit" class="button-link-delete" style="font-size:11px">Remove</button>
-                  </form>
+                  <label style="font-size:11px;display:block;margin-top:2px">
+                    <input type="checkbox" name="del[]" value="<?php echo esc_attr($pid . ':' . $st['id']); ?>" /> select
+                  </label>
                 </div>
               <?php endforeach; ?>
             </div>
           <?php endforeach; ?>
+          </form>
         </div>
         <?php
     }
@@ -174,6 +178,33 @@ class GSTUDIO_Assets {
         if ($added) $bits[] = sprintf('%d added to %s (%s)', count($added), $pack, implode(', ', $added));
         foreach ($failed as $name => $why) $bits[] = sprintf('%s failed: %s', $name, $why);
         self::back(implode('. ', $bits) . '.', !$added);
+    }
+
+    public static function handle_bulk_delete() {
+        if (!current_user_can('manage_woocommerce')) wp_die('Not allowed.');
+        check_admin_referer('gstudio_asset_bulk_delete');
+        if (function_exists('set_time_limit')) @set_time_limit(300);
+        $picked = isset($_POST['del']) ? (array) wp_unslash($_POST['del']) : [];
+        if (!$picked) self::back('Nothing was ticked.', true);
+        $gone = [];
+        $failed = [];
+        foreach ($picked as $item) {
+            $parts = explode(':', (string) $item, 2);
+            $pack = sanitize_title($parts[0] ?? '');
+            $id   = sanitize_title($parts[1] ?? '');
+            if (!$pack || !$id) continue;
+            $out = self::api_post('/v1/admin-assets/delete', [
+                'token' => self::assets_token(),
+                'pack'  => $pack,
+                'id'    => $id,
+            ]);
+            if (empty($out['ok'])) $failed[] = $pack . '/' . $id;
+            else $gone[] = $pack . '/' . $id;
+        }
+        $msg = [];
+        if ($gone) $msg[] = sprintf('%d removed (%s)', count($gone), implode(', ', $gone));
+        if ($failed) $msg[] = sprintf('%d failed (%s)', count($failed), implode(', ', $failed));
+        self::back(implode('. ', $msg) . '.', !$gone);
     }
 
     public static function handle_delete() {
