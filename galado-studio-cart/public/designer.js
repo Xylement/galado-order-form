@@ -280,6 +280,11 @@
         grid
       ));
     }
+    // Re-anchor: a marketing popup (or mobile chrome) can steal scroll between
+    // the brand tap and this mount, which would drop the model grid below the
+    // fold and leave the customer staring at the landing. Every post-tap step
+    // pulls the studio back into view.
+    scrollToStudio();
   }
 
   function renderColourSelect(colours) {
@@ -296,6 +301,7 @@
       }));
     });
     mount(screenWrap(el('h2', { text: COPY.colourH }), grid));
+    scrollToStudio(); // keep the active step in view (see renderModelSelect note)
   }
 
   // ---- session (Turnstile) ---------------------------------------------------
