@@ -16,10 +16,50 @@ class GSTUDIO_Webhook {
         add_action('woocommerce_order_status_completed', [__CLASS__, 'notify'], 20);
     }
 
+    /**
+     * App orders arrive through the Club bridge, which writes whatever item meta
+     * the client handed it. We deliberately do NOT let the client supply the
+     * hidden _studio_* pairs: fulfilment meta is minted here, server-side, from
+     * the one value the app's bridge always appends itself ("Studio Design" =
+     * the artwork id). Two reasons. The app's cart renders every attribute it is
+     * given, so a signed print link sent that way would be shown to the customer;
+     * and meta that round-trips through the client is meta a forged payload can
+     * choose. Web orders already carry these keys and are skipped untouched.
+     */
+    private static function backfill_app_meta($order) {
+        $secret = gstudio_secret();
+        if ('' === $secret) return;
+        foreach ($order->get_items() as $item) {
+            if ($item->get_meta('_studio_artwork_id')) continue; // web order, already complete
+            $aid = trim((string) $item->get_meta('Studio Design'));
+            if ('' === $aid) continue;                           // not a Studio line
+            $sig = GSTUDIO_Token::sign(
+                ['t' => 'master', 'artwork_id' => $aid, 'exp' => time() + YEAR_IN_SECONDS],
+                $secret
+            );
+            $item->add_meta_data('_studio_master_url', gstudio_api_base() . '/v1/artwork-file/' . rawurlencode($aid) . '?s=' . rawurlencode($sig));
+            $item->add_meta_data('_studio_artwork_id', $aid);
+            $sku = '';
+            $vid = (int) $item->get_variation_id();
+            if ($vid && function_exists('wc_get_product')) {
+                $v = wc_get_product($vid);
+                if ($v) $sku = (string) $v->get_sku();
+            }
+            if (0 === strpos($sku, 'studio-')) {
+                $item->add_meta_data('_studio_model', substr($sku, 7));
+            }
+            $item->add_meta_data('_studio_style', 'designer');
+            $item->save();
+        }
+    }
+
     public static function notify($order_id) {
         if (!function_exists('wc_get_order')) return;
         $order = wc_get_order($order_id);
         if (!$order || $order->get_meta('_gstudio_hooked')) return;
+
+        // Give app-created lines their fulfilment meta before we look for it.
+        self::backfill_app_meta($order);
 
         $artwork_ids = [];
         foreach ($order->get_items() as $item) {

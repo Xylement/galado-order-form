@@ -99,7 +99,7 @@
     confirmCta: 'Add to cart',
     confirmBack: 'Keep editing',
     appSending: 'Adding to your cart...',
-    appFallbackNote: 'Still here? Your app did not pick this up. Your design is safe, you can add it the usual way.',
+    appFallbackNote: 'If your design did not land in your app cart, you can add it here instead.',
     appFallbackCta: 'Add it here instead',
     emptyNote: 'Add a photo or some words to start.',
     doneH: 'Your design is saved',
@@ -1546,7 +1546,10 @@
       };
     }
 
+    var tracked = false;
     function trackAdd() {
+      if (tracked) return;
+      tracked = true;
       ga('studio_cart', { style_id: 'designer', model_id: S.modelId, value: 169, currency: 'MYR' });
       ga('add_to_cart', {
         currency: 'MYR', value: 169,
@@ -1595,7 +1598,6 @@
         .then(function (res) { return res.json().then(function (b) { b.__status = res.status; return b; }); })
         .then(function (line) {
           if (line.__status !== 200 || !line.ok) { offerWebFallback(line.message); return; }
-          var meta = line.meta || {};
           var display = line.display || {};
           try {
             native.postMessage({
@@ -1607,15 +1609,15 @@
               name: line.name,
               previewUrl: line.preview_url,
               quantity: 1,
+              // Only what the customer should see. The app's cart renders every
+              // attribute it is given, and meta that travels through the client
+              // is meta a forged payload can choose, so the hidden _studio_*
+              // fulfilment keys are minted server-side at order time instead
+              // (GSTUDIO_Webhook::backfill_app_meta) off the "Studio Design"
+              // pair the app's own bridge appends.
               attributes: [
                 { label: 'Model', value: display['Model'] },
                 { label: 'Case colour', value: display['Case colour'] },
-                // Underscore labels become hidden order meta; these four are what
-                // fulfilment and the 30-day retention hold actually read.
-                { label: '_studio_artwork_id', value: meta._studio_artwork_id },
-                { label: '_studio_master_url', value: meta._studio_master_url },
-                { label: '_studio_model', value: meta._studio_model },
-                { label: '_studio_style', value: meta._studio_style },
               ],
             });
           } catch (e) { offerWebFallback(''); return; }

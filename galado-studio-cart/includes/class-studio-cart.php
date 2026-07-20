@@ -117,17 +117,18 @@ class GSTUDIO_Cart {
      * verifies the same HMAC artwork token, resolves the same variation, and
      * mints the same year-long master link the web cart stores.
      *
-     * The _studio_* pairs come back so the app can hand them straight to the
-     * order as item meta. WooCommerce hides underscore-prefixed item meta and the
-     * club bridge writes each label verbatim as the meta key, so an app order
-     * ends up with byte-identical fulfilment meta to a web order. Those keys are
-     * load bearing: _studio_artwork_id is what fires the order webhook that gives
-     * the artwork permanent retention (without it the master PNG is purged after
-     * 30 days), and _studio_master_url is the only way ops reaches the print file.
+     * It deliberately does NOT return the hidden _studio_* fulfilment pairs. The
+     * app's cart renders every attribute it is handed, and meta that travels
+     * through the client is meta a forged payload can choose, so those keys are
+     * minted server-side at order time instead (GSTUDIO_Webhook::backfill_app_meta)
+     * off the "Studio Design" pair the app's own bridge appends. They are load
+     * bearing: _studio_artwork_id is what fires the order webhook that gives the
+     * artwork permanent retention (without it the master PNG is purged after 30
+     * days), and _studio_master_url is the only way ops reaches the print file.
      *
-     * The signed master link does reach the browser here, unlike the web path.
-     * It is the customer's own artwork and the signature is bound to that one
-     * artwork_id, which this route only mints against a valid artwork token.
+     * preview_url is the one signed link that does reach the browser, because the
+     * app needs a durable cart thumbnail. It is the customer's own artwork and the
+     * signature is bound to that single artwork_id.
      *
      * The SKU convention and token shape are shared with add_to_cart() above and
      * with models() in class-studio-page.php; keep the three in step.
@@ -136,11 +137,7 @@ class GSTUDIO_Cart {
         $token      = (string) $req->get_param('artwork_token');
         $artwork_id = sanitize_text_field((string) $req->get_param('artwork_id'));
         $model_id   = sanitize_title((string) $req->get_param('model_id'));
-        $style_id   = sanitize_title((string) $req->get_param('style_id'));
         $colour     = ('white' === $req->get_param('case_colour')) ? 'white' : 'black';
-        if ('' === $style_id) {
-            $style_id = 'designer';
-        }
 
         $claim = GSTUDIO_Token::verify($token, gstudio_secret());
         if (!$claim || ($claim['t'] ?? '') !== 'artwork'
@@ -169,6 +166,13 @@ class GSTUDIO_Cart {
         }
         if (!$variation) {
             return new WP_Error('gstudio_no_model', 'That phone model is not available right now.', ['status' => 404]);
+        }
+
+        // The web path gets a stock check for free inside WC()->cart->add_to_cart;
+        // this route bypasses the cart, so gate it here or the app could sell a
+        // model that is out of stock.
+        if (!$variation->is_in_stock() || !$variation->has_enough_stock(1)) {
+            return new WP_Error('gstudio_no_stock', 'That phone model just went out of stock.', ['status' => 409]);
         }
 
         // The app drops any line without a positive price, silently, so a zero
@@ -202,12 +206,6 @@ class GSTUDIO_Cart {
             // Year-long link plus the resize hint the web cart already uses, so the
             // app's saved cart thumbnail does not die with the 1h preview signature.
             'preview_url'  => $master_url . '&w=480',
-            'meta'         => [
-                '_studio_artwork_id' => $artwork_id,
-                '_studio_master_url' => $master_url,
-                '_studio_model'      => $model_id,
-                '_studio_style'      => $style_id,
-            ],
             'display'      => [
                 'Model'       => $model_label,
                 'Case colour' => ('white' === $colour) ? 'White (MagSafe)' : 'Black (MagSafe)',
