@@ -98,6 +98,9 @@
     confirmB: 'This is exactly how we will print it. Happy with it?',
     confirmCta: 'Add to cart',
     confirmBack: 'Keep editing',
+    appSending: 'Adding to your cart...',
+    appFallbackNote: 'Still here? Your app did not pick this up. Your design is safe, you can add it the usual way.',
+    appFallbackCta: 'Add it here instead',
     emptyNote: 'Add a photo or some words to start.',
     doneH: 'Your design is saved',
     doneB: 'Checkout wiring arrives in the next build. This design serialised cleanly:',
@@ -1512,6 +1515,16 @@
       .catch(function () { restore(COPY.errB); });
   }
 
+  // The GALADO iOS app injects this message handler into its webview. It is
+  // absent in every browser, so its presence is what tells the designer it is
+  // running in the app; the web path is untouched when it is missing.
+  function nativeBridge() {
+    try {
+      return (window.webkit && window.webkit.messageHandlers
+        && window.webkit.messageHandlers.galadoStudio) || null;
+    } catch (e) { return null; }
+  }
+
   function confirmSheet(design) {
     var img = el('img', {
       class: 'gd-confirmimg',
@@ -1521,51 +1534,137 @@
     var caseLabel = S.caseColour === 'white' ? COPY.colourWhite : COPY.colourBlack;
     var note = el('p', { class: 'gstudio-note', text: COPY.caseLine + caseLabel + '. ' + COPY.confirmB });
     var err = el('p', { class: 'gd-warn gd-warn--hard', text: '' });
+
+    function cartPayload() {
+      return {
+        artwork_token: design.artwork_token,
+        artwork_id: design.artwork_id,
+        model_id: S.modelId,
+        style_id: 'designer',
+        case_colour: S.caseColour,
+        name_text: '',
+      };
+    }
+
+    function trackAdd() {
+      ga('studio_cart', { style_id: 'designer', model_id: S.modelId, value: 169, currency: 'MYR' });
+      ga('add_to_cart', {
+        currency: 'MYR', value: 169,
+        items: [{ item_id: 'studio-case', item_name: 'Studio Case', item_variant: S.modelId, item_category: 'Studio Designer', price: 169, quantity: 1 }],
+      });
+    }
+
+    // Unchanged web behaviour: WooCommerce session cart, then the /cart/ hand-off.
+    function webAdd() {
+      fetch(cfg.cart_url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(cartPayload()),
+      })
+        .then(function (res) { return res.json().then(function (b) { b.__status = res.status; return b; }); })
+        .then(function (body) {
+          if (body.__status !== 200 || !body.ok) {
+            addBtn.disabled = false;
+            addBtn.textContent = COPY.confirmCta;
+            err.textContent = body.message || COPY.errB;
+            return;
+          }
+          trackAdd();
+          overlay.remove();
+          renderAdded(body.checkout || body.cart_url || '#');
+        })
+        .catch(function () {
+          addBtn.disabled = false;
+          addBtn.textContent = COPY.confirmCta;
+          err.textContent = COPY.errB;
+        });
+    }
+
+    // Inside the GALADO iOS app: hand the design to the native cart instead of
+    // the web one. The plugin resolves variation, price and the signed print
+    // links server-side (/app-line) so the app never has to be trusted with them,
+    // and so the order carries the same hidden _studio_* meta a web order does.
+    function handToApp(native) {
+      fetch(cfg.app_line, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(cartPayload()),
+      })
+        .then(function (res) { return res.json().then(function (b) { b.__status = res.status; return b; }); })
+        .then(function (line) {
+          if (line.__status !== 200 || !line.ok) { offerWebFallback(line.message); return; }
+          var meta = line.meta || {};
+          var display = line.display || {};
+          try {
+            native.postMessage({
+              event: 'design.complete',
+              designId: design.artwork_id,
+              price: line.price,
+              productId: line.product_id,
+              variationId: line.variation_id,
+              name: line.name,
+              previewUrl: line.preview_url,
+              quantity: 1,
+              attributes: [
+                { label: 'Model', value: display['Model'] },
+                { label: 'Case colour', value: display['Case colour'] },
+                // Underscore labels become hidden order meta; these four are what
+                // fulfilment and the 30-day retention hold actually read.
+                { label: '_studio_artwork_id', value: meta._studio_artwork_id },
+                { label: '_studio_master_url', value: meta._studio_master_url },
+                { label: '_studio_model', value: meta._studio_model },
+                { label: '_studio_style', value: meta._studio_style },
+              ],
+            });
+          } catch (e) { offerWebFallback(''); return; }
+          trackAdd();
+          // The app closes this webview as soon as it accepts, so the escape
+          // hatch only ever appears when it did not. Never add to the web cart
+          // automatically here: if the app did accept, that would order twice.
+          setTimeout(function () { offerWebFallback(''); }, 4000);
+        })
+        .catch(function () { offerWebFallback(''); });
+    }
+
+    function offerWebFallback(message) {
+      addBtn.style.display = 'none';
+      err.className = 'gstudio-note';
+      err.textContent = message || COPY.appFallbackNote;
+      escBtn.style.display = '';
+    }
+
+    var escBtn = el('button', {
+      class: 'gstudio-btn gstudio-btn--ghost', type: 'button', text: COPY.appFallbackCta,
+      style: 'display:none;margin-top:10px',
+      onclick: function () {
+        escBtn.style.display = 'none';
+        err.className = 'gd-warn gd-warn--hard';
+        err.textContent = '';
+        addBtn.style.display = '';
+        addBtn.disabled = true;
+        addBtn.textContent = COPY.saving;
+        webAdd();
+      },
+    });
+
     var addBtn = el('button', {
       class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.confirmCta,
       onclick: function () {
+        var native = nativeBridge();
         addBtn.disabled = true;
-        addBtn.textContent = COPY.saving;
-        fetch(cfg.cart_url, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            artwork_token: design.artwork_token,
-            artwork_id: design.artwork_id,
-            model_id: S.modelId,
-            style_id: 'designer',
-            case_colour: S.caseColour,
-            name_text: '',
-          }),
-        })
-          .then(function (res) { return res.json().then(function (b) { b.__status = res.status; return b; }); })
-          .then(function (body) {
-            if (body.__status !== 200 || !body.ok) {
-              addBtn.disabled = false;
-              addBtn.textContent = COPY.confirmCta;
-              err.textContent = body.message || COPY.errB;
-              return;
-            }
-            ga('studio_cart', { style_id: 'designer', model_id: S.modelId, value: 169, currency: 'MYR' });
-            ga('add_to_cart', {
-              currency: 'MYR', value: 169,
-              items: [{ item_id: 'studio-case', item_name: 'Studio Case', item_variant: S.modelId, item_category: 'Studio Designer', price: 169, quantity: 1 }],
-            });
-            overlay.remove();
-            renderAdded(body.checkout || body.cart_url || '#');
-          })
-          .catch(function () {
-            addBtn.disabled = false;
-            addBtn.textContent = COPY.confirmCta;
-            err.textContent = COPY.errB;
-          });
+        addBtn.textContent = native ? COPY.appSending : COPY.saving;
+        if (native) { handToApp(native); return; }
+        webAdd();
       },
     });
+
     var overlay = sheet(COPY.confirmH, [
       img,
       note,
       addBtn,
+      escBtn,
       el('button', { class: 'gstudio-btn gstudio-btn--ghost', type: 'button', text: COPY.confirmBack, onclick: function () { overlay.remove(); } }),
       err,
     ]);

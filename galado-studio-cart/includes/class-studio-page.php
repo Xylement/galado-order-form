@@ -52,6 +52,8 @@ class GSTUDIO_Page {
             'ver'        => GSTUDIO_VERSION,
             'api'        => gstudio_api_base(),
             'cart_url'   => esc_url_raw(rest_url('galado-studio/v1/cart')),
+            // Used only when the designer is running inside the GALADO iOS app.
+            'app_line'   => esc_url_raw(rest_url('galado-studio/v1/app-line')),
             'sitekey'    => (string) $settings['turnstile_sitekey'],
             'wp_claim'   => $claim,
             'logged_in'  => is_user_logged_in(),

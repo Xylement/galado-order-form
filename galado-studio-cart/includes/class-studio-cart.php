@@ -97,11 +97,122 @@ class GSTUDIO_Cart {
             'permission_callback' => '__return_true', // guarded by the HMAC artwork token
             'callback'            => [__CLASS__, 'add_to_cart'],
         ]);
+        register_rest_route('galado-studio/v1', '/app-line', [
+            'methods'             => 'POST',
+            'permission_callback' => '__return_true', // guarded by the same HMAC artwork token as /cart
+            'callback'            => [__CLASS__, 'app_line'],
+        ]);
         register_rest_route('galado-studio/v1', '/resend-emails', [
             'methods'             => 'POST',
             'permission_callback' => '__return_true', // guarded by a signed ops token
             'callback'            => [__CLASS__, 'resend_emails'],
         ]);
+    }
+
+    /**
+     * In-app (iOS) counterpart to add_to_cart(). The app builds its own native
+     * cart line and checks out through its own checkout, so nothing is added to
+     * the WooCommerce session cart here. This route exists so the browser never
+     * has to be trusted with the price, the variation, or the signing secret: it
+     * verifies the same HMAC artwork token, resolves the same variation, and
+     * mints the same year-long master link the web cart stores.
+     *
+     * The _studio_* pairs come back so the app can hand them straight to the
+     * order as item meta. WooCommerce hides underscore-prefixed item meta and the
+     * club bridge writes each label verbatim as the meta key, so an app order
+     * ends up with byte-identical fulfilment meta to a web order. Those keys are
+     * load bearing: _studio_artwork_id is what fires the order webhook that gives
+     * the artwork permanent retention (without it the master PNG is purged after
+     * 30 days), and _studio_master_url is the only way ops reaches the print file.
+     *
+     * The signed master link does reach the browser here, unlike the web path.
+     * It is the customer's own artwork and the signature is bound to that one
+     * artwork_id, which this route only mints against a valid artwork token.
+     *
+     * The SKU convention and token shape are shared with add_to_cart() above and
+     * with models() in class-studio-page.php; keep the three in step.
+     */
+    public static function app_line(WP_REST_Request $req) {
+        $token      = (string) $req->get_param('artwork_token');
+        $artwork_id = sanitize_text_field((string) $req->get_param('artwork_id'));
+        $model_id   = sanitize_title((string) $req->get_param('model_id'));
+        $style_id   = sanitize_title((string) $req->get_param('style_id'));
+        $colour     = ('white' === $req->get_param('case_colour')) ? 'white' : 'black';
+        if ('' === $style_id) {
+            $style_id = 'designer';
+        }
+
+        $claim = GSTUDIO_Token::verify($token, gstudio_secret());
+        if (!$claim || ($claim['t'] ?? '') !== 'artwork'
+            || ($claim['artwork_id'] ?? '') !== $artwork_id
+            || ($claim['model_id'] ?? '') !== $model_id) {
+            return new WP_Error('gstudio_bad_token', 'That design link is not valid.', ['status' => 403]);
+        }
+
+        $settings   = gstudio_settings();
+        $product_id = (int) $settings['product_id'];
+        if (!$product_id || !function_exists('wc_get_product')) {
+            return new WP_Error('gstudio_not_ready', 'Studio checkout is not configured yet.', ['status' => 503]);
+        }
+        $product = wc_get_product($product_id);
+        if (!$product || 'variable' !== $product->get_type()) {
+            return new WP_Error('gstudio_not_ready', 'Studio checkout is not configured yet.', ['status' => 503]);
+        }
+
+        $variation = null;
+        foreach ($product->get_children() as $child_id) {
+            $v = wc_get_product($child_id);
+            if ($v && $v->get_sku() === 'studio-' . $model_id) {
+                $variation = $v;
+                break;
+            }
+        }
+        if (!$variation) {
+            return new WP_Error('gstudio_no_model', 'That phone model is not available right now.', ['status' => 404]);
+        }
+
+        // The app drops any line without a positive price, silently, so a zero
+        // here would destroy a finished design on the device. Fail loudly instead.
+        $price = 0.0;
+        if (function_exists('wc_get_price_to_display')) {
+            $price = (float) wc_get_price_to_display($variation);
+        }
+        if ($price <= 0) {
+            $price = (float) $variation->get_price();
+        }
+        if ($price <= 0) {
+            return new WP_Error('gstudio_no_price', 'Studio pricing is unavailable right now.', ['status' => 503]);
+        }
+
+        $master_sig = GSTUDIO_Token::sign(
+            ['t' => 'master', 'artwork_id' => $artwork_id, 'exp' => time() + YEAR_IN_SECONDS],
+            gstudio_secret()
+        );
+        $master_url = gstudio_api_base() . '/v1/artwork-file/' . rawurlencode($artwork_id) . '?s=' . rawurlencode($master_sig);
+
+        $attrs       = $variation->get_variation_attributes();
+        $model_label = $attrs ? (string) reset($attrs) : ucwords(str_replace('-', ' ', $model_id));
+
+        return [
+            'ok'           => true,
+            'product_id'   => $product_id,
+            'variation_id' => (int) $variation->get_id(),
+            'price'        => round($price, 2),
+            'name'         => 'Studio Case, ' . $model_label,
+            // Year-long link plus the resize hint the web cart already uses, so the
+            // app's saved cart thumbnail does not die with the 1h preview signature.
+            'preview_url'  => $master_url . '&w=480',
+            'meta'         => [
+                '_studio_artwork_id' => $artwork_id,
+                '_studio_master_url' => $master_url,
+                '_studio_model'      => $model_id,
+                '_studio_style'      => $style_id,
+            ],
+            'display'      => [
+                'Model'       => $model_label,
+                'Case colour' => ('white' === $colour) ? 'White (MagSafe)' : 'Black (MagSafe)',
+            ],
+        ];
     }
 
     /** Ops QA helper: re-fire the admin New Order and customer Processing
