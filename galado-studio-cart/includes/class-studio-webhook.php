@@ -37,8 +37,10 @@ class GSTUDIO_Webhook {
                 ['t' => 'master', 'artwork_id' => $aid, 'exp' => time() + YEAR_IN_SECONDS],
                 $secret
             );
-            $item->add_meta_data('_studio_master_url', gstudio_api_base() . '/v1/artwork-file/' . rawurlencode($aid) . '?s=' . rawurlencode($sig));
-            $item->add_meta_data('_studio_artwork_id', $aid);
+            // update_meta_data (not add_) so a webhook retry after a failed POST
+            // re-mints in place instead of stacking duplicate meta on the line.
+            $item->update_meta_data('_studio_master_url', gstudio_api_base() . '/v1/artwork-file/' . rawurlencode($aid) . '?s=' . rawurlencode($sig));
+            $item->update_meta_data('_studio_artwork_id', $aid);
             $sku = '';
             $vid = (int) $item->get_variation_id();
             if ($vid && function_exists('wc_get_product')) {
@@ -46,9 +48,9 @@ class GSTUDIO_Webhook {
                 if ($v) $sku = (string) $v->get_sku();
             }
             if (0 === strpos($sku, 'studio-')) {
-                $item->add_meta_data('_studio_model', substr($sku, 7));
+                $item->update_meta_data('_studio_model', substr($sku, 7));
             }
-            $item->add_meta_data('_studio_style', 'designer');
+            $item->update_meta_data('_studio_style', 'designer');
             $item->save();
         }
     }
