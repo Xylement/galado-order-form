@@ -87,13 +87,8 @@
     var txt = field.querySelector('.gld-pick__fieldtxt');
     field.addEventListener('click', function () {
       var sh = Sheet('Choose your ' + label);
-      var grid = el('div', 'gld-grid');
-      opts.forEach(function (o) {
-        var c = chip(o, key, sel.value === o.id);
-        c.addEventListener('click', function () { select(o); sh.close(); });
-        grid.appendChild(c);
-      });
-      sh.body.appendChild(grid); sh.open(field);
+      fillSheet(sh, opts, key, sel, select);
+      sh.open(field);
       ev('bundle_build_open', {});
     });
     function select(o) {
@@ -102,6 +97,31 @@
       commit(o.id);
     }
     pick.appendChild(field);
+  }
+
+  // Sheet body: a visual grid when every option has its own image, otherwise a
+  // clean text list — much easier to scan when the variations share or lack a
+  // distinguishing image (e.g. charm chains that all use the same photo).
+  function fillSheet(sh, opts, key, sel, onPick) {
+    var allImaged = opts.length && opts.every(function (o) { return o.thumb; });
+    if (allImaged) {
+      var grid = el('div', 'gld-grid');
+      opts.forEach(function (o) {
+        var c = chip(o, key, sel.value === o.id);
+        c.addEventListener('click', function () { onPick(o); sh.close(); });
+        grid.appendChild(c);
+      });
+      sh.body.appendChild(grid);
+      return;
+    }
+    var list = el('div', 'gld-modellist');
+    opts.forEach(function (o) {
+      var b = el('button', 'gld-modelrow' + (sel.value === o.id ? ' is-on' : ''));
+      b.type = 'button'; b.textContent = o.attrs[key] || o.label;
+      b.addEventListener('click', function () { onPick(o); sh.close(); });
+      list.appendChild(b);
+    });
+    sh.body.appendChild(list);
   }
 
   function buildTwoAxis(pick, sel, opts, keys, labels, commit) {

@@ -65,4 +65,12 @@
 .gld-modelrow{text-align:left;padding:13px 4px;border:none;border-bottom:1px solid #ECECEA;background:none;font-size:15px;cursor:pointer;font:inherit;color:#111}
 .gld-modelrow.is-on{color:#E4002B;font-weight:600}
 body.gld-noscroll{overflow:hidden}
+
+/* Mobile: horizontal snap slider (matches the original Style sets band) so the
+   cards don't stack top-down and make the page very long. */
+@media (max-width:900px){
+  .gld-bundles{display:flex;grid-template-columns:none;max-width:none;overflow-x:auto;scroll-snap-type:x mandatory;gap:14px;-webkit-overflow-scrolling:touch;scrollbar-width:none;scroll-padding-left:0}
+  .gld-bundles::-webkit-scrollbar{display:none}
+  .gld-bundles>.gld-bundle{flex:0 0 84%;scroll-snap-align:start}
+}
 @media (prefers-reduced-motion:reduce){.gld-sheet,.gld-sheet-veil,.gld-pick--nudge{transition:none;animation:none}}

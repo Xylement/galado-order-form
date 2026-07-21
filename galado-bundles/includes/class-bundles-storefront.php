@@ -143,7 +143,11 @@ class GALADO_Bundles_Storefront {
                 $axis_counts[$key][$display] = true;
             }
             $label = $attrs ? implode(' / ', array_values($attrs)) : ('#' . $cid);
-            $thumb = wp_get_attachment_image_url($v->get_image_id() ?: $parent->get_image_id(), 'woocommerce_thumbnail') ?: '';
+            // Only the variation's OWN image ('edit' context = no parent fallback),
+            // so the picker can tell "these variations have distinct images" (grid)
+            // from "they share/lack an image" (text list) — see fillSheet() in JS.
+            $own_img = $v->get_image_id('edit');
+            $thumb = $own_img ? (wp_get_attachment_image_url($own_img, 'woocommerce_thumbnail') ?: '') : '';
             $options .= sprintf(
                 '<option value="%d" data-attrs="%s" data-price="%s" data-thumb="%s">%s</option>',
                 $cid,
