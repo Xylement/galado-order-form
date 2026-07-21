@@ -151,7 +151,15 @@ class GALADO_Bundles_Discount {
         foreach ($map as $slug => $m) {
             $amount = round($m['saving'] * $scale, 2);
             if ($amount <= 0) continue;
-            $cart->add_fee(sprintf(__('Bundle saving (%s)', 'galado-bundles'), $m['name']), -1 * $amount, false);
+            // Explicit per-slug fee id: WC derives the id from the name and rejects
+            // duplicate ids, so two bundles sharing a title would otherwise silently
+            // lose one saving. The customer-facing name stays the title (#95 continuity).
+            $cart->fees_api()->add_fee([
+                'id'      => 'galado-bundle-' . $slug,
+                'name'    => sprintf(__('Bundle saving (%s)', 'galado-bundles'), $m['name']),
+                'amount'  => -1 * $amount,
+                'taxable' => false,
+            ]);
             self::$applied[$slug] = ['name' => $m['name'], 'complete_instances' => $m['complete_instances'], 'saving' => $amount];
         }
     }

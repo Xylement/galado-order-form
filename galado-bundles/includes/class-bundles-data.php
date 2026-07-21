@@ -232,9 +232,11 @@ class GALADO_Bundles_Data {
             $post = get_post((int) $id_or_slug);
             return ($post && GALADO_BUNDLES_CPT === $post->post_type) ? $post : null;
         }
+        $slug = sanitize_title((string) $id_or_slug);
+        if ('' === $slug) return null; // never let an empty name fall through to "newest post"
         $q = get_posts([
             'post_type'      => GALADO_BUNDLES_CPT,
-            'name'           => sanitize_title((string) $id_or_slug),
+            'name'           => $slug,
             'post_status'    => ['publish', 'draft'],
             'posts_per_page' => 1,
             'no_found_rows'  => true,
