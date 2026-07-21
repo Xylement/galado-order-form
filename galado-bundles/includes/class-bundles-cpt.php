@@ -33,7 +33,9 @@ class GALADO_Bundles_CPT {
             ],
             'public' => false,
             'show_ui' => true,
-            'show_in_menu' => true,
+            // Nest the Bundles list under the GALADO hub menu if it is active,
+            // otherwise a top-level menu of its own.
+            'show_in_menu' => class_exists('Galado_Admin_Hub') ? 'galado-hub' : true,
             'menu_position' => 56,
             'menu_icon' => 'dashicons-cart',
             'supports' => ['title', 'page-attributes'],

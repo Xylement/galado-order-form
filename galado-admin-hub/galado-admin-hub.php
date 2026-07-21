@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Admin Hub
  * Plugin URI: https://galado.com.my
  * Description: Unified admin sidebar for all GALADO plugins. Groups FAQ Schema, AI Crawler Manager, Smart Cross-Sells, Font Preview, and Git Sync under one menu.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_HUB_VERSION', '1.0.0');
+define('GALADO_HUB_VERSION', '1.0.1');
 define('GALADO_HUB_PATH', plugin_dir_path(__FILE__));
 define('GALADO_HUB_URL', plugin_dir_url(__FILE__));
 
@@ -268,6 +268,8 @@ class Galado_Admin_Hub {
         'galado-ai-crawler-manager' => 'galado-ai-crawler',
         'galado-smart-crosssells' => 'galado-crosssells',
         'galado-font-preview' => 'edit.php?post_type=product',
+        'galado-studio-cart' => 'gstudio-settings',
+        'galado-bundles' => 'galado-bundles-settings',
     ];
 
     /**

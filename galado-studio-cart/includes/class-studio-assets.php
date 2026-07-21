@@ -13,14 +13,19 @@ if (!defined('ABSPATH')) exit;
 class GSTUDIO_Assets {
 
     public static function init() {
-        add_action('admin_menu', [__CLASS__, 'menu']);
+        add_action('admin_menu', [__CLASS__, 'menu'], 20);
         add_action('admin_post_gstudio_asset_upload', [__CLASS__, 'handle_upload']);
         add_action('admin_post_gstudio_asset_delete', [__CLASS__, 'handle_delete']);
         add_action('admin_post_gstudio_asset_bulk_delete', [__CLASS__, 'handle_bulk_delete']);
     }
 
     public static function menu() {
-        add_menu_page('Studio Assets', 'Studio Assets', 'manage_woocommerce', 'gstudio-assets', [__CLASS__, 'render'], 'dashicons-art', 58);
+        // Under the GALADO hub if available, otherwise its own top-level menu.
+        if (class_exists('Galado_Admin_Hub')) {
+            add_submenu_page('galado-hub', 'Studio Assets', 'Studio Assets', 'manage_woocommerce', 'gstudio-assets', [__CLASS__, 'render']);
+        } else {
+            add_menu_page('Studio Assets', 'Studio Assets', 'manage_woocommerce', 'gstudio-assets', [__CLASS__, 'render'], 'dashicons-art', 58);
+        }
     }
 
     private static function assets_token() {

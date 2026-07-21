@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Bundles
  * Description: Self-service product bundles: staff build kits in wp-admin (simple + variable items), one flat margin-funded RM saving per bundle, rendered into home-v3 via [galado_bundles] and applied at cart as a complete-set-only negative fee. Generalises and retires Code Snippet #95. Writes no product data; reversible by deactivation. Spec: BUNDLES-SPEC.md.
- * Version: 0.1.1
+ * Version: 0.1.2
  * Author: GALADO
  * Text Domain: galado-bundles
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_BUNDLES_VERSION', '0.1.1');
+define('GALADO_BUNDLES_VERSION', '0.1.2');
 define('GALADO_BUNDLES_PATH', plugin_dir_path(__FILE__));
 define('GALADO_BUNDLES_URL', plugin_dir_url(__FILE__));
 
@@ -118,13 +118,16 @@ register_deactivation_hook(__FILE__, function () {
 });
 
 // Minimal settings screen: the one lever that matters (storefront on/off).
+// Under the GALADO hub if available (next to the nested Bundles list), otherwise
+// under the plugin's own CPT menu.
 add_action('admin_menu', function () {
+    $parent = class_exists('Galado_Admin_Hub') ? 'galado-hub' : 'edit.php?post_type=' . GALADO_BUNDLES_CPT;
     add_submenu_page(
-        'edit.php?post_type=' . GALADO_BUNDLES_CPT,
-        'Bundles settings', 'Settings', 'manage_woocommerce',
+        $parent,
+        'Bundle settings', 'Bundle settings', 'manage_woocommerce',
         'galado-bundles-settings', 'galado_bundles_render_settings'
     );
-});
+}, 20);
 
 function galado_bundles_render_settings() {
     if (!current_user_can('manage_woocommerce')) return;
