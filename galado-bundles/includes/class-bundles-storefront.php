@@ -121,9 +121,11 @@ class GALADO_Bundles_Storefront {
             if (!$v || !$v->is_purchasable() || !$v->is_in_stock()) continue;
             $attrs = [];
             foreach ($v->get_variation_attributes() as $k => $val) {
+                if ('' === $val) continue; // "any" wildcard: not a concrete axis value
                 $key = 0 === strpos($k, 'attribute_') ? substr($k, strlen('attribute_')) : $k;
-                $attrs[$key] = wc_clean($val);
-                $axis_counts[$key][$val] = true;
+                $display = self::attr_display($k, $val);
+                $attrs[$key] = $display;
+                $axis_counts[$key][$display] = true;
             }
             $label = $attrs ? implode(' / ', array_values($attrs)) : ('#' . $cid);
             $thumb = wp_get_attachment_image_url($v->get_image_id() ?: $parent->get_image_id(), 'woocommerce_thumbnail') ?: '';
@@ -158,10 +160,23 @@ class GALADO_Bundles_Storefront {
         );
     }
 
+    /** Display value for a variation attribute. Taxonomy attributes
+     * (attribute_pa_*) store the term slug, so resolve it to the term name;
+     * custom attributes already hold the label. */
+    private static function attr_display($attribute_key, $value) {
+        $tax = 0 === strpos($attribute_key, 'attribute_') ? substr($attribute_key, strlen('attribute_')) : $attribute_key;
+        if ($tax && taxonomy_exists($tax)) {
+            $term = get_term_by('slug', $value, $tax);
+            if ($term && !is_wp_error($term)) return $term->name;
+        }
+        return wc_clean($value);
+    }
+
     private static function axis_label($key) {
         $k = strtolower($key);
         if (false !== strpos($k, 'colour') || false !== strpos($k, 'color')) return 'colour';
-        if (false !== strpos($k, 'model') || false !== strpos($k, 'phone') || false !== strpos($k, 'stylink') || false !== strpos($k, 'set')) return 'design';
+        if (false !== strpos($k, 'model') || false !== strpos($k, 'phone')) return 'model';
+        if (false !== strpos($k, 'stylink') || false !== strpos($k, 'set') || false !== strpos($k, 'design')) return 'design';
         return str_replace(['-', '_'], ' ', $key);
     }
 

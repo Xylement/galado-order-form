@@ -24,7 +24,7 @@
     sheet.appendChild(head); sheet.appendChild(body);
     veil.appendChild(sheet);
     var last;
-    function close() { veil.classList.remove('is-open'); document.body.classList.remove('gld-noscroll'); if (last && last.focus) last.focus(); setTimeout(function () { if (veil.parentNode) veil.parentNode.removeChild(veil); }, 180); }
+    function close() { veil.classList.remove('is-open'); veil.style.pointerEvents = 'none'; document.body.classList.remove('gld-noscroll'); if (last && last.focus) last.focus(); setTimeout(function () { if (veil.parentNode) veil.parentNode.removeChild(veil); }, 180); }
     x.addEventListener('click', close);
     veil.addEventListener('click', function (e) { if (e.target === veil) close(); });
     document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); } });
@@ -223,6 +223,7 @@
         if (ready) { cta.textContent = idleLabel; cta.classList.remove('is-wait'); }
         else if (picks.length) cta.textContent = idleLabel;
       }
+      if (ready && note) note.textContent = ''; // clear a lingering "please choose" nudge
       card.__ready = ready;
     }
 
