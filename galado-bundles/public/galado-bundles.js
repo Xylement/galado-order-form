@@ -241,6 +241,7 @@
     });
 
     function add() {
+      if (CFG.preview) { if (note) note.textContent = 'Preview mode. Turn the storefront on to enable checkout.'; return; }
       if (cta.classList.contains('is-wait')) return;
       cta.classList.add('is-wait'); cta.textContent = 'Adding...'; if (note) note.textContent = '';
       var selections = {};

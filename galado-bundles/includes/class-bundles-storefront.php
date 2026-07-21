@@ -21,7 +21,10 @@ class GALADO_Bundles_Storefront {
     }
 
     public static function shortcode($atts) {
-        if (!galado_bundles_storefront_enabled()) return ''; // dark: render nothing
+        // Dark: customers see nothing, but a logged-in admin can preview the band
+        // (e.g. on the private home-v3 page) before go-live. The cart engine stays
+        // off, so adds are disabled in preview (see the preview flag below).
+        if (!galado_bundles_storefront_enabled() && !current_user_can('manage_woocommerce')) return '';
         $atts = shortcode_atts(['featured' => '1', 'limit' => GALADO_BUNDLES_FEATURED_MAX], $atts, 'galado_bundles');
         $bundles = GALADO_Bundles_Data::get_featured();
         if ((int) $atts['limit'] > 0) $bundles = array_slice($bundles, 0, (int) $atts['limit']);
@@ -193,6 +196,9 @@ class GALADO_Bundles_Storefront {
         wp_localize_script('galado-bundles', 'GALADO_BUNDLES', [
             'ajax'     => WC_AJAX::get_endpoint('galado_bundle_add'),
             'cart_url' => wc_get_cart_url(),
+            // Dark admin preview: the add endpoint is not registered, so the JS
+            // shows a note instead of a broken request.
+            'preview'  => !galado_bundles_storefront_enabled(),
         ]);
     }
 
