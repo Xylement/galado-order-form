@@ -21,10 +21,10 @@ class GALADO_Bundles_Storefront {
     }
 
     public static function shortcode($atts) {
-        // Dark: customers see nothing, but a logged-in admin can preview the band
-        // (e.g. on the private home-v3 page) before go-live. The cart engine stays
-        // off, so adds are disabled in preview (see the preview flag below).
-        if (!galado_bundles_storefront_enabled() && !current_user_can('manage_woocommerce')) return '';
+        // Dark: customers see nothing, but staff can preview the band (e.g. on the
+        // private home-v3 page) before go-live. The cart engine stays off, so adds
+        // are disabled in preview (see the preview flag below).
+        if (!galado_bundles_storefront_enabled() && !self::can_preview()) return '';
         $atts = shortcode_atts(['featured' => '1', 'limit' => GALADO_BUNDLES_FEATURED_MAX], $atts, 'galado_bundles');
         $bundles = GALADO_Bundles_Data::get_featured();
         if ((int) $atts['limit'] > 0) $bundles = array_slice($bundles, 0, (int) $atts['limit']);
@@ -36,6 +36,18 @@ class GALADO_Bundles_Storefront {
         foreach ($bundles as $b) echo self::card($b);
         echo '</div>';
         return ob_get_clean();
+    }
+
+    /** May the current viewer see the band while the storefront is dark?
+     * Any staff member who can reach a (usually private) preview page counts:
+     * shop managers (manage_woocommerce) and editors/admins (edit_pages). An
+     * explicit ?bundles_preview=1 also gives a deterministic, cache-busting
+     * preview link for any staff user. Never true for customers, so nothing
+     * leaks even if the shortcode later sits on a public page while dark. */
+    private static function can_preview() {
+        if (current_user_can('manage_woocommerce') || current_user_can('edit_pages')) return true;
+        if (isset($_GET['bundles_preview']) && current_user_can('edit_posts')) return true;
+        return false;
     }
 
     private static function card($b) {
