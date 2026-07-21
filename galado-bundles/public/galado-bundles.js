@@ -80,31 +80,28 @@
 
   function buildStrip(pick, sel, opts, label, commit) {
     var key = parse(pick.getAttribute('data-axis-keys'), [null])[0];
-    var wrap = el('div', 'gld-pick__strip');
-    var chosen = el('div', 'gld-pick__chosen', 'Choose your ' + label);
-    var strip = el('div', 'gld-strip');
-    opts.slice(0, 8).forEach(function (o) {
-      var c = chip(o, key, false);
-      c.addEventListener('click', function () { select(o, c); });
-      strip.appendChild(c);
-    });
-    var seeAll = el('button', 'gld-pick__seeall', 'See all ' + opts.length); seeAll.type = 'button';
-    seeAll.addEventListener('click', function () {
+    // Compact by default: one field that opens the full grid in a bottom sheet,
+    // so the card stays short instead of showing a long inline chip strip.
+    var field = el('button', 'gld-pick__field'); field.type = 'button';
+    field.innerHTML = '<span class="gld-pick__fieldtxt">Choose your ' + label + '</span><span class="gld-pick__chev">&rsaquo;</span>';
+    var txt = field.querySelector('.gld-pick__fieldtxt');
+    field.addEventListener('click', function () {
       var sh = Sheet('Choose your ' + label);
       var grid = el('div', 'gld-grid');
-      opts.forEach(function (o) { var c = chip(o, key, sel.value === o.id); c.addEventListener('click', function () { select(o); sh.close(); }); grid.appendChild(c); });
-      sh.body.appendChild(grid); sh.open(seeAll);
+      opts.forEach(function (o) {
+        var c = chip(o, key, sel.value === o.id);
+        c.addEventListener('click', function () { select(o); sh.close(); });
+        grid.appendChild(c);
+      });
+      sh.body.appendChild(grid); sh.open(field);
       ev('bundle_build_open', {});
     });
-    function select(o, node) {
-      Array.prototype.forEach.call(strip.children, function (n) { n.classList.remove('is-on'); });
-      if (node) node.classList.add('is-on');
-      chosen.textContent = o.attrs[key] || o.label; chosen.classList.add('is-chosen');
+    function select(o) {
+      txt.textContent = o.attrs[key] || o.label;
+      field.classList.add('is-chosen');
       commit(o.id);
     }
-    wrap.appendChild(strip);
-    var row = el('div', 'gld-pick__row'); row.appendChild(chosen); row.appendChild(seeAll);
-    pick.appendChild(wrap); pick.appendChild(row);
+    pick.appendChild(field);
   }
 
   function buildTwoAxis(pick, sel, opts, keys, labels, commit) {
