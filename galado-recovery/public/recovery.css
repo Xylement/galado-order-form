@@ -7,15 +7,22 @@
 /* GALADO Cart Recovery: cart-page prompt (spec FR-9).
    Static, in-flow, below the Proceed button. No overlay, no animation,
    no layout shift. Brand: Ink #111111, pill controls. */
-.galado-recovery-prompt{position:relative;margin:14px 0 0;padding:16px 18px;background:#fff;border:1px solid #ECECEA;border-radius:14px;font-size:14px;color:#111111}
-.galado-recovery-prompt .grv-title{margin:0 0 2px;font-weight:700}
-.galado-recovery-prompt .grv-sub{margin:0 0 10px;color:#6B6B66;font-size:13px}
-.galado-recovery-prompt .grv-row{display:flex;gap:8px;flex-wrap:wrap}
-.galado-recovery-prompt .grv-email{flex:1 1 180px;min-width:0;padding:10px 12px;border:1px solid #ECECEA;border-radius:999px;font-size:14px}
-.galado-recovery-prompt .grv-save{flex:0 0 auto;padding:10px 18px;background:#111111;color:#fff;border:1px solid #111111;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer}
-.galado-recovery-prompt .grv-save:hover{background:#000}
-.galado-recovery-prompt .grv-save:disabled{opacity:.6;cursor:default}
-.galado-recovery-prompt .grv-note{margin:8px 0 0;color:#6B6B66;font-size:12px}
-.galado-recovery-prompt .grv-dismiss{position:absolute;top:8px;right:10px;border:none;background:none;font-size:20px;line-height:1;color:#6B6B66;cursor:pointer;padding:4px}
+/* Deliberately SECONDARY. The cart page already stacks two primary black
+   pills (Proceed to checkout, then Apple Pay); a third solid pill here would
+   compete with the primary action, which is the one thing this must not do.
+   So: tinted surface rather than another white card, and a ghost button.
+   Generous margins keep it off the coupon block that follows. */
+.galado-recovery-prompt{position:relative;margin:22px 0 26px;padding:16px 18px 18px;background:#F7F7F5;border:1px solid #ECECEA;border-radius:14px;font-size:14px;color:#111111}
+.galado-recovery-prompt .grv-title{margin:0 2px 2px 0;padding-right:26px;font-weight:700;font-size:14.5px;line-height:1.35}
+.galado-recovery-prompt .grv-sub{margin:0 0 12px;color:#6B6B66;font-size:13px;line-height:1.45}
+.galado-recovery-prompt .grv-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.galado-recovery-prompt .grv-email{flex:1 1 170px;min-width:0;padding:11px 14px;background:#fff;border:1px solid #E2E2DE;border-radius:999px;font-size:14px;color:#111111}
+.galado-recovery-prompt .grv-email:focus{outline:none;border-color:#111111}
+.galado-recovery-prompt .grv-save{flex:0 0 auto;padding:11px 20px;background:transparent;color:#111111;border:1.5px solid #111111;border-radius:999px;font-size:13.5px;font-weight:700;cursor:pointer;transition:background .15s,color .15s}
+.galado-recovery-prompt .grv-save:hover{background:#111111;color:#fff}
+.galado-recovery-prompt .grv-save:disabled{opacity:.5;cursor:default}
+.galado-recovery-prompt .grv-note{margin:10px 0 0;color:#6B6B66;font-size:12px;line-height:1.4}
+.galado-recovery-prompt .grv-dismiss{position:absolute;top:6px;right:8px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none;background:none;font-size:19px;line-height:1;color:#9A9A94;cursor:pointer;padding:0}
+.galado-recovery-prompt .grv-dismiss:hover{color:#111111}
 .galado-recovery-prompt .grv-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 .galado-recovery-prompt.grv-saved .grv-row{display:none}

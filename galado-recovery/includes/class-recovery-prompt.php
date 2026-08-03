@@ -27,8 +27,18 @@ class GALADO_Recovery_Prompt {
         GALADO_Recovery_Checkout::enqueue_capture_js('cart');
     }
 
-    /** Logged-in visitors are already identified; dismissals persist 30 days. */
+    /**
+     * Logged-in visitors are already identified; dismissals persist 30 days.
+     *
+     * Also skipped whenever no send channel is selected. The prompt asks for an
+     * email in exchange for an emailed link, so running it while sending is
+     * dark would be asking customers for their address under a promise we
+     * cannot keep. Capture-for-later is fine at checkout, where the email is
+     * given for the order anyway; it is not fine here, where the email IS the
+     * ask and the link is the whole consideration.
+     */
     private static function skip() {
+        if (!galado_recovery_sending_enabled()) return true;
         if (is_user_logged_in()) return true;
         if (!empty($_COOKIE[self::DISMISS_COOKIE])) return true;
         if (!function_exists('WC') || !WC()->cart || WC()->cart->is_empty()) return true;
