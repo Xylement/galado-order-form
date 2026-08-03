@@ -1,0 +1,15 @@
+/* GALADO Cart Recovery: cart-page prompt (spec FR-9).
+   Static, in-flow, below the Proceed button. No overlay, no animation,
+   no layout shift. Brand: Ink #111111, pill controls. */
+.galado-recovery-prompt{position:relative;margin:14px 0 0;padding:16px 18px;background:#fff;border:1px solid #ECECEA;border-radius:14px;font-size:14px;color:#111111}
+.galado-recovery-prompt .grv-title{margin:0 0 2px;font-weight:700}
+.galado-recovery-prompt .grv-sub{margin:0 0 10px;color:#6B6B66;font-size:13px}
+.galado-recovery-prompt .grv-row{display:flex;gap:8px;flex-wrap:wrap}
+.galado-recovery-prompt .grv-email{flex:1 1 180px;min-width:0;padding:10px 12px;border:1px solid #ECECEA;border-radius:999px;font-size:14px}
+.galado-recovery-prompt .grv-save{flex:0 0 auto;padding:10px 18px;background:#111111;color:#fff;border:1px solid #111111;border-radius:999px;font-size:14px;font-weight:700;cursor:pointer}
+.galado-recovery-prompt .grv-save:hover{background:#000}
+.galado-recovery-prompt .grv-save:disabled{opacity:.6;cursor:default}
+.galado-recovery-prompt .grv-note{margin:8px 0 0;color:#6B6B66;font-size:12px}
+.galado-recovery-prompt .grv-dismiss{position:absolute;top:8px;right:10px;border:none;background:none;font-size:20px;line-height:1;color:#6B6B66;cursor:pointer;padding:4px}
+.galado-recovery-prompt .grv-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.galado-recovery-prompt.grv-saved .grv-row{display:none}
