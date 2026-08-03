@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Cart Recovery
  * Description: Guest cart and checkout identity capture. Moves the email field to the top of checkout, captures it on entry, persists the cart server-side, and fires the "Started Checkout" event to Klaviyo so the existing recovery flow (W2GqDu) can reach guests. Replaces the capability lost with Metorik. Spec: GALADO-Cart-Recovery-Identity-Spec-2026-08-03.md.
- * Version: 0.1.1
+ * Version: 0.1.2
  * Author: GALADO
  * Text Domain: galado-recovery
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_RECOVERY_VERSION', '0.1.1');
+define('GALADO_RECOVERY_VERSION', '0.1.2');
 define('GALADO_RECOVERY_PATH', plugin_dir_path(__FILE__));
 define('GALADO_RECOVERY_URL', plugin_dir_url(__FILE__));
 

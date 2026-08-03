@@ -17,6 +17,13 @@ class GALADO_Recovery_REST {
     const RL_PER_HOUR   = 20;
 
     public static function init() {
+        // FR-4 cache bypass. Snippet #21 only covers /cart/, /checkout/ and
+        // /my-account/, so this route inherits the site default
+        // (cf-edge-cache: cache,platform=wordpress). POSTs are not edge-cached
+        // in practice, but rather than widen a live snippet the plugin asserts
+        // no-store on EVERY response of its own namespace, errors included.
+        add_filter('rest_post_dispatch', [__CLASS__, 'no_store'], 10, 3);
+
         add_action('rest_api_init', function () {
             register_rest_route('galado-recovery/v1', '/capture', [
                 'methods'             => 'POST',
@@ -30,6 +37,15 @@ class GALADO_Recovery_REST {
                 ],
             ]);
         });
+    }
+
+    /** Force no-store on anything served from galado-recovery/v1. */
+    public static function no_store($response, $server, $request) {
+        if ($request && 0 === strpos(ltrim((string) $request->get_route(), '/'), 'galado-recovery/')) {
+            $response->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+            $response->header('CF-Edge-Cache', 'no-cache');
+        }
+        return $response;
     }
 
     /**
