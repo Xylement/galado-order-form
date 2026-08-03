@@ -55,23 +55,18 @@ class GALADO_Recovery_Klaviyo {
     }
 
     private static function daily_count($email) {
-        $d = get_transient(self::daily_key($email));
-        return is_array($d) ? (int) ($d['n'] ?? 0) : 0;
+        return galado_recovery_peek(self::daily_key($email));
     }
 
+    /**
+     * Counted through galado_recovery_bump(), which is a real atomic increment
+     * where a persistent object cache exists. A plain get-then-set pair let two
+     * pushes for the same address, picked up by Action Scheduler at nearly the
+     * same instant, both read the pre-increment count and both send.
+     */
     private static function record_push($email) {
         set_transient(self::dedupe_key($email), 1, GALADO_RECOVERY_DEDUPE_TTL);
-
-        // Fixed 24h window carried inside the transient, so the ceiling cannot
-        // be walked forward by re-arming a rolling TTL on every send.
-        $d   = get_transient(self::daily_key($email));
-        $now = time();
-        if (is_array($d) && isset($d['exp']) && $d['exp'] > $now) {
-            $d['n'] = (int) ($d['n'] ?? 0) + 1;
-            set_transient(self::daily_key($email), $d, max(MINUTE_IN_SECONDS, $d['exp'] - $now));
-            return;
-        }
-        set_transient(self::daily_key($email), ['n' => 1, 'exp' => $now + DAY_IN_SECONDS], DAY_IN_SECONDS);
+        galado_recovery_bump(self::daily_key($email), DAY_IN_SECONDS);
     }
 
     /** Queue the initial push, async so capture never waits on Klaviyo. */

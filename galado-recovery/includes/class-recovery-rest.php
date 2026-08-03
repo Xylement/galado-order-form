@@ -194,13 +194,11 @@ class GALADO_Recovery_REST {
         if ('' === $ip) return true;
         $bucket = md5($ip);
 
-        $minute = (int) get_transient('grv_rl_m_' . $bucket);
-        $hour   = (int) get_transient('grv_rl_h_' . $bucket);
-        if ($minute >= self::RL_PER_MINUTE || $hour >= self::RL_PER_HOUR) {
+        $minute = galado_recovery_bump('grv_rl_m_' . $bucket, MINUTE_IN_SECONDS);
+        $hour   = galado_recovery_bump('grv_rl_h_' . $bucket, HOUR_IN_SECONDS);
+        if ($minute > self::RL_PER_MINUTE || $hour > self::RL_PER_HOUR) {
             return new WP_Error('rate_limited', 'Too many requests. Please try again shortly.', ['status' => 429]);
         }
-        set_transient('grv_rl_m_' . $bucket, $minute + 1, MINUTE_IN_SECONDS);
-        set_transient('grv_rl_h_' . $bucket, $hour + 1, HOUR_IN_SECONDS);
         return true;
     }
 

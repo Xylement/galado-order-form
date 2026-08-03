@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Cart Recovery
  * Description: Guest cart and checkout identity capture. Moves the email field to the top of checkout, captures it on entry, persists the cart server-side, and fires the "Started Checkout" event to Klaviyo so the existing recovery flow (W2GqDu) can reach guests. Replaces the capability lost with Metorik. Spec: GALADO-Cart-Recovery-Identity-Spec-2026-08-03.md.
- * Version: 0.1.2
+ * Version: 0.1.3
  * Author: GALADO
  * Text Domain: galado-recovery
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_RECOVERY_VERSION', '0.1.2');
+define('GALADO_RECOVERY_VERSION', '0.1.3');
 define('GALADO_RECOVERY_PATH', plugin_dir_path(__FILE__));
 define('GALADO_RECOVERY_URL', plugin_dir_url(__FILE__));
 
@@ -91,6 +91,40 @@ function galado_recovery_klaviyo_key() {
         if (is_array($kl) && !empty($kl[$k])) return $kl[$k];
     }
     return '';
+}
+
+/**
+ * Increment-and-return a counter, atomically where possible.
+ *
+ * get_transient() then set_transient() is a read-then-write pair with no
+ * locking, so a concurrent burst can all read the same pre-increment value and
+ * all pass a rate check. Where a persistent object cache exists, wp_cache_incr
+ * is a genuine atomic increment; otherwise fall back to the transient pair,
+ * which still bounds abuse but is soft under exact concurrency.
+ * Returns the count INCLUDING this call, so callers compare with > limit.
+ */
+function galado_recovery_bump($key, $ttl) {
+    if (function_exists('wp_using_ext_object_cache') && wp_using_ext_object_cache()) {
+        $n = wp_cache_incr($key, 1, 'galado_recovery');
+        if (false === $n) {
+            wp_cache_add($key, 1, 'galado_recovery', $ttl);
+            $n = wp_cache_incr($key, 0, 'galado_recovery');
+            if (false === $n) $n = 1;
+        }
+        return (int) $n;
+    }
+
+    $n = (int) get_transient($key) + 1;
+    set_transient($key, $n, $ttl);
+    return $n;
+}
+
+/** Read a galado_recovery_bump() counter without incrementing it. */
+function galado_recovery_peek($key) {
+    if (function_exists('wp_using_ext_object_cache') && wp_using_ext_object_cache()) {
+        return (int) wp_cache_get($key, 'galado_recovery');
+    }
+    return (int) get_transient($key);
 }
 
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-db.php';

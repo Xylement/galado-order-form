@@ -24,16 +24,32 @@
     return true;
   }
 
+  // Anti-hammer only, keyed on the email with a short time window.
+  //
+  // The old key mixed in CFG.cart_hash, which is localized once at page render
+  // while Woo mutates the cart over AJAX without a reload. That key went stale
+  // the moment someone edited their cart, suppressing the very capture that
+  // carried the corrected cart. Keying on email alone would suppress it too,
+  // permanently. So the client only stops the same address firing repeatedly
+  // within a few seconds; a later blur after a cart edit is allowed through and
+  // refreshes the stored snapshot. The server reads the live session cart on
+  // every request, upserts idempotently, and throttles the actual send per
+  // recipient, so extra captures cost one cheap write and keep the cart fresh.
+  var RESEND_AFTER_MS = 30000;
+
   function dedupeKey(email) {
-    return 'grv_' + email.toLowerCase() + '|' + (CFG.cart_hash || '');
+    return 'grv_' + email.toLowerCase();
   }
 
   function alreadySent(email) {
-    try { return !!sessionStorage.getItem(dedupeKey(email)); } catch (e) { return false; }
+    try {
+      var last = parseInt(sessionStorage.getItem(dedupeKey(email)), 10);
+      return !!last && (Date.now() - last) < RESEND_AFTER_MS;
+    } catch (e) { return false; }
   }
 
   function markSent(email) {
-    try { sessionStorage.setItem(dedupeKey(email), '1'); } catch (e) { /* storage unavailable: resend is harmless, server dedupes */ }
+    try { sessionStorage.setItem(dedupeKey(email), String(Date.now())); } catch (e) { /* storage unavailable: resend is harmless, server throttles */ }
   }
 
   function send(email, source, hp, done) {
