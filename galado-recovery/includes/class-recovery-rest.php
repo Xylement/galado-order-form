@@ -104,7 +104,7 @@ class GALADO_Recovery_REST {
             return self::ok(); // nothing to persist, nothing to recover
         }
 
-        $snapshot = self::snapshot($cart);
+        $snapshot = self::snapshot_cart($cart);
         if (empty($snapshot['items'])) {
             return self::ok();
         }
@@ -123,6 +123,12 @@ class GALADO_Recovery_REST {
             $source
         );
 
+        // Phase 3: remember them for the session so later cart changes are
+        // captured without a second prompt, and record what we just stored so
+        // the re-capture guard does not immediately rewrite the same cart.
+        GALADO_Recovery_Identity::set($email, $source);
+        GALADO_Recovery_Identity::note_hash($snapshot['hash']);
+
         // Queue the send (FR-8), only when a channel is selected. While the
         // channel is 'none' the row is still captured and kept fresh; we simply
         // do not queue work that would be dropped at the other end.
@@ -137,8 +143,9 @@ class GALADO_Recovery_REST {
     /**
      * Cart snapshot from the server session (FR-3/FR-5): restore data plus the
      * display fields the Klaviyo payload needs, captured at current prices.
+     * Public because the Phase 3 identity re-capture builds the same shape.
      */
-    private static function snapshot($cart) {
+    public static function snapshot_cart($cart) {
         $items = [];
         foreach ($cart->get_cart() as $item) {
             $product = isset($item['data']) && is_object($item['data']) ? $item['data'] : null;

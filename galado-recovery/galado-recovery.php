@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Cart Recovery
  * Description: Guest cart and checkout identity capture. Moves the email field to the top of checkout, captures it on entry, persists the cart server-side, and fires the "Started Checkout" event to Klaviyo so the existing recovery flow (W2GqDu) can reach guests. Replaces the capability lost with Metorik. Spec: GALADO-Cart-Recovery-Identity-Spec-2026-08-03.md.
- * Version: 0.2.1
+ * Version: 0.3.0
  * Author: GALADO
  * Text Domain: galado-recovery
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_RECOVERY_VERSION', '0.2.1');
+define('GALADO_RECOVERY_VERSION', '0.3.0');
 define('GALADO_RECOVERY_PATH', plugin_dir_path(__FILE__));
 define('GALADO_RECOVERY_URL', plugin_dir_url(__FILE__));
 
@@ -156,6 +156,7 @@ function galado_recovery_peek($key) {
 }
 
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-db.php';
+require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-identity.php';
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-checkout.php';
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-rest.php';
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-klaviyo.php';
@@ -185,6 +186,7 @@ add_action('plugins_loaded', function () {
     // Customer-facing capture: only when Phase 1 is on.
     if (galado_recovery_enabled()) {
         GALADO_Recovery_Checkout::init();
+        GALADO_Recovery_Identity::init();   // Phase 3: re-capture for known visitors
         $s = galado_recovery_settings();
         if ('1' === $s['cart_prompt']) {
             GALADO_Recovery_Prompt::init();

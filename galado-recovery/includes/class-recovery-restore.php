@@ -100,6 +100,13 @@ class GALADO_Recovery_Restore {
         }
         GALADO_Recovery_DB::set_status($row->id, GALADO_Recovery_DB::STATUS_RECOVERED);
 
+        // Phase 3 (FR-10): the token proved who this is, server-side and
+        // unforgeably. Hold that for the session so if they now change their
+        // cart and leave again, we capture the NEW cart without asking them to
+        // type an address we already know.
+        GALADO_Recovery_Identity::set($row->email, 'inbound');
+        GALADO_Recovery_Identity::note_hash(GALADO_Recovery_DB::cart_hash(WC()->cart));
+
         if ($restored > 0 && function_exists('wc_add_notice')) {
             wc_add_notice(__('Welcome back. Your cart is just as you left it.', 'galado-recovery'), 'success');
         }
@@ -150,5 +157,11 @@ class GALADO_Recovery_Restore {
         }
 
         GALADO_Recovery_DB::mark_purchased($session_key, $email, array_filter(array_unique($product_ids)));
+
+        // Phase 3: drop the held identity too. Woo empties the cart after an
+        // order, but if the buyer starts a fresh cart in the same session we
+        // want that treated as new intent, not a silent re-capture against the
+        // order they just completed.
+        GALADO_Recovery_Identity::forget();
     }
 }
