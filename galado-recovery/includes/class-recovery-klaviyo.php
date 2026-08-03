@@ -89,21 +89,79 @@ class GALADO_Recovery_Klaviyo {
         wp_schedule_single_event(time() + $delay, 'galado_recovery_push', $args);
     }
 
-    /** The queued job. */
+    /**
+     * The queued job. Channel-agnostic up to the final hand-off: row validity,
+     * the never-email-a-buyer check, the per-recipient throttle and token
+     * minting are the same whoever sends. Only the last step differs, so
+     * swapping Klaviyo for GALADO Send changes one branch, not the pipeline.
+     */
     public static function push($row_id, $event_id, $attempt = 0) {
+        $channel = galado_recovery_send_channel();
+        if ('none' === $channel) {
+            return; // dark: rows are captured, nothing is sent
+        }
+
         $row = GALADO_Recovery_DB::get((int) $row_id);
         if (!$row || GALADO_Recovery_DB::STATUS_OPEN !== $row->status) {
             return; // purchased, recovered or purged since capture: never email
         }
 
-        $api_key = galado_recovery_klaviyo_key();
-        if ('' === $api_key) {
-            self::note_error('Klaviyo API key not configured; push skipped.');
+        // Send-time throttle: one event per recipient per 4 hours, max 3/day.
+        if (self::recently_pushed($row->email)) {
             return;
         }
 
-        // Send-time throttle: one event per recipient per 4 hours, max 3/day.
-        if (self::recently_pushed($row->email)) {
+        if ('galado_send' === $channel) {
+            self::send_via_galado_send($row, $event_id, $attempt);
+            return;
+        }
+
+        self::send_via_klaviyo($row, $event_id, $attempt);
+    }
+
+    /**
+     * Hand the row and a fresh recovery token to GALADO Send (Resend).
+     * GALADO Send owns suppression and delivery; this plugin owns identity,
+     * the cart snapshot and the token. Listeners must return true to confirm
+     * they accepted it, otherwise the send is retried like any other failure.
+     */
+    private static function send_via_galado_send($row, $event_id, $attempt) {
+        $token = self::mint_token($row);
+        $accepted = apply_filters('galado_recovery_send', null, $row, $token, [
+            'event_id' => $event_id,
+            'cart'     => json_decode((string) $row->cart_contents, true),
+            'link'     => home_url('/?galado_recover=' . $token),
+        ]);
+
+        if (true === $accepted) {
+            self::record_push($row->email);
+            update_option('galado_recovery_last_push', gmdate('Y-m-d H:i:s') . ' (galado_send)', false);
+            return;
+        }
+        if (null === $accepted) {
+            self::note_error('send_channel is galado_send but nothing is listening on the galado_recovery_send filter.');
+            return; // no listener yet: do not spin the retry queue
+        }
+        self::retry_or_give_up($row->id, $event_id, $attempt, 'galado_send rejected the hand-off');
+    }
+
+    /** Mint a recovery token: raw goes out, only the SHA-256 hash is stored. */
+    private static function mint_token($row) {
+        $token = bin2hex(random_bytes(32));
+        GALADO_Recovery_DB::set_token(
+            $row->id,
+            hash('sha256', $token),
+            gmdate('Y-m-d H:i:s', time() + GALADO_RECOVERY_TOKEN_TTL)
+        );
+        return $token;
+    }
+
+    private static function send_via_klaviyo($row, $event_id, $attempt) {
+        $row_id = $row->id;
+
+        $api_key = galado_recovery_klaviyo_key();
+        if ('' === $api_key) {
+            self::note_error('Klaviyo API key not configured; push skipped.');
             return;
         }
 
@@ -117,15 +175,7 @@ class GALADO_Recovery_Klaviyo {
             return;
         }
 
-        // Mint the recovery token now, at send time (FR-7): raw goes only into
-        // the payload, the row keeps the SHA-256 hash.
-        $token = bin2hex(random_bytes(32));
-        GALADO_Recovery_DB::set_token(
-            $row->id,
-            hash('sha256', $token),
-            gmdate('Y-m-d H:i:s', time() + GALADO_RECOVERY_TOKEN_TTL)
-        );
-
+        $token   = self::mint_token($row);
         $payload = self::payload($row, $event_id, $token);
         if (!$payload) {
             self::note_error('Row ' . $row->id . ' has no usable cart snapshot; push skipped.');
@@ -151,7 +201,7 @@ class GALADO_Recovery_Klaviyo {
         $status = (int) wp_remote_retrieve_response_code($response);
         if ($status >= 200 && $status < 300) {
             self::record_push($row->email);
-            update_option('galado_recovery_last_push', gmdate('Y-m-d H:i:s'), false);
+            update_option('galado_recovery_last_push', gmdate('Y-m-d H:i:s') . ' (klaviyo)', false);
             return;
         }
 
@@ -253,7 +303,18 @@ class GALADO_Recovery_Klaviyo {
                             'CartRebuildKey' => base64_encode((string) wp_json_encode($rebuild)),
                         ],
                     ],
-                    'metric'  => ['data' => ['type' => 'metric', 'attributes' => ['name' => self::METRIC_NAME]]],
+                    // 'service' => 'woocommerce' on the METRIC attributes is what
+                    // routes this onto the WooCommerce-integration metric UHiTBn
+                    // (the one flow W2GqDu triggers on). Verified against
+                    // Klaviyo's own wck-started-checkout.js, which sets exactly
+                    // this. Without it the event creates a separate
+                    // "Started Checkout" metric under the API integration that
+                    // triggers nothing, which is what happened on 2026-08-03
+                    // (stray metric XN5DLS). A '$service' property is NOT enough.
+                    'metric'  => ['data' => ['type' => 'metric', 'attributes' => [
+                        'name'    => self::METRIC_NAME,
+                        'service' => 'woocommerce',
+                    ]]],
                     'profile' => ['data' => ['type' => 'profile', 'attributes' => ['email' => $row->email]]],
                 ],
             ],

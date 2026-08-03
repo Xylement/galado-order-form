@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Cart Recovery
  * Description: Guest cart and checkout identity capture. Moves the email field to the top of checkout, captures it on entry, persists the cart server-side, and fires the "Started Checkout" event to Klaviyo so the existing recovery flow (W2GqDu) can reach guests. Replaces the capability lost with Metorik. Spec: GALADO-Cart-Recovery-Identity-Spec-2026-08-03.md.
- * Version: 0.1.3
+ * Version: 0.2.0
  * Author: GALADO
  * Text Domain: galado-recovery
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_RECOVERY_VERSION', '0.1.3');
+define('GALADO_RECOVERY_VERSION', '0.2.0');
 define('GALADO_RECOVERY_PATH', plugin_dir_path(__FILE__));
 define('GALADO_RECOVERY_URL', plugin_dir_url(__FILE__));
 
@@ -18,13 +18,30 @@ define('GALADO_RECOVERY_TOKEN_TTL', 7 * DAY_IN_SECONDS);
 define('GALADO_RECOVERY_RETENTION_DAYS', 90);
 define('GALADO_RECOVERY_DEDUPE_TTL', 4 * HOUR_IN_SECONDS);
 
-/** Settings accessor. Everything ships dark: both phases default off. */
+/**
+ * Settings accessor.
+ *
+ * Capture and sending are deliberately separate switches. Capture (the email
+ * field position plus the cart+identity table) is ours and is worth running on
+ * its own: it builds the dataset that survives the move off Klaviyo. Sending is
+ * a channel choice and defaults to 'none', so nothing is emailed until a
+ * channel is picked.
+ *
+ * Channels:
+ *   none         dark. Rows are captured, nothing is sent. Correct while
+ *                Klaviyo's own wck-started-checkout.js already fires
+ *                Started Checkout for checkout email entry.
+ *   klaviyo      server-side Started Checkout on the WooCommerce metric.
+ *   galado_send  hands the row + recovery token to GALADO Send (Resend) via
+ *                the galado_recovery_send action.
+ */
 function galado_recovery_settings() {
     $defaults = [
-        'enabled'         => '0',  // Phase 1: checkout capture + Klaviyo push
-        'cart_prompt'     => '0',  // Phase 2: cart-page prompt
+        'enabled'         => '0',      // Phase 1: checkout capture + persistence
+        'cart_prompt'     => '0',      // Phase 2: cart-page prompt
+        'send_channel'    => 'none',   // none | klaviyo | galado_send
         'klaviyo_api_key' => '',
-        'blocklist'       => '',   // one throwaway domain per line, optional
+        'blocklist'       => '',       // one throwaway domain per line, optional
     ];
     $opts = get_option('galado_recovery_settings', []);
     return wp_parse_args(is_array($opts) ? $opts : [], $defaults);
@@ -33,6 +50,17 @@ function galado_recovery_settings() {
 function galado_recovery_enabled() {
     $s = galado_recovery_settings();
     return '1' === $s['enabled'];
+}
+
+/** Which channel sends recovery events, if any. */
+function galado_recovery_send_channel() {
+    $s  = galado_recovery_settings();
+    $ch = (string) $s['send_channel'];
+    return in_array($ch, ['none', 'klaviyo', 'galado_send'], true) ? $ch : 'none';
+}
+
+function galado_recovery_sending_enabled() {
+    return 'none' !== galado_recovery_send_channel();
 }
 
 /**

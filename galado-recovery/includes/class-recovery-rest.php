@@ -123,9 +123,10 @@ class GALADO_Recovery_REST {
             $source
         );
 
-        // Queue the Klaviyo push (FR-8). Dedupe: at most one event per
-        // (email, cart_hash) per 4 hours, enforced again at send time.
-        if ($row_id && !GALADO_Recovery_Klaviyo::recently_pushed($email)) {
+        // Queue the send (FR-8), only when a channel is selected. While the
+        // channel is 'none' the row is still captured and kept fresh; we simply
+        // do not queue work that would be dropped at the other end.
+        if ($row_id && galado_recovery_sending_enabled() && !GALADO_Recovery_Klaviyo::recently_pushed($email)) {
             $event_id = $snapshot['hash'] . '_' . time();
             GALADO_Recovery_Klaviyo::queue($row_id, $event_id, 0);
         }

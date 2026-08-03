@@ -28,9 +28,13 @@ class GALADO_Recovery_Admin {
         if (!isset($_POST['galado_recovery_save']) || !check_admin_referer('galado_recovery_settings')) return;
 
         $current = galado_recovery_settings();
+        $channel = sanitize_text_field(wp_unslash($_POST['send_channel'] ?? 'none'));
+        if (!in_array($channel, ['none', 'klaviyo', 'galado_send'], true)) $channel = 'none';
+
         $new = [
             'enabled'         => isset($_POST['enabled']) ? '1' : '0',
             'cart_prompt'     => isset($_POST['cart_prompt']) ? '1' : '0',
+            'send_channel'    => $channel,
             'klaviyo_api_key' => $current['klaviyo_api_key'],
             'blocklist'       => sanitize_textarea_field(wp_unslash($_POST['blocklist'] ?? '')),
         ];
@@ -78,8 +82,10 @@ class GALADO_Recovery_Admin {
                 <th>Phase 1: checkout capture</th>
                 <td>
                   <label><input type="checkbox" name="enabled" value="1" <?php checked('1', $s['enabled']); ?>>
-                  Move the email field to the top of checkout, capture it on entry, and push Started Checkout to Klaviyo</label>
-                  <p class="description">Guests only. Logged-in customers are already tracked by the Klaviyo plugin.</p>
+                  Move the email field to the top of checkout and persist the cart against the email</label>
+                  <p class="description">Guests only. Capture and storage only: whether anything is emailed is the
+                  Send channel setting below. Moving the field to the top also makes Klaviyo's own capture fire
+                  earlier, since it listens for a change on that same field.</p>
                 </td>
               </tr>
               <tr>
@@ -88,6 +94,25 @@ class GALADO_Recovery_Admin {
                   <label><input type="checkbox" name="cart_prompt" value="1" <?php checked('1', $s['cart_prompt']); ?>>
                   Show the dismissible save-your-cart prompt below the Proceed to Checkout button</label>
                   <p class="description">Needs Phase 1 on. Dismissal hides it for 30 days.</p>
+                </td>
+              </tr>
+              <tr>
+                <th>Send channel</th>
+                <td>
+                  <?php $ch = galado_recovery_send_channel(); ?>
+                  <select name="send_channel">
+                    <option value="none" <?php selected('none', $ch); ?>>None (dark: capture only, send nothing)</option>
+                    <option value="klaviyo" <?php selected('klaviyo', $ch); ?>>Klaviyo (Started Checkout to flow W2GqDu)</option>
+                    <option value="galado_send" <?php selected('galado_send', $ch); ?>>GALADO Send (Resend)</option>
+                  </select>
+                  <p class="description">
+                    Capture and sending are separate on purpose. Leave this on <strong>None</strong> while Klaviyo's
+                    own <code>wck-started-checkout.js</code> already fires Started Checkout when a guest types their
+                    email at checkout: turning Klaviyo on here would be a second engine for the same people.
+                    Rows keep being captured either way, which is what makes the move off Klaviyo possible.
+                    <br>GALADO Send hands the row and recovery token to the <code>galado_recovery_send</code> filter;
+                    a listener returns <code>true</code> once it has accepted the hand-off.
+                  </p>
                 </td>
               </tr>
               <tr>
@@ -116,6 +141,12 @@ class GALADO_Recovery_Admin {
 
           <h2>Status</h2>
           <ul style="line-height:1.9">
+            <li>Sending: <?php
+              $ch = galado_recovery_send_channel();
+              echo 'none' === $ch
+                ? '<strong>dark</strong> (capturing rows, sending nothing)'
+                : 'live via <strong>' . esc_html($ch) . '</strong>';
+            ?></li>
             <li>Retry queue: <?php echo function_exists('as_enqueue_async_action') ? 'Action Scheduler' : 'WP-Cron fallback'; ?></li>
             <li>Rows: <?php echo esc_html(wp_json_encode($counts ?: new stdClass())); ?></li>
             <li>Last successful push: <?php echo $last_push ? esc_html($last_push . ' UTC') : 'none yet'; ?></li>
