@@ -1,3 +1,9 @@
+/* Checkout: the PDPA notice under the email field. Inherits Checkout v2's
+   16px ink body text by default, which turns a one-line notice into a heavy
+   block above the form. Keep it small, muted and tight so the field leads. */
+#billing_email_field .description,
+#billing_email_field span.description{font-size:12.5px;line-height:1.45;color:#6B6B66;margin:6px 2px 0;display:block}
+
 /* GALADO Cart Recovery: cart-page prompt (spec FR-9).
    Static, in-flow, below the Proceed button. No overlay, no animation,
    no layout shift. Brand: Ink #111111, pill controls. */

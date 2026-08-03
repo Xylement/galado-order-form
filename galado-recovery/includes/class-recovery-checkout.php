@@ -29,10 +29,14 @@ class GALADO_Recovery_Checkout {
             $fields['billing']['billing_email']['priority'] = 4;
             $fields['billing']['billing_email']['class']    = ['form-row-wide'];
             $fields['billing']['billing_email']['label']    = __('Email address', 'galado-recovery');
-            // PDPA consent line (spec section 5): visible, adjacent, plain.
+            // PDPA notice (spec section 5): visible and adjacent, but deliberately
+            // one quiet line. Checkout v2 hides labels and uses placeholder pills,
+            // and marketing opt-in is already handled by the separate Klaviyo
+            // checkbox, so this only has to cover the recovery reminder. Styled
+            // small and muted in recovery.css so it cannot dominate the field.
             $fields['billing']['billing_email']['description'] = apply_filters(
                 'galado_recovery_email_note',
-                __('We will send your order confirmation here. We may also email you about this order, including a reminder if you do not finish.', 'galado-recovery')
+                __('Order confirmation goes here, plus a reminder if you do not finish.', 'galado-recovery')
             );
         }
         return $fields;
@@ -41,6 +45,7 @@ class GALADO_Recovery_Checkout {
     public static function enqueue() {
         if (!function_exists('is_checkout') || !is_checkout() || is_wc_endpoint_url('order-received')) return;
         if (is_user_logged_in()) return;
+        wp_enqueue_style('galado-recovery', GALADO_RECOVERY_URL . 'public/recovery.css', [], GALADO_RECOVERY_VERSION);
         self::enqueue_capture_js('checkout');
     }
 
