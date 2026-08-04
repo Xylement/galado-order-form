@@ -73,12 +73,18 @@ class GALADO_Bundles_Data {
         return $out;
     }
 
+    /** Per-request descriptor memo: get() is called repeatedly per render
+     * (combos, addons, is_case_pdp, discount), and each build walks children
+     * for live pricing. One build per post per request. */
+    private static $memo = [];
+
     /** One normalized descriptor, or null. Callers filter by status. */
     public static function get($id_or_slug) {
         $post = self::resolve($id_or_slug);
         if (!$post) return null;
 
         $id    = $post->ID;
+        if (isset(self::$memo[$id])) return self::$memo[$id];
         $items = self::items($id);
         if (!$items) return null;
 
@@ -91,7 +97,7 @@ class GALADO_Bundles_Data {
         if ('' === $mode) $mode = self::derive_mode($items, $save);
         $img   = (int) get_post_meta($id, GALADO_BUNDLES_META . 'image', true);
 
-        return [
+        $out = [
             'id'           => $id,
             'slug'         => $post->post_name,
             'status'       => $post->post_status,
@@ -114,6 +120,8 @@ class GALADO_Bundles_Data {
             'total'        => $price['total'],
             'buyable'      => self::is_buyable($items),
         ];
+        self::$memo[$id] = $out;
+        return $out;
     }
 
     /** The shared pricing method both the card and the cart call. Live prices.

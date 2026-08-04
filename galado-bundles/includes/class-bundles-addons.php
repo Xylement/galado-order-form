@@ -68,8 +68,20 @@ class GALADO_Bundles_Addons {
         foreach ($groups as $g) echo self::markup($g);
     }
 
-    /** Shelves for this PDP, or null. Same case gate as the combos module. */
+    /** Shelves for this PDP, or null. Same case gate as the combos module.
+     * Cached 15 minutes per (product, catalogue version), same reasoning and
+     * same invalidation salt as the combos module. */
     public static function page_groups($product) {
+        $ck = 'gldag_' . $product->get_id() . '_' . GALADO_Bundles_Combos::cat_ver();
+        $cached = get_transient($ck);
+        if (false !== $cached) return $cached ?: null;
+
+        $data = self::build_page_groups($product);
+        set_transient($ck, $data ?: '', 15 * MINUTE_IN_SECONDS);
+        return $data;
+    }
+
+    private static function build_page_groups($product) {
         if (!GALADO_Bundles_Combos::is_case_pdp($product)) return null;
 
         $out = [];

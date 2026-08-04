@@ -28,6 +28,12 @@ class GALADO_Bundles_Combos {
     private static $rendered = false;
 
     public static function init() {
+        // Catalogue version salt: stock or price movement anywhere, or a
+        // bundle edit, invalidates the cached per-PDP module data below.
+        add_action('galado_bundles_changed', [__CLASS__, 'bump_ver']);
+        add_action('woocommerce_product_set_stock', [__CLASS__, 'bump_ver']);
+        add_action('woocommerce_variation_set_stock', [__CLASS__, 'bump_ver']);
+
         // Primary: directly below the variations form. Fallbacks: the summary
         // hook after the add-to-cart block (fires on virtually every Woo
         // theme), then after the whole summary. First one that fires wins.
@@ -88,39 +94,58 @@ class GALADO_Bundles_Combos {
      * axes still unresolved after model + pins (e.g. G-Armor colour).
      */
     public static function fitting_variations($item, $model_slug) {
-        $parent = wc_get_product((int) $item['product_id']);
-        if (!$parent || !$parent->is_type('variable')) return [];
+        $index = self::fit_index($item);
+        $model = strtolower((string) $model_slug);
+        // Model-specific fits plus model-agnostic ones (no/blank pa_model).
+        return ($index['models'][$model] ?? []) + $index['any'];
+    }
 
+    /**
+     * ONE pass over a component's variations, memoised per request, producing
+     * per-model fit lists. The old shape re-walked every child once PER MODEL
+     * (31 models x ~85 variations across components = seconds per render);
+     * this walks each child exactly once.
+     */
+    private static function fit_index($item) {
+        static $memo = [];
         $pins = [];
         foreach (($item['match_attrs'] ?? []) as $k => $v) {
             $pins[strtolower(self::attr_key($k))] = strtolower((string) $v);
         }
+        $key = (int) $item['product_id'] . '|' . md5(wp_json_encode($pins));
+        if (isset($memo[$key])) return $memo[$key];
 
-        $out = [];
+        $index = ['models' => [], 'any' => []];
+        $parent = wc_get_product((int) $item['product_id']);
+        if (!$parent || !$parent->is_type('variable')) return $memo[$key] = $index;
+
         foreach ($parent->get_children() as $cid) {
             $v = wc_get_product($cid);
             if (!$v || !$v->is_purchasable() || !$v->is_in_stock()) continue;
 
             $attrs = $v->get_variation_attributes(); // attribute_pa_model => slug
             $leftover = [];
+            $model = null; // null = model-agnostic, '' handled as agnostic too
             $ok = true;
             foreach ($attrs as $ak => $av) {
-                $key = strtolower(self::attr_key($ak));
-                $val = strtolower((string) $av);
-                if ('pa_model' === $key) {
-                    if ('' !== $val && $val !== strtolower($model_slug)) { $ok = false; break; }
+                $akey = strtolower(self::attr_key($ak));
+                $val  = strtolower((string) $av);
+                if ('pa_model' === $akey) {
+                    if ('' !== $val) $model = $val;
                     continue;
                 }
-                if (isset($pins[$key])) {
-                    if ('' !== $val && $val !== $pins[$key]) { $ok = false; break; }
+                if (isset($pins[$akey])) {
+                    if ('' !== $val && $val !== $pins[$akey]) { $ok = false; break; }
                     continue;
                 }
                 if ('' === $val) continue; // any-wildcard: not a real leftover axis
                 $leftover[self::attr_key($ak)] = (string) $av;
             }
-            if ($ok) $out[$cid] = $leftover;
+            if (!$ok) continue;
+            if (null === $model) $index['any'][$cid] = $leftover;
+            else $index['models'][$model][$cid] = $leftover;
         }
-        return $out;
+        return $memo[$key] = $index;
     }
 
     private static function attr_key($k) {
@@ -208,13 +233,36 @@ class GALADO_Bundles_Combos {
         echo self::markup($data['cards']);
     }
 
+    public static function bump_ver() {
+        update_option('galado_bundles_cat_ver', (int) get_option('galado_bundles_cat_ver', 1) + 1, false);
+    }
+
+    public static function cat_ver() {
+        return (int) get_option('galado_bundles_cat_ver', 1);
+    }
+
     /**
      * Everything the module needs for one PDP: the model universe and the
      * per-combo cards with per-model maps, exclusivity already applied.
      * Shared by render() and the admin probe route. Returns null when the
      * module does not belong on this product.
+     *
+     * Cached 15 minutes per (product, catalogue version): the build walks
+     * every component variation, far too heavy per request on this origin.
+     * Adds are always re-validated server-side, so a stale card at worst
+     * shows an option that then fails cleanly with "sold out".
      */
     public static function page_data($product) {
+        $ck = 'gldpd_' . $product->get_id() . '_' . self::cat_ver();
+        $cached = get_transient($ck);
+        if (false !== $cached) return $cached ?: null; // '' sentinel = not a case PDP
+
+        $data = self::build_page_data($product);
+        set_transient($ck, $data ?: '', 15 * MINUTE_IN_SECONDS);
+        return $data;
+    }
+
+    private static function build_page_data($product) {
         if (!self::is_case_pdp($product)) return null;
 
         $combos = GALADO_Bundles_Data::get_combos();
