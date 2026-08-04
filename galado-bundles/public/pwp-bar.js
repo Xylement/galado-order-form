@@ -215,6 +215,13 @@
     // real file is attached (then $_FILES must travel too). String fields
     // feed $_POST either way, so WCPA's posted name fields always arrive.
     var fd = new FormData(f);
+    // CRITICAL: the variations form carries a hidden add-to-cart input. If it
+    // reaches the server, WooCommerce's own form handler (wp_loaded) adds the
+    // case and REDIRECTS to the cart BEFORE wc-ajax ever dispatches - the
+    // fetch then lands on cart-page HTML and the whole flow reads as a
+    // generic failure (owner's 2026-08-04 "could not add to basket").
+    fd.delete('add-to-cart');
+    fd.delete('added-to-cart');
     if (!fd.get('variation_id') && caseVid) fd.set('variation_id', String(caseVid));
     if (!fd.get('quantity')) fd.set('quantity', '1');
     fd.set('gld_stage', JSON.stringify(stage));
