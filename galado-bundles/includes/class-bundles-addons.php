@@ -414,12 +414,14 @@ class GALADO_Bundles_Addons {
     /** Compact option label: colour part after " - " when present, otherwise
      * the name minus common charm suffixes. */
     private static function short_label($name) {
-        // The " - " colour part wins: "Crossbody Phone Strap - Black (7mm)"
-        // -> "Black (7mm)". (r20's bracket rule ran first and turned every
-        // crossbody chip into "7mm" - owner catch at launch.)
+        // The " - " colour part wins, minus any trailing size bracket (owner:
+        // "Crossbody Phone Strap - Black (7mm)" -> just "Black" - the circle
+        // itself already says 7mm).
         if (false !== strpos($name, ' - ')) {
             $parts = explode(' - ', $name);
-            return trim(end($parts));
+            $last  = trim(end($parts));
+            $bare  = trim(preg_replace('/\s*\([^)]*\)\s*$/', '', $last));
+            return '' !== $bare ? $bare : $last;
         }
         // "Clip-On Charm (360 Starfish)" -> "360 Starfish"
         if (preg_match('/\(([^)]+)\)\s*$/', $name, $m)) {
