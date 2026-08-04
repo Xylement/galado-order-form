@@ -313,8 +313,9 @@ class GALADO_Bundles_Addons {
         wp_localize_script('galado-pwp-bar', 'GALADO_PWP_BAR', [
             'state_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
             'i18n'      => [
-                'items' => __('items', 'galado-bundles'),
-                'item'  => __('item', 'galado-bundles'),
+                'items'    => __('items', 'galado-bundles'),
+                'item'     => __('item', 'galado-bundles'),
+                'discount' => __('Discount', 'galado-bundles'),
             ],
         ]);
     }

@@ -41,9 +41,17 @@
     if (!sum) {
       sum = document.createElement('span');
       sum.className = 'gld-pwp-sum';
+      var top = document.createElement('span');
+      top.className = 'gld-pwp-sum__top';
       var items = document.createElement('span');
       items.className = 'gld-pwp-sum__items';
       items.setAttribute('data-gld-items', '');
+      var disc = document.createElement('span');
+      disc.className = 'gld-pwp-sum__disc';
+      disc.setAttribute('data-gld-disc', '');
+      disc.hidden = true;
+      top.appendChild(items);
+      top.appendChild(disc);
       var line = document.createElement('span');
       line.className = 'gld-pwp-sum__price';
       var fin = document.createElement('b');
@@ -53,7 +61,7 @@
       orig.hidden = true;
       line.appendChild(fin);
       line.appendChild(orig);
-      sum.appendChild(items);
+      sum.appendChild(top);
       sum.appendChild(line);
       h.appendChild(sum);
     }
@@ -67,6 +75,9 @@
 
     sum.querySelector('[data-gld-items]').textContent =
       n + ' ' + (n === 1 ? CFG.i18n.item : CFG.i18n.items);
+    var d = sum.querySelector('[data-gld-disc]');
+    if (saved > 0) { d.hidden = false; d.textContent = (CFG.i18n.discount || 'Discount') + ' ' + rm(saved); }
+    else d.hidden = true;
     sum.querySelector('[data-gld-final]').textContent = rm(final);
     var o = sum.querySelector('[data-gld-orig]');
     if (saved > 0) { o.hidden = false; o.textContent = rm(final + saved); }
