@@ -153,15 +153,17 @@
       }
       btn.textContent = CFG.i18n.added;
       if (res && res.reused && meta) { meta.price = meta.was || meta.price; meta.reused = true; }
+      // Collapse the option panel FIRST, then confirm: the layout shift from
+      // the collapse used to leave the viewport on the description tabs
+      // (owner 2026-08-04 r4); with the panel gone, showAdded anchors the
+      // viewport on the confirmation with the shelf still in view.
+      if (section.__close) section.__close();
       showAdded(section, meta);
       if (res && res.state) {
         applyState(res.state);
         if (window.GALADO_PWP_REFRESH) window.GALADO_PWP_REFRESH(res.state);
       }
-      setTimeout(function () {
-        btn.textContent = idle;
-        if (section.__close) section.__close();
-      }, 1200);
+      setTimeout(function () { btn.textContent = idle; }, 1200);
     }).catch(function () {
       btn.disabled = false;
       btn.textContent = idle;
@@ -190,6 +192,11 @@
     a.textContent = CFG.i18n.view_basket + ' \u2192';
     box.appendChild(a);
     note.appendChild(box);
+    // Anchor the confirmation mid-screen so "added to basket" is the focus
+    // and the shelf stays visible above it.
+    requestAnimationFrame(function () {
+      if (note.scrollIntoView) note.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
   }
 
   /** Hide the WCPA accessory rows this shelf replaces (admin-editable list). */
