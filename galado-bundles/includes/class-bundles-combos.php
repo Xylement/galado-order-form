@@ -49,6 +49,40 @@ class GALADO_Bundles_Combos {
         add_action('wc_ajax_nopriv_galado_combo_add', [__CLASS__, 'ajax_add']);
     }
 
+    /** Request-shaped extra attribute picks -> sanitized slot map. Shared by
+     * the per-combo AJAX add and the atomic Buy Now checkout. */
+    public static function clean_extra($raw) {
+        $extra = [];
+        if (!empty($raw) && is_array($raw)) {
+            foreach (wp_unslash($raw) as $slot => $pairs) {
+                if (!is_array($pairs)) continue;
+                foreach ($pairs as $ak => $av) {
+                    $extra[sanitize_key($slot)][sanitize_text_field($ak)] = sanitize_text_field($av);
+                }
+            }
+        }
+        return $extra;
+    }
+
+    /** Resolve a combo for a model and add it (all-or-nothing). Shared by the
+     * per-combo AJAX add and the atomic Buy Now checkout. */
+    public static function add_for_model($slug, $model, $extra) {
+        $desc = GALADO_Bundles_Data::get($slug);
+        if (!$desc || empty($desc['combo']) || 'publish' !== $desc['status'] || '' === $model) {
+            return ['ok' => false, 'message' => __('That combo is not available.', 'galado-bundles')];
+        }
+        $selections = [];
+        foreach ($desc['items'] as $it) {
+            if ('variable' !== $it['line_type'] || 'model_match' !== $it['variation_mode']) continue;
+            $vid = self::pick_variation($it, $model, $extra[$it['slot']] ?? []);
+            if (!$vid) {
+                return ['ok' => false, 'message' => __('Not available for your model.', 'galado-bundles')];
+            }
+            $selections[$it['slot']] = $vid;
+        }
+        return GALADO_Bundles_Cart::add_bundle($desc, $selections);
+    }
+
     /** Customers need both flags; staff preview while dark (same gate as the
      * home band, so the whole surface can be reviewed before cutover). */
     private static function visible() {
@@ -359,8 +393,10 @@ class GALADO_Bundles_Combos {
 
     private static function enqueue($models, $cards) {
         wp_enqueue_style('galado-combos', GALADO_BUNDLES_URL . 'public/combos.css', [], GALADO_BUNDLES_VERSION);
-        wp_enqueue_script('galado-combos', GALADO_BUNDLES_URL . 'public/combos.js', [], GALADO_BUNDLES_VERSION, true);
         GALADO_Bundles_Addons::enqueue_bar();
+        // Depends on the bar script: it defines the shared stage (GALADO_PWP)
+        // this module pushes picks into, so it must execute first.
+        wp_enqueue_script('galado-combos', GALADO_BUNDLES_URL . 'public/combos.js', ['galado-pwp-bar'], GALADO_BUNDLES_VERSION, true);
         wp_localize_script('galado-combos', 'GALADO_COMBOS', [
             'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_combo_add') : '',
             'models'  => $models,
@@ -423,32 +459,9 @@ class GALADO_Bundles_Combos {
 
         $slug  = isset($_REQUEST['combo']) ? sanitize_title(wp_unslash($_REQUEST['combo'])) : '';
         $model = isset($_REQUEST['model']) ? sanitize_title(wp_unslash($_REQUEST['model'])) : '';
-        $extra = [];
-        if (!empty($_REQUEST['extra']) && is_array($_REQUEST['extra'])) {
-            foreach (wp_unslash($_REQUEST['extra']) as $slot => $pairs) {
-                if (!is_array($pairs)) continue;
-                foreach ($pairs as $ak => $av) {
-                    $extra[sanitize_key($slot)][sanitize_text_field($ak)] = sanitize_text_field($av);
-                }
-            }
-        }
+        $extra = self::clean_extra($_REQUEST['extra'] ?? []);
 
-        $desc = GALADO_Bundles_Data::get($slug);
-        if (!$desc || empty($desc['combo']) || 'publish' !== $desc['status'] || '' === $model) {
-            wp_send_json(['ok' => false, 'message' => __('That combo is not available.', 'galado-bundles')]);
-        }
-
-        $selections = [];
-        foreach ($desc['items'] as $it) {
-            if ('variable' !== $it['line_type'] || 'model_match' !== $it['variation_mode']) continue;
-            $vid = self::pick_variation($it, $model, $extra[$it['slot']] ?? []);
-            if (!$vid) {
-                wp_send_json(['ok' => false, 'message' => __('Not available for your model.', 'galado-bundles')]);
-            }
-            $selections[$it['slot']] = $vid;
-        }
-
-        $res = GALADO_Bundles_Cart::add_bundle($desc, $selections);
+        $res = self::add_for_model($slug, $model, $extra);
         if (!$res['ok']) {
             wp_send_json(['ok' => false, 'message' => $res['message']]);
         }

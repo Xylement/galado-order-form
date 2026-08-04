@@ -30,6 +30,58 @@ class GALADO_Bundles_Discount {
         add_action('woocommerce_cart_calculate_fees', [__CLASS__, 'apply_fees'], 99);
         // Tier coupons do not stack on satisfied-bundle lines (rule B).
         add_filter('woocommerce_coupon_is_valid_for_product', [__CLASS__, 'block_tier_on_bundle_lines'], 20, 3);
+        // Totals presentation (owner r7): subtotal reads as the ORIGINAL
+        // prices, an explicit "PWP Discount" row shows what came off, and the
+        // total stays the real charged amount. Display only - the accounting
+        // underneath (repriced lines) is untouched.
+        add_filter('woocommerce_cart_subtotal', [__CLASS__, 'display_subtotal'], 20, 3);
+        add_action('woocommerce_cart_totals_before_shipping', [__CLASS__, 'display_pwp_row']);
+        add_action('woocommerce_review_order_before_shipping', [__CLASS__, 'display_pwp_row']);
+    }
+
+    /** RM actually taken off by PWP pricing in this cart right now (applied,
+     * not promised - zero whenever the case gate has the discounts off). */
+    public static function pwp_display_saving() {
+        if (!galado_bundles_can_transact()) return 0.0;
+        $cart = function_exists('WC') ? WC()->cart : null;
+        if (!$cart || !GALADO_Bundles_Cart::cart_has_case($cart)) return 0.0;
+        $saving = 0.0;
+        foreach (GALADO_Bundles_Cart::combo_instances($cart) as $e) {
+            if (!$e['complete']) continue;
+            $own = 0.0; $paid = 0.0;
+            foreach ($e['keys'] as $k) {
+                $ci = $cart->get_cart_item($k);
+                if (!$ci) continue;
+                $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
+                $own  += ($p ? (float) wc_get_price_to_display($p) : 0.0) * max(1, (int) $ci['quantity']);
+                $paid += isset($ci['line_subtotal']) ? (float) $ci['line_subtotal'] : 0.0;
+            }
+            if ($own > $paid) $saving += $own - $paid;
+        }
+        foreach ($cart->get_cart() as $ci) {
+            if (empty($ci['galado_addon_price'])) continue;
+            $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
+            $own  = $p ? (float) wc_get_price_to_display($p) : 0.0;
+            $paid = (float) $ci['galado_addon_price'];
+            if ($own > $paid) $saving += ($own - $paid) * max(1, (int) $ci['quantity']);
+        }
+        return round($saving, 2);
+    }
+
+    public static function display_subtotal($subtotal_html, $compound, $cart) {
+        if ($compound) return $subtotal_html;
+        $saving = self::pwp_display_saving();
+        if ($saving <= 0) return $subtotal_html;
+        return wc_price((float) $cart->get_subtotal() + $saving);
+    }
+
+    public static function display_pwp_row() {
+        $saving = self::pwp_display_saving();
+        if ($saving <= 0) return;
+        echo '<tr class="gld-pwp-discount"><th>' . esc_html__('PWP Discount', 'galado-bundles') . '</th>'
+           . '<td data-title="' . esc_attr__('PWP Discount', 'galado-bundles') . '">'
+           . '<span style="color:#E4002B;font-weight:700">-' . wp_kses_post(wc_price($saving)) . '</span>'
+           . '</td></tr>';
     }
 
     /**

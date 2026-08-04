@@ -1,37 +1,93 @@
 /**
- * PWP summary inside the sticky Buy Now bar (owner 2026-08-04 round 2,
- * Casetify reference). Snippet #7 owns the bar itself; this script takes over
- * its info column: the product name goes, replaced by "N items" plus the
- * combined price (case + bundle lines) with the pre-saving price struck.
- * The Buy Now button is untouched. Before any variation is chosen and with
- * nothing added, the bar keeps its original name + price.
+ * Staged PWP flow + sticky-bar summary (owner 2026-08-04 r7, Casetify model).
  *
- * Cart state comes from the uncached galado_pwp_state endpoint, never from
- * cacheable markup. This script only enqueues when a module renders, so while
- * the storefront is dark customers never load it.
+ * Nothing is carted from the PDP any more: combo/shelf picks are STAGED here
+ * client-side, the sticky Buy Now (snippet #7's global, taken over below)
+ * sends case + stage to the atomic galado_pwp_checkout endpoint, and the
+ * server re-validates everything. No case selected = error highlight, no
+ * request. A caseless PWP cart can therefore never exist in the honest flow;
+ * the server-side case gates remain as defence in depth.
+ *
+ * The bar summarises the staged configuration: "N items", a red Discount
+ * chip, and final price with the original struck. Reloading the page clears
+ * the stage (nothing was carted), same as Casetify.
  */
 (function () {
   'use strict';
   var CFG = window.GALADO_PWP_BAR || {};
-  if (!CFG.state_url) return;
+  if (!CFG.checkout_url) return;
 
-  var state = null;      // {used, count, saved, total, bundle_total}
-  var casePrice = null;  // selected variation display price, null until chosen
-  var sum = null;        // our injected block
+  var stage = [];        // staged picks: {type:'combo'|'addon', ...}
+  var serverUsed = {};   // circles already claimed by lines in the cart
+  var casePrice = null;  // selected variation display price
+  var caseVid = 0;
+  var caseModel = '';
+  var sum = null;
+  var busy = false;
 
   function rm(n) { n = Math.round((+n || 0) * 100) / 100; return 'RM' + n.toFixed(2); }
-
+  function form() { return document.querySelector('form.variations_form.cart') || document.querySelector('form.variations_form') || document.querySelector('form.cart'); }
   function info() { return document.querySelector('#galado-sticky-cart .galado-sticky-info'); }
 
+  function usedCircle(circle) {
+    if (!circle) return false;
+    if (serverUsed[circle]) return true;
+    for (var i = 0; i < stage.length; i++) {
+      if (stage[i].type === 'addon' && stage[i].circle === circle && stage[i].pwp) return true;
+    }
+    return false;
+  }
+
+  // ---- stage API for the module scripts ----------------------------------
+  window.GALADO_PWP = {
+    isUsed: usedCircle,
+    stageAddon: function (item) {
+      var own = +item.own || 0;
+      var ap = +item.addon_price || 0;
+      var pwp = ap > 0 && ap < own && !usedCircle(item.circle);
+      var entry = {
+        type: 'addon',
+        product_id: +item.product_id || 0,
+        variation_id: +item.variation_id || 0,
+        name: String(item.name || ''),
+        circle: String(item.circle || item.product_id || ''),
+        own: own > 0 ? own : ap,
+        promised: pwp ? ap : (own > 0 ? own : ap),
+        pwp: pwp
+      };
+      stage.push(entry);
+      render();
+      return { price: entry.promised, reused: !pwp && ap > 0 };
+    },
+    stageCombo: function (item) {
+      stage.push({
+        type: 'combo',
+        slug: String(item.slug || ''),
+        model: String(item.model || ''),
+        extra: item.extra || {},
+        name: String(item.name || ''),
+        own: +item.own || 0,
+        promised: +item.promised || 0
+      });
+      render();
+    },
+    count: function () { return stage.length; }
+  };
+
+  function totals() {
+    var own = 0, pay = 0;
+    for (var i = 0; i < stage.length; i++) { own += stage[i].own; pay += stage[i].promised; }
+    return { own: own, pay: pay, saved: Math.max(0, own - pay) };
+  }
+
+  // ---- bar ----------------------------------------------------------------
   function render() {
     var h = info();
     if (!h) return;
     var name = h.querySelector('.galado-sticky-name');
     var price = h.querySelector('.galado-sticky-price');
-    var count = state ? (+state.count || 0) : 0;
 
-    if (casePrice === null && !count) {
-      // Nothing to summarise yet: the bar stays exactly as snippet #7 made it.
+    if (casePrice === null && !stage.length) {
       if (sum) sum.hidden = true;
       if (name) name.style.display = '';
       if (price) price.style.display = '';
@@ -69,43 +125,149 @@
     if (price) price.style.display = 'none';
     sum.hidden = false;
 
-    var n = count + (casePrice !== null ? 1 : 0);
-    var final = (casePrice || 0) + (state ? (+state.bundle_total || 0) : 0);
-    var saved = state ? (+state.saved || 0) : 0;
+    var t = totals();
+    var n = stage.length + (casePrice !== null ? 1 : 0);
+    var final = (casePrice || 0) + t.pay;
 
     sum.querySelector('[data-gld-items]').textContent =
       n + ' ' + (n === 1 ? CFG.i18n.item : CFG.i18n.items);
     var d = sum.querySelector('[data-gld-disc]');
-    if (saved > 0) { d.hidden = false; d.textContent = (CFG.i18n.discount || 'Discount') + ' ' + rm(saved); }
+    if (t.saved > 0) { d.hidden = false; d.textContent = (CFG.i18n.discount || 'Discount') + ' ' + rm(t.saved); }
     else d.hidden = true;
     sum.querySelector('[data-gld-final]').textContent = rm(final);
     var o = sum.querySelector('[data-gld-orig]');
-    if (saved > 0) { o.hidden = false; o.textContent = rm(final + saved); }
+    if (t.saved > 0) { o.hidden = false; o.textContent = rm(final + t.saved); }
     else o.hidden = true;
-    sum.classList.toggle('has-save', saved > 0);
+    sum.classList.toggle('has-save', t.saved > 0);
   }
 
-  window.GALADO_PWP_REFRESH = function (s) { if (s) { state = s; render(); } };
-
+  // ---- case tracking ------------------------------------------------------
   function bindCase() {
     if (!window.jQuery) return;
     window.jQuery('form.variations_form')
       .on('found_variation', function (e, v) {
-        if (v && typeof v.display_price !== 'undefined') {
-          var p = parseFloat(v.display_price);
-          if (!isNaN(p)) casePrice = p;
+        if (v) {
+          if (typeof v.display_price !== 'undefined') {
+            var p = parseFloat(v.display_price);
+            if (!isNaN(p)) casePrice = p;
+          }
+          if (v.variation_id) caseVid = parseInt(v.variation_id, 10) || 0;
+          var m = v.attributes && (v.attributes.attribute_pa_model || '');
+          if (m && m !== caseModel) {
+            if (caseModel) dropStaleCombos(m);
+            caseModel = m;
+          }
         }
         render();
       })
-      .on('reset_data hide_variation', function () { casePrice = null; render(); });
+      .on('reset_data hide_variation', function () { casePrice = null; caseVid = 0; render(); });
+  }
+
+  /** A staged protection set is model-specific: if the shopper changes model,
+   * stale sets silently shipping the WRONG glass would be worse than losing
+   * the pick, so they drop with a small note. */
+  function dropStaleCombos(newModel) {
+    var before = stage.length;
+    stage = stage.filter(function (s) { return s.type !== 'combo' || s.model === newModel; });
+    if (stage.length !== before) toast(CFG.i18n.combo_dropped);
+  }
+
+  // ---- Buy Now takeover ---------------------------------------------------
+  function highlightMissing() {
+    var selects = document.querySelectorAll('form.cart select, form.variations_form select');
+    for (var i = 0; i < selects.length; i++) {
+      if (!selects[i].value) {
+        var sel = selects[i];
+        sel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        sel.style.transition = 'box-shadow 0.3s,border-color 0.3s';
+        sel.style.boxShadow = '0 0 0 3px rgba(228,0,43,.35)';
+        sel.style.borderColor = '#E4002B';
+        setTimeout(function () { sel.style.boxShadow = ''; sel.style.borderColor = ''; }, 2000);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function toast(msg) {
+    if (!msg) return;
+    var t = document.createElement('div');
+    t.className = 'gld-pwp-toast';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 3500);
+  }
+
+  function checkout() {
+    if (busy) return;
+    var f = form();
+    if (!f) return;
+    var btn = f.querySelector('.single_add_to_cart_button');
+    var blocked = btn && (btn.classList.contains('disabled') || btn.classList.contains('wc-variation-selection-needed'));
+    if (blocked || !caseVid) {
+      highlightMissing();
+      toast(CFG.i18n.pick_case);
+      return;
+    }
+    busy = true;
+    // Multipart on purpose: string fields feed $_POST (WCPA reads its posted
+    // name fields there) and any raw file inputs still travel in $_FILES.
+    var fd = new FormData(f);
+    if (!fd.get('variation_id') && caseVid) fd.set('variation_id', String(caseVid));
+    if (!fd.get('quantity')) fd.set('quantity', '1');
+    fd.set('gld_stage', JSON.stringify(stage));
+    fetch(CFG.checkout_url, { method: 'POST', credentials: 'same-origin', body: fd })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.ok && res.redirect) { window.location.href = res.redirect; return; }
+        busy = false;
+        toast((res && res.message) || CFG.i18n.failed);
+      })
+      .catch(function () { busy = false; toast(CFG.i18n.failed); });
+  }
+
+  function nativeBuy() {
+    var btn = document.querySelector('.single_add_to_cart_button');
+    if (!btn) return;
+    if (btn.classList.contains('disabled') || btn.classList.contains('wc-variation-selection-needed')) {
+      highlightMissing();
+      return;
+    }
+    btn.click();
+  }
+
+  function bindBuyNow() {
+    // Snippet #7's sticky button calls this global; with a stage we own the
+    // flow, with an empty stage the native single-product buy is untouched.
+    window.galadoStickyBuy = function () {
+      if (!stage.length) { nativeBuy(); return; }
+      checkout();
+    };
+    var f = form();
+    if (f) {
+      f.addEventListener('submit', function (e) {
+        if (!stage.length) return;
+        e.preventDefault();
+        checkout();
+      });
+    }
   }
 
   function boot() {
     bindCase();
-    fetch(CFG.state_url, { credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(function (s) { state = s; render(); })
-      .catch(function () { /* bar simply keeps its original content */ });
+    bindBuyNow();
+    if (CFG.state_url) {
+      fetch(CFG.state_url, { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (s) {
+          if (s && s.used) {
+            for (var i = 0; i < s.used.length; i++) serverUsed[String(s.used[i])] = true;
+          }
+          document.dispatchEvent(new CustomEvent('gld-pwp-used-loaded'));
+        })
+        .catch(function () {});
+    }
+    render();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();

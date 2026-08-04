@@ -48,13 +48,70 @@ class GALADO_Bundles_Addons {
         return $item;
     }
 
-    /** One piece per circle at the with-case price (owner 2026-08-04). */
+    /** One piece per circle at the PWP price (owner 2026-08-04). */
     public static function limit_qty($passed, $cart_item_key, $values, $quantity) {
         if (!empty($values['galado_addon_price']) && $quantity > 1) {
-            wc_add_notice(__('The with-case price is limited to 1 piece. You can add another at the normal price.', 'galado-bundles'), 'error');
+            wc_add_notice(__('The PWP price is limited to 1 piece. You can add another at the normal price.', 'galado-bundles'), 'error');
             return false;
         }
         return $passed;
+    }
+
+    /** Is this product curated into an active shelf, and on what terms?
+     * Shared by the per-item AJAX add and the atomic Buy Now checkout. */
+    public static function lookup_addon($pid) {
+        $pid = (int) $pid;
+        foreach (GALADO_Bundles_Data::get_addon_groups() as $group) {
+            foreach ($group['items'] as $it) {
+                if ((int) $it['product_id'] === $pid) {
+                    $lbl = trim((string) ($it['label'] ?? ''));
+                    return [
+                        'allowed'     => true,
+                        'addon_price' => max(0.0, (float) ($it['addon_price'] ?? 0)),
+                        'circle'      => '' !== $lbl ? 'g-' . sanitize_title($lbl) : (string) $pid,
+                    ];
+                }
+            }
+        }
+        return ['allowed' => false, 'addon_price' => 0.0, 'circle' => ''];
+    }
+
+    /** Add one curated shelf item to the cart, honouring once-per-circle
+     * against both the cart and the circles already claimed in this same
+     * request. Returns [ok, message, reused]. */
+    public static function add_addon_line($pid, $vid, array &$claimed) {
+        $info = self::lookup_addon($pid);
+        if (!$info['allowed']) {
+            return ['ok' => false, 'message' => __('That add-on is not available.', 'galado-bundles'), 'reused' => false];
+        }
+        $circle = $info['circle'];
+        $reused = isset($claimed[$circle]);
+        if (!$reused && function_exists('WC') && WC()->cart) {
+            foreach (WC()->cart->get_cart() as $ci) {
+                if (($ci['galado_addon_key'] ?? '') === $circle) { $reused = true; break; }
+            }
+        }
+        $p = wc_get_product((int) $pid);
+        if (!$p || !$p->is_purchasable() || !$p->is_in_stock()) {
+            return ['ok' => false, 'message' => __('That add-on is not available.', 'galado-bundles'), 'reused' => false];
+        }
+        $data = (!$reused && $info['addon_price'] > 0)
+            ? ['galado_addon_price' => $info['addon_price'], 'galado_addon_key' => $circle]
+            : [];
+        if ($p->is_type('variable')) {
+            $v = $vid ? wc_get_product((int) $vid) : null;
+            if (!$v || $v->get_parent_id() !== (int) $pid || !$v->is_purchasable() || !$v->is_in_stock()) {
+                return ['ok' => false, 'message' => __('That option just sold out, please pick another.', 'galado-bundles'), 'reused' => false];
+            }
+            $key = WC()->cart->add_to_cart((int) $pid, 1, (int) $vid, $v->get_variation_attributes(), $data);
+        } else {
+            $key = WC()->cart->add_to_cart((int) $pid, 1, 0, [], $data);
+        }
+        if (!$key) {
+            return ['ok' => false, 'message' => __('Could not add it, please try again.', 'galado-bundles'), 'reused' => false];
+        }
+        if (!$reused) $claimed[$circle] = true;
+        return ['ok' => true, 'message' => '', 'reused' => $reused];
     }
 
     /** Cart-derived module state: which circles already claimed their
@@ -314,8 +371,10 @@ class GALADO_Bundles_Addons {
 
     private static function enqueue($groups) {
         wp_enqueue_style('galado-addons', GALADO_BUNDLES_URL . 'public/addons.css', [], GALADO_BUNDLES_VERSION);
-        wp_enqueue_script('galado-addons', GALADO_BUNDLES_URL . 'public/addons.js', [], GALADO_BUNDLES_VERSION, true);
         self::enqueue_bar();
+        // Depends on the bar script: it defines the shared stage (GALADO_PWP)
+        // this module pushes picks into, so it must execute first.
+        wp_enqueue_script('galado-addons', GALADO_BUNDLES_URL . 'public/addons.js', ['galado-pwp-bar'], GALADO_BUNDLES_VERSION, true);
         wp_localize_script('galado-addons', 'GALADO_ADDONS', [
             'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_addon_add') : '',
             'state_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
@@ -329,7 +388,7 @@ class GALADO_Bundles_Addons {
                 'pick'    => __('Choose an option first', 'galado-bundles'),
                 'preview' => __('Preview mode. Turn the storefront on to enable adds.', 'galado-bundles'),
                 'failed'  => __('Could not add it, please try again.', 'galado-bundles'),
-                'added_lbl'   => __('added to basket', 'galado-bundles'),
+                'added_lbl'   => __('added', 'galado-bundles'),
                 'add_basket'  => __('Add to Basket', 'galado-bundles'),
                 'you_saved'   => __('You saved', 'galado-bundles'),
             ],
@@ -346,11 +405,15 @@ class GALADO_Bundles_Addons {
         wp_enqueue_style('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.css', [], GALADO_BUNDLES_VERSION);
         wp_enqueue_script('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.js', [], GALADO_BUNDLES_VERSION, true);
         wp_localize_script('galado-pwp-bar', 'GALADO_PWP_BAR', [
-            'state_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
-            'i18n'      => [
-                'items'    => __('items', 'galado-bundles'),
-                'item'     => __('item', 'galado-bundles'),
-                'discount' => __('Discount', 'galado-bundles'),
+            'state_url'    => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
+            'checkout_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_checkout') : '',
+            'i18n'         => [
+                'items'         => __('items', 'galado-bundles'),
+                'item'          => __('item', 'galado-bundles'),
+                'discount'      => __('Discount', 'galado-bundles'),
+                'pick_case'     => __('Please select your case model and colour first.', 'galado-bundles'),
+                'failed'        => __('Could not add to basket, please try again.', 'galado-bundles'),
+                'combo_dropped' => __('Protection set removed because the model changed. Pick it again below.', 'galado-bundles'),
             ],
         ]);
     }
@@ -395,52 +458,12 @@ class GALADO_Bundles_Addons {
 
         // Only products curated into an active add-on group are addable here;
         // this endpoint is not a generic add-to-cart.
-        $allowed = false;
-        $addon_price = 0.0;
-        $circle = '';
-        foreach (GALADO_Bundles_Data::get_addon_groups() as $group) {
-            foreach ($group['items'] as $it) {
-                if ((int) $it['product_id'] === $pid) {
-                    $allowed = true;
-                    $addon_price = max(0.0, (float) ($it['addon_price'] ?? 0));
-                    $lbl = trim((string) ($it['label'] ?? ''));
-                    $circle = '' !== $lbl ? 'g-' . sanitize_title($lbl) : (string) $pid;
-                    break 2;
-                }
-            }
+        $claimed = [];
+        $res = self::add_addon_line($pid, $vid, $claimed);
+        if (!$res['ok']) {
+            wp_send_json(['ok' => false, 'message' => $res['message']]);
         }
-
-        // One with-case price per circle per order: a circle already claimed
-        // in the cart re-adds at the NORMAL price instead (owner 2026-08-04).
-        $reused = false;
-        if ($addon_price > 0 && function_exists('WC') && WC()->cart) {
-            foreach (WC()->cart->get_cart() as $ci) {
-                if (($ci['galado_addon_key'] ?? '') === $circle) { $reused = true; break; }
-            }
-        }
-        $p = $allowed && $pid ? wc_get_product($pid) : null;
-        if (!$p || !$p->is_purchasable() || !$p->is_in_stock()) {
-            wp_send_json(['ok' => false, 'message' => __('That add-on is not available.', 'galado-bundles')]);
-        }
-
-        $data = (!$reused && $addon_price > 0)
-            ? ['galado_addon_price' => $addon_price, 'galado_addon_key' => $circle]
-            : [];
-
-        if ($p->is_type('variable')) {
-            $v = $vid ? wc_get_product($vid) : null;
-            if (!$v || $v->get_parent_id() !== $pid || !$v->is_purchasable() || !$v->is_in_stock()) {
-                wp_send_json(['ok' => false, 'message' => __('That option just sold out, please pick another.', 'galado-bundles')]);
-            }
-            $key = WC()->cart->add_to_cart($pid, 1, $vid, $v->get_variation_attributes(), $data);
-        } else {
-            $key = WC()->cart->add_to_cart($pid, 1, 0, [], $data);
-        }
-
-        if (!$key) {
-            wp_send_json(['ok' => false, 'message' => __('Could not add it, please try again.', 'galado-bundles')]);
-        }
-        self::respond_added(['reused' => $reused ? 1 : 0]);
+        self::respond_added(['reused' => $res['reused'] ? 1 : 0]);
     }
 
     // ---- launch seed --------------------------------------------------------

@@ -41,7 +41,14 @@
       btn.disabled = false; // server ships disabled for no-JS; JS takes over
 
       btn.addEventListener('click', function () {
-        if (item.type === 'simple') { add(section, item.product_id, 0, btn, { name: item.name, price: item.price, was: item.was }); return; }
+        if (item.type === 'simple') {
+          add(section, item.product_id, 0, btn, {
+            name: item.name, price: item.price, was: item.was,
+            circle: String(item.key), addon_price: item.addon_price,
+            own: item.was > 0 ? item.was : item.price
+          });
+          return;
+        }
         // Variable and grouped items: toggle the option row.
         if (open && open.pid === key) { closeOpts(); return; }
         openOpts(card, item);
@@ -104,7 +111,10 @@
         var meta = {
           name: item.name + (picked ? ' (' + picked.label + ')' : ''),
           price: picked ? picked.price : item.price,
-          was: item.was
+          was: item.was,
+          circle: String(item.key),
+          addon_price: item.addon_price,
+          own: item.was > 0 ? item.was : (picked ? picked.price : item.price)
         };
         if (item.type === 'group') add(section, open.chosen, 0, go, meta);
         else add(section, item.product_id, open.chosen, go, meta);
@@ -126,6 +136,28 @@
     var note = section.querySelector('[data-gld-note]');
     if (CFG.preview) { if (note) note.textContent = CFG.i18n.preview; return; }
     if (btn.disabled) return;
+
+    // Staged flow (owner r7): picks live client-side until the sticky Buy Now
+    // sends case + stage to the atomic endpoint. Nothing is carted here.
+    if (window.GALADO_PWP && meta) {
+      var staged = window.GALADO_PWP.stageAddon({
+        product_id: productId,
+        variation_id: variationId,
+        name: meta.name,
+        own: meta.own,
+        addon_price: meta.addon_price,
+        circle: meta.circle
+      });
+      meta.price = staged.price;
+      if (staged.reused) meta.was = 0;
+      var idleStaged = btn.textContent;
+      btn.textContent = CFG.i18n.added;
+      if (section.__close) section.__close();
+      showAdded(section, meta);
+      markUsedCards();
+      setTimeout(function () { btn.textContent = idleStaged; }, 1200);
+      return;
+    }
 
     btn.disabled = true;
     var idle = btn.textContent;
@@ -243,13 +275,36 @@
     });
   }
 
+  /** Circles claimed either by cart lines (server used, loaded by the bar
+   * script) or by picks staged on this page: strike gone, normal price. */
+  function markUsedCards() {
+    if (!window.GALADO_PWP) return;
+    Array.prototype.forEach.call(sections, function (section) {
+      var group = groupData(section.getAttribute('data-group'));
+      if (!group) return;
+      Array.prototype.forEach.call(section.querySelectorAll('.gld-addon'), function (card) {
+        var item = itemData(group, card.getAttribute('data-key'));
+        if (!item || !(item.was > 0)) return;
+        if (!window.GALADO_PWP.isUsed(String(item.key))) return;
+        card.classList.add('is-used');
+        var priceEl = card.querySelector('.gld-addon__price');
+        if (priceEl) priceEl.textContent = '+' + rm(item.was);
+      });
+    });
+  }
+
   function boot() {
     Array.prototype.forEach.call(sections, bindSection);
     dedupeWcpa();
-    fetch(CFG.state_url || (CFG.ajax || '').replace('galado_addon_add', 'galado_pwp_state'), { credentials: 'same-origin' })
-      .then(function (r) { return r.json(); })
-      .then(applyState)
-      .catch(function () {});
+    if (window.GALADO_PWP) {
+      document.addEventListener('gld-pwp-used-loaded', markUsedCards);
+      markUsedCards();
+    } else {
+      fetch(CFG.state_url || (CFG.ajax || '').replace('galado_addon_add', 'galado_pwp_state'), { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(applyState)
+        .catch(function () {});
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();

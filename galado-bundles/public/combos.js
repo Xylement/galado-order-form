@@ -136,6 +136,25 @@
     }
     if (CFG.preview) { if (note) note.textContent = CFG.i18n.preview; return; }
 
+    // Staged flow (owner r7): picks live client-side until the sticky Buy Now
+    // sends case + stage to the atomic endpoint. Nothing is carted here.
+    if (window.GALADO_PWP) {
+      var stagedInfo = (CFG.cards[slug] || {})[model] || {};
+      window.GALADO_PWP.stageCombo({
+        slug: slug,
+        model: model,
+        extra: picks[slug] || {},
+        name: (card.querySelector('.gld-combo__name') || {}).textContent || slug,
+        own: +stagedInfo.sum || 0,
+        promised: +stagedInfo.total || 0
+      });
+      var idleStaged = btn.textContent;
+      btn.textContent = CFG.i18n.added;
+      showAdded(card, slug);
+      setTimeout(function () { btn.textContent = idleStaged; }, 1400);
+      return;
+    }
+
     btn.disabled = true;
     var idle = btn.textContent;
     btn.textContent = CFG.i18n.adding;

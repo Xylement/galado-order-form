@@ -77,3 +77,7 @@
 /* Inside the cart form (rendered above the Buy Now button) the module must
    never shrink if the theme flexes the button row. */
 .gld-protect{width:100%;flex:0 0 100%;min-width:0}
+
+/* The Points & Rewards "Earn up to N Shopping Credits" line competes with
+   the PWP story on module pages (owner 2026-08-04 r7). */
+.single-product form.cart p.points{display:none!important}

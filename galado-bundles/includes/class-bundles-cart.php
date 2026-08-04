@@ -12,6 +12,11 @@ class GALADO_Bundles_Cart {
     public static function init() {
         add_action('wc_ajax_galado_bundle_add', [__CLASS__, 'ajax_add']);
         add_action('wc_ajax_nopriv_galado_bundle_add', [__CLASS__, 'ajax_add']);
+        // Atomic Buy Now (owner 2026-08-04 r7): PDP selections are STAGED
+        // client-side; this adds case + every staged PWP item in one request,
+        // so a caseless PWP cart can never exist in the honest flow.
+        add_action('wc_ajax_galado_pwp_checkout', [__CLASS__, 'ajax_pwp_checkout']);
+        add_action('wc_ajax_nopriv_galado_pwp_checkout', [__CLASS__, 'ajax_pwp_checkout']);
         add_action('wp_loaded', [__CLASS__, 'handle_get'], 20);
 
         add_filter('woocommerce_get_cart_item_from_session', [__CLASS__, 'rehydrate'], 20, 2);
@@ -80,7 +85,82 @@ class GALADO_Bundles_Cart {
             if (!empty($ci['galado_addon_price']) || isset($map[(string) ($ci['galado_bundle_uid'] ?? '')])) { $tagged = true; break; }
         }
         if (!$tagged) return;
-        wc_add_notice(__('With-case prices need a phone case in your basket. Add your case to unlock the special prices.', 'galado-bundles'), 'notice');
+        wc_add_notice(__('PWP prices need a phone case in your basket. Add your case to unlock the PWP prices.', 'galado-bundles'), 'notice');
+    }
+
+    /**
+     * Atomic Buy Now: validate + add the case FIRST (nothing proceeds without
+     * it), then every staged PWP item. The case form fields arrive as normal
+     * POST data, so add-on plugins that read posted fields at add time (the
+     * WCPA name personalisation) work exactly as a native form submit.
+     * Staged items are pure INTENT: every id is re-validated against the
+     * curated shelves/combos, stock and the once-per-circle rule server-side.
+     */
+    public static function ajax_pwp_checkout() {
+        self::no_cache();
+        if (!galado_bundles_can_transact()) {
+            wp_send_json(['ok' => false, 'message' => __('Preview mode. Turn the storefront on to enable checkout.', 'galado-bundles')]);
+        }
+        if (!function_exists('WC') || !WC()->cart) {
+            wp_send_json(['ok' => false, 'message' => __('Could not reach the basket, please try again.', 'galado-bundles')]);
+        }
+
+        // --- the case ---------------------------------------------------
+        $pid = isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0;
+        $vid = isset($_POST['variation_id']) ? (int) $_POST['variation_id'] : 0;
+        $qty = isset($_POST['quantity']) ? max(1, (int) $_POST['quantity']) : 1;
+        $parent = $pid ? wc_get_product($pid) : null;
+        if (!$parent || !GALADO_Bundles_Combos::is_case_pdp($parent)) {
+            wp_send_json(['ok' => false, 'message' => __('Please select your case first.', 'galado-bundles')]);
+        }
+        $v = $vid ? wc_get_product($vid) : null;
+        if (!$v || $v->get_parent_id() !== $pid || !$v->is_purchasable() || !$v->is_in_stock()) {
+            wp_send_json(['ok' => false, 'message' => __('Please select your case model and colour first.', 'galado-bundles')]);
+        }
+        $case_key = WC()->cart->add_to_cart($pid, $qty, $vid, $v->get_variation_attributes());
+        if (!$case_key) {
+            // Woo queued the reason (stock, validation) as a notice; surface it.
+            wc_clear_notices();
+            wp_send_json(['ok' => false, 'message' => __('Could not add the case, please try again.', 'galado-bundles')]);
+        }
+
+        // --- staged PWP items -------------------------------------------
+        $raw = isset($_POST['gld_stage']) ? json_decode(wp_unslash((string) $_POST['gld_stage']), true) : [];
+        $skipped = [];
+        $claimed = [];
+        if (is_array($raw)) {
+            foreach (array_slice($raw, 0, 30) as $item) {
+                if (!is_array($item)) continue;
+                $type = isset($item['type']) ? (string) $item['type'] : '';
+                if ('combo' === $type) {
+                    $res = GALADO_Bundles_Combos::add_for_model(
+                        sanitize_title((string) ($item['slug'] ?? '')),
+                        sanitize_title((string) ($item['model'] ?? '')),
+                        GALADO_Bundles_Combos::clean_extra($item['extra'] ?? [])
+                    );
+                    if (!$res['ok']) $skipped[] = sanitize_text_field((string) ($item['name'] ?? __('Protection set', 'galado-bundles')));
+                } elseif ('addon' === $type) {
+                    $res = GALADO_Bundles_Addons::add_addon_line(
+                        (int) ($item['product_id'] ?? 0),
+                        (int) ($item['variation_id'] ?? 0),
+                        $claimed
+                    );
+                    if (!$res['ok']) $skipped[] = sanitize_text_field((string) ($item['name'] ?? __('Add-on', 'galado-bundles')));
+                }
+            }
+        }
+        if ($skipped) {
+            wc_add_notice(sprintf(
+                /* translators: %s: comma-separated item names */
+                __('Heads up: %s just sold out and could not be added. Everything else is in your basket.', 'galado-bundles'),
+                implode(', ', array_unique($skipped))
+            ), 'notice');
+        }
+        wp_send_json([
+            'ok'       => true,
+            'redirect' => wc_get_cart_url(),
+            'skipped'  => array_values(array_unique($skipped)),
+        ]);
     }
 
     /**
@@ -180,18 +260,61 @@ class GALADO_Bundles_Cart {
         return $html;
     }
 
+    /** Original price struck to the PWP price (owner r7). Runs through
+     * wc_format_sale_price so the brand-skin sale ordering/styling applies. */
+    private static function sale_html($own, $paid) {
+        if ($own > $paid + 0.004) return wc_format_sale_price($own, $paid);
+        return wc_price($paid);
+    }
+
+    /** Full shelf price of an addon line (display basis). */
+    private static function addon_own($cart_item) {
+        $p = wc_get_product(!empty($cart_item['variation_id']) ? $cart_item['variation_id'] : $cart_item['product_id']);
+        return $p ? (float) wc_get_price_to_display($p) : 0.0;
+    }
+
+    /** Sum of the components' full prices for a set instance. */
+    private static function instance_own_total($e) {
+        $cart = function_exists('WC') ? WC()->cart : null;
+        if (!$cart) return 0.0;
+        $sum = 0.0;
+        foreach ($e['keys'] as $k) {
+            $ci = $cart->get_cart_item($k);
+            if ($ci) $sum += self::addon_own($ci) * max(1, (int) $ci['quantity']);
+        }
+        return $sum;
+    }
+
+    /** Is this line an addon selling at an APPLIED PWP override right now? */
+    private static function addon_override_active($cart_item) {
+        return !empty($cart_item['galado_addon_price'])
+            && galado_bundles_can_transact()
+            && self::cart_has_case();
+    }
+
     public static function set_line_price($price, $cart_item, $cart_item_key = '') {
         if (!galado_bundles_can_transact()) return $price;
         $e = self::instance_for($cart_item);
-        if (!$e || $cart_item_key !== $e['lead']) return $price;
-        return wc_price(self::instance_total($e));
+        if ($e && $cart_item_key === $e['lead']) {
+            return self::sale_html(self::instance_own_total($e), self::instance_total($e));
+        }
+        if (self::addon_override_active($cart_item)) {
+            return self::sale_html(self::addon_own($cart_item), (float) $cart_item['galado_addon_price']);
+        }
+        return $price;
     }
 
     public static function set_line_subtotal($subtotal, $cart_item, $cart_item_key = '') {
         if (!galado_bundles_can_transact()) return $subtotal;
         $e = self::instance_for($cart_item);
-        if (!$e || $cart_item_key !== $e['lead']) return $subtotal;
-        return wc_price(self::instance_total($e));
+        if ($e && $cart_item_key === $e['lead']) {
+            return self::sale_html(self::instance_own_total($e), self::instance_total($e));
+        }
+        if (self::addon_override_active($cart_item)) {
+            $qty = max(1, (int) $cart_item['quantity']);
+            return self::sale_html(self::addon_own($cart_item) * $qty, (float) $cart_item['galado_addon_price'] * $qty);
+        }
+        return $subtotal;
     }
 
     /** One set = qty 1, not editable piece by piece. */
