@@ -92,6 +92,9 @@
     var $ap = $('<label class="gb-qty" title="Add-on shelves only: sell this item at a special with-case price. 0 = normal price.">Add-on RM <input type="number" min="0" step="0.01" value="' + (it.addon_price || 0) + '"></label>');
     $ap.find('input').on('change', function () { it.addon_price = Math.max(0, parseFloat(this.value) || 0); serialize(); });
     $main.append($ap);
+    var $gl = $('<label class="gb-qty" title="Add-on shelves only: rows sharing the same group name show as ONE circle whose options are these products.">Group as <input type="text" style="width:150px" value="' + (it.label || '').replace(/"/g, '&quot;') + '" placeholder="e.g. Mini Phone Charm"></label>');
+    $gl.find('input').on('change', function () { it.label = this.value.trim(); serialize(); });
+    $main.append($gl);
     $row.append($main);
 
     var $rm = $('<button type="button" class="gb-remove button-link" title="Remove">&times;</button>');

@@ -19,9 +19,9 @@
     return null;
   }
 
-  function itemData(group, pid) {
+  function itemData(group, key) {
     for (var i = 0; i < group.items.length; i++) {
-      if (String(group.items[i].product_id) === String(pid)) return group.items[i];
+      if (String(group.items[i].key) === String(key)) return group.items[i];
     }
     return null;
   }
@@ -34,22 +34,22 @@
     var open = null; // {pid, chosen}
 
     Array.prototype.forEach.call(section.querySelectorAll('.gld-addon'), function (card) {
-      var pid = card.getAttribute('data-product');
+      var key = card.getAttribute('data-key');
       var btn = card.querySelector('[data-gld-addon-add]');
-      var item = itemData(group, pid);
+      var item = itemData(group, key);
       if (!item) return;
       btn.disabled = false; // server ships disabled for no-JS; JS takes over
 
       btn.addEventListener('click', function () {
-        if (item.type === 'simple') { add(section, item, 0, btn); return; }
-        // Variable: toggle the option row for this item.
-        if (open && open.pid === pid) { closeOpts(); return; }
+        if (item.type === 'simple') { add(section, item.product_id, 0, btn); return; }
+        // Variable and grouped items: toggle the option row.
+        if (open && open.pid === key) { closeOpts(); return; }
         openOpts(card, item);
       });
     });
 
     function openOpts(card, item) {
-      open = { pid: String(item.product_id), chosen: 0 };
+      open = { pid: String(item.key), chosen: 0, type: item.type };
       section.querySelectorAll('.gld-addon.is-open').forEach
         ? section.querySelectorAll('.gld-addon.is-open').forEach(function (c) { c.classList.remove('is-open'); })
         : null;
@@ -96,7 +96,9 @@
       go.textContent = CFG.i18n.pick;
       go.addEventListener('click', function () {
         if (!open || !open.chosen) { if (note) note.textContent = CFG.i18n.pick; return; }
-        add(section, item, open.chosen, go);
+        // Grouped: the chosen option IS the product. Variable: it is the variation.
+        if (item.type === 'group') add(section, open.chosen, 0, go);
+        else add(section, item.product_id, open.chosen, go);
       });
       optsHost.appendChild(go);
     }
@@ -111,7 +113,7 @@
     section.__close = closeOpts;
   }
 
-  function add(section, item, variationId, btn) {
+  function add(section, productId, variationId, btn) {
     var note = section.querySelector('[data-gld-note]');
     if (CFG.preview) { if (note) note.textContent = CFG.i18n.preview; return; }
     if (btn.disabled) return;
@@ -121,7 +123,7 @@
     btn.textContent = CFG.i18n.adding;
 
     var body = new URLSearchParams();
-    body.set('product_id', item.product_id);
+    body.set('product_id', productId);
     if (variationId) body.set('variation_id', variationId);
 
     fetch(CFG.ajax, {

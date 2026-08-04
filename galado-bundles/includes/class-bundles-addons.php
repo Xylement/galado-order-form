@@ -74,16 +74,62 @@ class GALADO_Bundles_Addons {
 
         $out = [];
         foreach (GALADO_Bundles_Data::get_addon_groups() as $group) {
+            // Sibling grouping (owner 2026-08-04): SIMPLE item rows sharing a
+            // "Group as" label collapse into ONE circle whose options are those
+            // products (the old WCPA rows were exactly this: one offer, many
+            // real standalone products behind it). Order of first appearance
+            // is preserved; variable products always stand alone.
             $items = [];
+            $group_index = [];
             foreach ($group['items'] as $it) {
                 $item = self::item_data($it, $product->get_id());
-                if ($item) $items[] = $item;
+                if (!$item) continue;
+                $lbl = trim((string) ($it['label'] ?? ''));
+                if ('' === $lbl || 'variable' === $item['type']) {
+                    $items[] = $item;
+                    continue;
+                }
+                if (!isset($group_index[$lbl])) {
+                    $items[] = [
+                        'key'         => 'g-' . sanitize_title($lbl),
+                        'product_id'  => 0,
+                        'name'        => $lbl,
+                        'thumb'       => $item['thumb'],
+                        'price'       => $item['price'],
+                        'was'         => $item['was'],
+                        'addon_price' => 0,
+                        'type'        => 'group',
+                        'options'     => [],
+                    ];
+                    $group_index[$lbl] = count($items) - 1;
+                }
+                $gi = $group_index[$lbl];
+                $items[$gi]['options'][] = [
+                    'id'    => $item['product_id'],
+                    'label' => self::short_label($item['name']),
+                    'price' => $item['price'],
+                    'thumb' => $item['thumb'],
+                ];
+                if ($item['price'] < $items[$gi]['price']) {
+                    $items[$gi]['price'] = $item['price'];
+                    $items[$gi]['was']   = $item['was'];
+                }
             }
             if ($items) {
                 $out[] = ['slug' => $group['slug'], 'title' => $group['title'], 'items' => $items];
             }
         }
         return $out ?: null;
+    }
+
+    /** Compact option label: colour part after " - " when present, otherwise
+     * the name minus common charm suffixes. */
+    private static function short_label($name) {
+        if (false !== strpos($name, ' - ')) {
+            $parts = explode(' - ', $name);
+            return trim(end($parts));
+        }
+        return trim(preg_replace('/\s+(Phone|Pearl)?\s*Charm$/i', '', $name));
     }
 
     /** One shelf item: display data plus, for variable products, the option
@@ -98,6 +144,7 @@ class GALADO_Bundles_Addons {
         $addon_price = max(0.0, (float) ($it['addon_price'] ?? 0));
         $own_price   = (float) wc_get_price_to_display($p);
         $base = [
+            'key'         => (string) $pid,
             'product_id'  => $pid,
             'name'        => $p->get_name(),
             'thumb'       => wp_get_attachment_image_url($p->get_image_id(), 'woocommerce_thumbnail') ?: wc_placeholder_img_src(),
@@ -169,7 +216,7 @@ class GALADO_Bundles_Addons {
           <h3 class="gld-addons__head"><?php echo esc_html($group['title']); ?></h3>
           <div class="gld-addons__row" role="list">
             <?php foreach ($group['items'] as $it) : ?>
-            <article class="gld-addon" role="listitem" data-product="<?php echo esc_attr($it['product_id']); ?>" data-type="<?php echo esc_attr($it['type']); ?>">
+            <article class="gld-addon" role="listitem" data-key="<?php echo esc_attr($it['key']); ?>" data-type="<?php echo esc_attr($it['type']); ?>">
               <span class="gld-addon__circle"><img src="<?php echo esc_url($it['thumb']); ?>" alt="" loading="lazy" width="72" height="72"></span>
               <span class="gld-addon__name"><?php echo esc_html($it['name']); ?></span>
               <span class="gld-addon__price">+RM<?php echo esc_html(self::rm($it['price'])); ?><?php if (!empty($it['was'])) : ?> <s>RM<?php echo esc_html(self::rm($it['was'])); ?></s><?php endif; ?></span>
@@ -241,25 +288,45 @@ class GALADO_Bundles_Addons {
     public static function seed_accessories_group() {
         $slug = 'addons-accessories';
 
-        // The old WCPA "Add Protection" accessory rows (owner 2026-08-04),
-        // minus tempered glass + camera lens (now protector combos), mapped to
-        // real products with their WITH-CASE add-on prices:
-        //   360 Ultra Slim Card #317620 RM35 (own price, colour variants)
-        //   Mini Wrist Strap (Titanium Gold) #321013 at RM59 (own RM75)
-        //   Crossbody (All Black 6mm) #236439 at RM69 (own RM89)
-        //   Cloud MagSafe Grip #277284 at RM55 (own RM69)
-        // The WCPA "Mini Phone Charm RM55" row has NO matching product in the
-        // catalogue and awaits the owner's pick.
+        // The confirmed line-up (owner 2026-08-04): the old WCPA rows mapped
+        // to real standalone products. Rows sharing a label render as ONE
+        // circle with those products as options at the with-case price.
+        //   Mini Phone Charm  RM55 (own RM69)  10 charm products
+        //   360 Ultra Slim Card RM35 (own price, colour variants)
+        //   Mini Wrist Strap  RM59 (own RM75)  8 colours
+        //   Crossbody Strap (7mm) RM79 (own RM89)  5 colours
+        //   Cloud MagSafe Grip RM55 (own RM69)
         $lineup = [
-            [317620, 0.0],
-            [321013, 59.0],
-            [236439, 69.0],
-            [277284, 55.0],
+            [326853, 55.0, 'Mini Phone Charm'],
+            [316138, 55.0, 'Mini Phone Charm'],
+            [287236, 55.0, 'Mini Phone Charm'],
+            [249931, 55.0, 'Mini Phone Charm'],
+            [281857, 55.0, 'Mini Phone Charm'],
+            [317569, 55.0, 'Mini Phone Charm'],
+            [305025, 55.0, 'Mini Phone Charm'],
+            [301438, 55.0, 'Mini Phone Charm'],
+            [313944, 55.0, 'Mini Phone Charm'],
+            [287759, 55.0, 'Mini Phone Charm'],
+            [317620, 0.0,  ''],
+            [321013, 59.0, 'Mini Wrist Strap'],
+            [321238, 59.0, 'Mini Wrist Strap'],
+            [331862, 59.0, 'Mini Wrist Strap'],
+            [331868, 59.0, 'Mini Wrist Strap'],
+            [331875, 59.0, 'Mini Wrist Strap'],
+            [329812, 59.0, 'Mini Wrist Strap'],
+            [329212, 59.0, 'Mini Wrist Strap'],
+            [329172, 59.0, 'Mini Wrist Strap'],
+            [384007, 79.0, 'Crossbody Strap (7mm)'],
+            [384044, 79.0, 'Crossbody Strap (7mm)'],
+            [384065, 79.0, 'Crossbody Strap (7mm)'],
+            [404021, 79.0, 'Crossbody Strap (7mm)'],
+            [288133, 79.0, 'Crossbody Strap (7mm)'],
+            [277284, 55.0, ''],
         ];
 
         $items = [];
-        foreach ($lineup as $n => $pair) {
-            $pid = $pair[0];
+        foreach ($lineup as $n => $row) {
+            $pid = $row[0];
             $p = wc_get_product($pid);
             if (!$p || 'publish' !== $p->get_status()) continue;
             $items[] = [
@@ -270,8 +337,8 @@ class GALADO_Bundles_Addons {
                 'variation_mode'       => $p->is_type('variable') ? 'shopper_choice' : 'fixed',
                 'default_variation_id' => 0,
                 'match_attrs'          => [],
-                'addon_price'          => (float) $pair[1],
-                'label'                => '',
+                'addon_price'          => (float) $row[1],
+                'label'                => (string) $row[2],
                 'name_cache'           => $p->get_name(),
                 'price_cache'          => (float) wc_get_price_to_display($p),
             ];
