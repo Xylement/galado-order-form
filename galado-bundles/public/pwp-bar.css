@@ -13,17 +13,7 @@
 .gld-pwp-sum__disc{font-size:12px;font-weight:700;color:#E4002B;white-space:nowrap}
 .gld-pwp-sum__disc[hidden]{display:none}
 
-/* Mobile: the floating Buy Now IS the CTA (owner 2026-08-04 r4). The in-page
-   qty + Buy Now hide wherever snippet #7's bar exists (<=991px). With the
-   observed button display:none, #7's IntersectionObserver reports
-   not-intersecting once at load, so the bar stays permanently visible - no
-   more bar vanishing mid-scroll. The bar's Buy Now clicks the hidden button
-   programmatically, which still submits the form (validation included). */
-@media (max-width:991px){
-  .woocommerce div.product form.cart div.quantity,
-  .woocommerce div.product form.cart .quantity,
-  .woocommerce div.product form.cart .single_add_to_cart_button{display:none!important}
-}
+/* The mobile in-page-button hide moved to pdp-chrome.css (store-wide, r13). */
 
 /* Feedback toast for the staged Buy Now flow (validation + errors). */
 .gld-pwp-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom));max-width:88vw;background:#111111;color:#fff;font-size:13px;line-height:1.4;padding:10px 18px;border-radius:999px;z-index:9999;box-shadow:0 6px 20px rgba(17,17,17,.3);text-align:center}

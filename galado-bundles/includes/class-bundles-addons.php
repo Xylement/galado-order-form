@@ -319,6 +319,13 @@ class GALADO_Bundles_Addons {
                     $items[$gi]['was']   = $item['was'];
                 }
             }
+            // Mixed-price groups (the Clip-On circle spans RM29-35) show
+            // "From RM29" and price every option chip (owner r13).
+            foreach ($items as $i => $item2) {
+                if ('group' !== $item2['type'] || empty($item2['options'])) continue;
+                $prices = array_map('floatval', wp_list_pluck($item2['options'], 'price'));
+                $items[$i]['varies'] = count($prices) > 1 && (max($prices) - min($prices)) > 0.004;
+            }
             if ($items) {
                 $out[] = ['slug' => $group['slug'], 'title' => $group['title'], 'items' => $items];
             }
@@ -465,7 +472,11 @@ class GALADO_Bundles_Addons {
             <article class="gld-addon" role="listitem" data-key="<?php echo esc_attr($it['key']); ?>" data-type="<?php echo esc_attr($it['type']); ?>">
               <span class="gld-addon__circle"><img src="<?php echo esc_url($it['thumb']); ?>" alt="" loading="lazy" width="72" height="72"></span>
               <span class="gld-addon__name"><?php echo esc_html($it['name']); ?></span>
+              <?php if (!empty($it['varies'])) : ?>
+              <span class="gld-addon__price"><?php esc_html_e('From', 'galado-bundles'); ?> RM<?php echo esc_html(self::rm($it['price'])); ?></span>
+              <?php else : ?>
               <span class="gld-addon__price">+RM<?php echo esc_html(self::rm($it['price'])); ?><?php if (!empty($it['was'])) : ?> <s>RM<?php echo esc_html(self::rm($it['was'])); ?></s><?php endif; ?></span>
+              <?php endif; ?>
               <button type="button" class="gld-addon__add" data-gld-addon-add disabled><?php esc_html_e('Add +', 'galado-bundles'); ?></button>
             </article>
             <?php endforeach; ?>

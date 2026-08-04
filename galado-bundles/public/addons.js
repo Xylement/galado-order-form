@@ -83,7 +83,8 @@
         }
         var t = document.createElement('span');
         t.className = 'gld-addons__optlabel';
-        t.textContent = o.label + (o.price !== item.price ? ' ' + rm(o.price) : '');
+        // Mixed-price groups price every chip; uniform groups only the odd one.
+        t.textContent = o.label + ((item.varies || o.price !== item.price) ? ' ' + rm(o.price) : '');
         b.appendChild(t);
         b.addEventListener('click', function () {
           open.chosen = o.id;

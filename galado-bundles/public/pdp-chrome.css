@@ -1,0 +1,11 @@
+/* Store-wide PDP chrome while PWP is on (enqueue is dark-gated per request):
+   mobile shops through the floating Buy Now ONLY - hiding the in-page button
+   makes snippet #7's IntersectionObserver report it out of view once at load,
+   so the bar stays permanently visible on every product - and the Points &
+   Rewards "Earn up to N Shopping Credits" line goes on all viewports. */
+@media (max-width:991px){
+  .woocommerce div.product form.cart div.quantity,
+  .woocommerce div.product form.cart .quantity,
+  .woocommerce div.product form.cart .single_add_to_cart_button{display:none!important}
+}
+.single-product form.cart p.points{display:none!important}
