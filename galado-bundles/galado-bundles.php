@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Bundles
  * Description: Self-service product bundles: staff build kits in wp-admin (simple + variable items), one flat margin-funded RM saving per bundle, rendered into home-v3 via [galado_bundles] and applied at cart as a complete-set-only negative fee. Generalises and retires Code Snippet #95. Writes no product data; reversible by deactivation. Spec: BUNDLES-SPEC.md.
- * Version: 0.13.3
+ * Version: 0.13.4
  * Author: GALADO
  * Text Domain: galado-bundles
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_BUNDLES_VERSION', '0.13.3');
+define('GALADO_BUNDLES_VERSION', '0.13.4');
 define('GALADO_BUNDLES_PATH', plugin_dir_path(__FILE__));
 define('GALADO_BUNDLES_URL', plugin_dir_url(__FILE__));
 
@@ -77,7 +77,7 @@ function galado_bundles_wcpa_hide_keys() {
  * (crossbody, wrist strap, grips, stands). Applied only where a shelf
  * renders; charms and anything not listed stay visible in WCPA. */
 function galado_bundles_wcpa_hide_keys_addons() {
-    $raw = get_option('galado_bundles_wcpa_hide_keys_addons', "crossbody\nwrist strap\nphone grip\nring stand\nclip-on\nclip on");
+    $raw = get_option('galado_bundles_wcpa_hide_keys_addons', "crossbody\nwrist strap\nphone grip\nring stand\nclip-on\nclip on\nadd on charm");
     $keys = array_filter(array_map('trim', explode("\n", strtolower((string) $raw))));
     return array_values($keys);
 }
@@ -248,7 +248,7 @@ function galado_bundles_render_settings() {
           <tr>
             <th>WCPA fields hidden next to add-on shelves</th>
             <td>
-              <textarea name="wcpa_hide_keys_addons" rows="4" class="large-text"><?php echo esc_textarea((string) get_option('galado_bundles_wcpa_hide_keys_addons', "crossbody\nwrist strap\nphone grip\nring stand\nclip-on\nclip on")); ?></textarea>
+              <textarea name="wcpa_hide_keys_addons" rows="4" class="large-text"><?php echo esc_textarea((string) get_option('galado_bundles_wcpa_hide_keys_addons', "crossbody\nwrist strap\nphone grip\nring stand\nclip-on\nclip on\nadd on charm")); ?></textarea>
               <p class="description">One entry per line. Where an add-on shelf shows, WCPA rows matching an entry are hidden. Name customisation and anything unlisted stay.</p>
             </td>
           </tr>
