@@ -55,6 +55,8 @@ class GALADO_Bundles_Admin {
         $fee_label = get_post_meta($post->ID, GALADO_BUNDLES_META . 'fee_label', true);
         echo '<p><label><input type="checkbox" name="galado_bundle_featured" value="1" ' . checked('1', $feat, false) . '> <strong>Featured</strong> (shown in the home band)</label></p>';
         echo '<p><label><input type="checkbox" name="galado_bundle_combo" value="1" ' . checked('1', $is_combo, false) . '> <strong>PDP protector combo</strong> (shown in the Protect-your-phone module on case pages, never in the home band)</label></p>';
+        echo '<p><label><input type="checkbox" name="galado_bundle_combo_fallback" value="1" ' . checked('1', get_post_meta($post->ID, GALADO_BUNDLES_META . 'combo_fallback', true), false) . '> Fallback combo</label><br>';
+        echo '<span class="description">Shows only for models where no fuller combo (one containing all of this combo\'s products) is available. Example: glass + lens shows only where the Camera Plateau combo cannot.</span></p>';
         echo '<p><label>Cart fee label<br><input type="text" name="galado_bundle_fee_label" value="' . esc_attr($fee_label) . '" class="widefat" placeholder="Protect Set"></label>';
         echo '<span class="description">Cart shows "Bundle saving (label)". Empty = this bundle\'s title.</span></p>';
         echo '<p><label>Subtitle<br><input type="text" maxlength="140" name="galado_bundle_blurb" value="' . esc_attr($blurb) . '" class="widefat"></label></p>';
@@ -85,6 +87,7 @@ class GALADO_Bundles_Admin {
         update_post_meta($post_id, GALADO_BUNDLES_META . 'save', max(0, (float) ($_POST['galado_bundle_save'] ?? 0)));
         update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_price', max(0, (float) ($_POST['galado_bundle_combo_price'] ?? 0)));
         update_post_meta($post_id, GALADO_BUNDLES_META . 'combo', isset($_POST['galado_bundle_combo']) ? '1' : '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_fallback', isset($_POST['galado_bundle_combo_fallback']) ? '1' : '0');
         update_post_meta($post_id, GALADO_BUNDLES_META . 'fee_label', sanitize_text_field(wp_unslash($_POST['galado_bundle_fee_label'] ?? '')));
         update_post_meta($post_id, GALADO_BUNDLES_META . 'featured', isset($_POST['galado_bundle_featured']) ? '1' : '0');
         update_post_meta($post_id, GALADO_BUNDLES_META . 'stack_qty', isset($_POST['galado_bundle_stack_qty']) ? '1' : '0');

@@ -206,9 +206,35 @@ class GALADO_Bundles_Combos {
         }
         if (!$models) return;
 
+        // Build every combo's per-model map first, then apply the mutual
+        // exclusivity rule (spec section 2): a FALLBACK combo is hidden for any
+        // model where a fuller non-fallback combo (whose components are a
+        // superset of the fallback's) is available. Today: glass + G-Armor
+        // shows only where the plateau combo cannot; when plateau coverage
+        // expands, pages flip to the full set automatically, no config change.
+        $built = [];
+        foreach ($combos as $combo) {
+            $built[] = ['combo' => $combo, 'map' => self::combo_model_map($combo, $models)];
+        }
+        foreach ($built as $i => $entry) {
+            if (empty($entry['combo']['combo_fallback'])) continue;
+            $mine = wp_list_pluck($entry['combo']['items'], 'product_id');
+            foreach ($built as $j => $other) {
+                if ($i === $j || !empty($other['combo']['combo_fallback'])) continue;
+                $theirs = wp_list_pluck($other['combo']['items'], 'product_id');
+                if (array_diff($mine, $theirs)) continue; // not a superset of us
+                foreach ($entry['map'] as $slug => $m) {
+                    if (!empty($m['ok']) && !empty($other['map'][$slug]['ok'])) {
+                        $built[$i]['map'][$slug] = ['ok' => false];
+                    }
+                }
+            }
+        }
+
         $cards = [];
-        foreach (array_slice($combos, 0, 3) as $combo) {
-            $map = self::combo_model_map($combo, $models);
+        foreach ($built as $entry) {
+            $combo = $entry['combo'];
+            $map   = $entry['map'];
             $any = false;
             foreach ($map as $m) { if (!empty($m['ok'])) { $any = true; break; } }
             if (!$any) continue; // never show an un-addable combo (spec section 3)
@@ -223,11 +249,12 @@ class GALADO_Bundles_Combos {
             }
 
             $cards[] = [
-                'slug'   => $combo['slug'],
-                'title'  => $combo['title'],
-                'names'  => $names,
-                'thumbs' => $thumbs,
-                'models' => $map,
+                'slug'     => $combo['slug'],
+                'title'    => $combo['title'],
+                'fallback' => !empty($combo['combo_fallback']),
+                'names'    => $names,
+                'thumbs'   => $thumbs,
+                'models'   => $map,
             ];
         }
         if (!$cards) return;
@@ -266,7 +293,7 @@ class GALADO_Bundles_Combos {
           <h3 class="gld-protect__head"><?php esc_html_e('Protect your', 'galado-bundles'); ?> <span data-gld-model><?php esc_html_e('phone', 'galado-bundles'); ?></span></h3>
           <div class="gld-protect__row" role="list">
             <?php foreach ($cards as $c) : ?>
-            <article class="gld-combo" role="listitem" data-combo="<?php echo esc_attr($c['slug']); ?>">
+            <article class="gld-combo" role="listitem" data-combo="<?php echo esc_attr($c['slug']); ?>"<?php echo $c['fallback'] ? ' data-fallback="1" hidden' : ''; ?>>
               <span class="gld-combo__chip" data-gld-chip hidden></span>
               <div class="gld-combo__imgs">
                 <?php foreach (array_slice($c['thumbs'], 0, 3) as $t) : ?>
@@ -355,10 +382,12 @@ class GALADO_Bundles_Combos {
 
     // ---- launch seed --------------------------------------------------------
 
-    /** Idempotent: creates the three ADDON-COMBOS-SPEC drafts if absent.
-     * Slide prices are seeded; the owner reviews and publishes (spec's open
-     * pricing item), so nothing goes live from here. Returns how many were made. */
+    /** Idempotent: creates the four combos CONFIRMED in ADDON-COMBOS-SPEC
+     * section 2 (2026-08-04) as drafts if absent; the owner publishes.
+     * Combo 4 is the fallback for models with no plateau SKU and is mutually
+     * exclusive with combos 1/3 via the fallback rule. */
     public static function seed_launch_combos() {
+        $plateau_pin = ['option' => 'Camera Plateau Protector ONLY'];
         $seeds = [
             [
                 'slug'  => 'combo-protect-complete',
@@ -367,7 +396,7 @@ class GALADO_Bundles_Combos {
                 'items' => [
                     ['product_id' => 40884,  'mode' => 'model_match', 'match' => []],
                     ['product_id' => 229654, 'mode' => 'model_match', 'match' => []],
-                    ['product_id' => 401981, 'mode' => 'model_match', 'match' => ['option' => 'Camera Plateau Protector ONLY']],
+                    ['product_id' => 401981, 'mode' => 'model_match', 'match' => $plateau_pin],
                 ],
             ],
             [
@@ -384,7 +413,17 @@ class GALADO_Bundles_Combos {
                 'price' => 75.00,
                 'items' => [
                     ['product_id' => 229654, 'mode' => 'model_match', 'match' => []],
-                    ['product_id' => 401981, 'mode' => 'model_match', 'match' => ['option' => 'Camera Plateau Protector ONLY']],
+                    ['product_id' => 401981, 'mode' => 'model_match', 'match' => $plateau_pin],
+                ],
+            ],
+            [
+                'slug'     => 'combo-protect-screen-lens',
+                'title'    => 'Screen & Lens Protection',
+                'price'    => 99.00,
+                'fallback' => true,
+                'items' => [
+                    ['product_id' => 40884,  'mode' => 'model_match', 'match' => []],
+                    ['product_id' => 229654, 'mode' => 'model_match', 'match' => []],
                 ],
             ],
         ];
@@ -423,6 +462,7 @@ class GALADO_Bundles_Combos {
 
             update_post_meta($post_id, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
             update_post_meta($post_id, GALADO_BUNDLES_META . 'combo', '1');
+            update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_fallback', empty($seed['fallback']) ? '0' : '1');
             update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_price', $seed['price']);
             update_post_meta($post_id, GALADO_BUNDLES_META . 'fee_label', 'Protect Set');
             update_post_meta($post_id, GALADO_BUNDLES_META . 'featured', '0');

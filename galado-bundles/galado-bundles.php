@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Bundles
  * Description: Self-service product bundles: staff build kits in wp-admin (simple + variable items), one flat margin-funded RM saving per bundle, rendered into home-v3 via [galado_bundles] and applied at cart as a complete-set-only negative fee. Generalises and retires Code Snippet #95. Writes no product data; reversible by deactivation. Spec: BUNDLES-SPEC.md.
- * Version: 0.2.0
+ * Version: 0.2.1
  * Author: GALADO
  * Text Domain: galado-bundles
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_BUNDLES_VERSION', '0.2.0');
+define('GALADO_BUNDLES_VERSION', '0.2.1');
 define('GALADO_BUNDLES_PATH', plugin_dir_path(__FILE__));
 define('GALADO_BUNDLES_URL', plugin_dir_url(__FILE__));
 
@@ -38,11 +38,9 @@ function galado_bundles_combos_enabled() {
     return '1' === get_option('galado_bundles_combos_enabled', '0');
 }
 
-/** Independent UX toggles (ADDON-COMBOS-SPEC sections 5 and 6). These do not
- * depend on the bundles storefront; they can go live on their own. */
-function galado_bundles_wcpa_relabel_enabled() {
-    return '1' === get_option('galado_bundles_wcpa_relabel', '0');
-}
+/** Mobile cart sticky CTA (ADDON-COMBOS-SPEC section 5). Independent of the
+ * bundles storefront; can go live on its own. (The WCPA relabel from spec
+ * section 6 is Code Snippet #182, shipped by marketing, NOT this plugin.) */
 function galado_bundles_sticky_cart_enabled() {
     return '1' === get_option('galado_bundles_sticky_cart', '0');
 }
@@ -169,7 +167,6 @@ function galado_bundles_render_settings() {
     if (isset($_POST['galado_bundles_save']) && check_admin_referer('galado_bundles_settings')) {
         update_option('galado_bundles_storefront_enabled', isset($_POST['storefront_enabled']) ? '1' : '0');
         update_option('galado_bundles_combos_enabled', isset($_POST['combos_enabled']) ? '1' : '0');
-        update_option('galado_bundles_wcpa_relabel', isset($_POST['wcpa_relabel']) ? '1' : '0');
         update_option('galado_bundles_sticky_cart', isset($_POST['sticky_cart']) ? '1' : '0');
         update_option('galado_bundles_wcpa_hide_keys', sanitize_textarea_field(wp_unslash($_POST['wcpa_hide_keys'] ?? '')));
         echo '<div class="notice notice-success"><p>Saved. Purge caches after switching customer-facing toggles.</p></div>';
@@ -199,13 +196,6 @@ function galado_bundles_render_settings() {
             <td>
               <label><input type="checkbox" name="combos_enabled" value="1" <?php checked(galado_bundles_combos_enabled()); ?>> Show the "Protect your phone" combo module on phone-case product pages</label>
               <p class="description">Needs the storefront ON to take orders (the cart saving engine lives behind it). While the storefront is dark, staff see a preview on case PDPs; customers see nothing.</p>
-            </td>
-          </tr>
-          <tr>
-            <th>WCPA relabel</th>
-            <td>
-              <label><input type="checkbox" name="wcpa_relabel" value="1" <?php checked(galado_bundles_wcpa_relabel_enabled()); ?>> Rename the add-on price summary on product pages (Case / Add-ons / Total) and hide the RM0.00 add-ons row</label>
-              <p class="description">Independent of the storefront switch; safe to enable on its own.</p>
             </td>
           </tr>
           <tr>

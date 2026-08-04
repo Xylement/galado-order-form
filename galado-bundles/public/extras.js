@@ -1,58 +1,23 @@
 /**
- * Bundles extras (ADDON-COMBOS-SPEC sections 5 and 6):
- *  - WCPA price-summary relabel + RM0 add-ons row hiding (PDP)
- *  - mobile cart sticky Continue-to-Checkout bar (/cart/)
+ * Bundles extras (ADDON-COMBOS-SPEC section 5): the mobile cart sticky
+ * Continue-to-Checkout bar.
+ *
+ * The WCPA price-summary relabel that briefly lived here was dropped before
+ * ever shipping: marketing shipped it as Code Snippet #182, and the spec is
+ * explicit that the plugin must not relabel the same DOM twice (two observers
+ * fighting over one summary).
  */
 (function () {
   'use strict';
   var CFG = window.GALADO_BUNDLES_EXTRAS || {};
 
-  // ---- WCPA relabel (spec 6: "this scared customer") ------------------------
-  function relabelOnce(scope) {
-    var rows = (scope || document).querySelectorAll('.wcpa_price_summary tr, .wcpa_price_summary > div, .wcpa_price_summary li');
-    Array.prototype.forEach.call(rows, function (row) {
-      var text = row.textContent || '';
-      var label = row.querySelector('td, th, span, label, div');
-      if (/product\s*price/i.test(text)) {
-        swapLabel(row, label, /product\s*price\s*:?/i, CFG.i18n.case);
-      } else if (/options\s*price/i.test(text)) {
-        swapLabel(row, label, /options\s*price\s*:?/i, CFG.i18n.addons);
-        // Hide the add-ons row entirely while it reads zero; it reappears the
-        // moment a paid add-on is picked (the observer re-runs us).
-        row.style.display = /(RM|MYR)\s*0([.,]00)?(\s|$)/.test(text) ? 'none' : '';
-      }
-    });
-  }
-
-  function swapLabel(row, label, re, replacement) {
-    var target = null;
-    var walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
-    while (walker.nextNode()) {
-      if (re.test(walker.currentNode.nodeValue)) { target = walker.currentNode; break; }
-    }
-    if (target) target.nodeValue = target.nodeValue.replace(re, replacement);
-    else if (label && re.test(label.textContent)) label.textContent = label.textContent.replace(re, replacement);
-  }
-
-  function bindRelabel() {
-    relabelOnce(document);
-    var host = document.querySelector('.wcpa_price_summary');
-    var watch = host ? host.parentNode : document.body;
-    var t;
-    new MutationObserver(function () {
-      clearTimeout(t);
-      t = setTimeout(function () { relabelOnce(document); }, 60);
-    }).observe(watch, { childList: true, subtree: true, characterData: true });
-  }
-
-  // ---- mobile cart sticky CTA (spec 5: slide 8 "floating") ------------------
   function bindSticky() {
     if (!document.querySelector('.woocommerce-cart-form')) return; // empty cart
 
     var bar = document.createElement('div');
     bar.className = 'gld-sticky-cta';
     bar.innerHTML = '<span class="gld-sticky-cta__total" data-gld-total></span>' +
-      '<a class="gld-sticky-cta__btn" href="' + CFG.checkout_url + '">' + CFG.i18n.continue + '</a>';
+      '<a class="gld-sticky-cta__btn" href="' + CFG.checkout_url + '">' + CFG.i18n.continue_label + '</a>';
     document.body.appendChild(bar);
     document.body.classList.add('gld-has-sticky-cta');
 
@@ -76,10 +41,7 @@
     }
   }
 
-  function boot() {
-    if (CFG.relabel) bindRelabel();
-    if (CFG.sticky) bindSticky();
-  }
+  function boot() { if (CFG.sticky) bindSticky(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();

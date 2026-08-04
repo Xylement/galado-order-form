@@ -40,6 +40,10 @@
       var info = model ? map[model] : null;
 
       if (model && (!info || !info.ok)) { card.hidden = true; return; }
+      // Fallback combos (spec section 2's mutual exclusivity) stay hidden until
+      // a model proves the fuller combo is unavailable; showing both pre-model
+      // would break "never show both".
+      if (!model && card.getAttribute('data-fallback') === '1') { card.hidden = true; return; }
       card.hidden = false; visible++;
 
       var now = card.querySelector('[data-gld-now]');
