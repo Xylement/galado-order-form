@@ -23,8 +23,17 @@ if (!defined('ABSPATH')) exit;
 
 class GALADO_Bundles_Combos {
 
+    /** Rendered-once guard: the module hooks several placements because theme
+     * and builder layouts differ in which hooks they actually fire. */
+    private static $rendered = false;
+
     public static function init() {
+        // Primary: directly below the variations form. Fallbacks: the summary
+        // hook after the add-to-cart block (fires on virtually every Woo
+        // theme), then after the whole summary. First one that fires wins.
         add_action('woocommerce_after_add_to_cart_form', [__CLASS__, 'render']);
+        add_action('woocommerce_single_product_summary', [__CLASS__, 'render'], 39);
+        add_action('woocommerce_after_single_product_summary', [__CLASS__, 'render'], 5);
         if (galado_bundles_storefront_enabled()) {
             add_action('wc_ajax_galado_combo_add', [__CLASS__, 'ajax_add']);
             add_action('wc_ajax_nopriv_galado_combo_add', [__CLASS__, 'ajax_add']);
@@ -188,6 +197,7 @@ class GALADO_Bundles_Combos {
     // ---- render -------------------------------------------------------------
 
     public static function render() {
+        if (self::$rendered) return;
         if (!self::visible()) return;
         if (!function_exists('is_product') || !is_product()) return;
 
@@ -195,6 +205,7 @@ class GALADO_Bundles_Combos {
         $data = self::page_data($product);
         if (!$data) return;
 
+        self::$rendered = true;
         self::enqueue($data['models'], $data['cards']);
         echo self::markup($data['cards']);
     }
