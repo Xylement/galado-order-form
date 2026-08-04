@@ -41,7 +41,7 @@
       btn.disabled = false; // server ships disabled for no-JS; JS takes over
 
       btn.addEventListener('click', function () {
-        if (item.type === 'simple') { add(section, item.product_id, 0, btn); return; }
+        if (item.type === 'simple') { add(section, item.product_id, 0, btn, { name: item.name, price: item.price, was: item.was }); return; }
         // Variable and grouped items: toggle the option row.
         if (open && open.pid === key) { closeOpts(); return; }
         openOpts(card, item);
@@ -97,8 +97,17 @@
       go.addEventListener('click', function () {
         if (!open || !open.chosen) { if (note) note.textContent = CFG.i18n.pick; return; }
         // Grouped: the chosen option IS the product. Variable: it is the variation.
-        if (item.type === 'group') add(section, open.chosen, 0, go);
-        else add(section, item.product_id, open.chosen, go);
+        var picked = null;
+        for (var i = 0; i < item.options.length; i++) {
+          if (String(item.options[i].id) === String(open.chosen)) { picked = item.options[i]; break; }
+        }
+        var meta = {
+          name: item.name + (picked ? ' (' + picked.label + ')' : ''),
+          price: picked ? picked.price : item.price,
+          was: item.was
+        };
+        if (item.type === 'group') add(section, open.chosen, 0, go, meta);
+        else add(section, item.product_id, open.chosen, go, meta);
       });
       optsHost.appendChild(go);
     }
@@ -113,7 +122,7 @@
     section.__close = closeOpts;
   }
 
-  function add(section, productId, variationId, btn) {
+  function add(section, productId, variationId, btn, meta) {
     var note = section.querySelector('[data-gld-note]');
     if (CFG.preview) { if (note) note.textContent = CFG.i18n.preview; return; }
     if (btn.disabled) return;
@@ -143,7 +152,7 @@
         $(document.body).trigger('wc_fragments_refreshed');
       }
       btn.textContent = CFG.i18n.added;
-      if (note) note.textContent = '';
+      showAdded(section, meta);
       setTimeout(function () {
         btn.textContent = idle;
         if (section.__close) section.__close();
@@ -153,6 +162,29 @@
       btn.textContent = idle;
       if (note) note.textContent = CFG.i18n.failed;
     });
+  }
+
+  /** Post-add confirmation: what was added, the with-case saving, basket link. */
+  function showAdded(section, meta) {
+    var note = section.querySelector('[data-gld-note]');
+    if (!note || !meta) return;
+    note.textContent = '';
+    var box = document.createElement('span');
+    box.className = 'gld-added';
+    var line = document.createElement('b');
+    line.textContent = '\u2713 ' + meta.name + ' ' + CFG.i18n.added_lbl + ' (' + rm(meta.price) + ')';
+    box.appendChild(line);
+    if (meta.was > 0 && meta.was > meta.price) {
+      var sv = document.createElement('span');
+      sv.className = 'gld-added__save';
+      sv.textContent = CFG.i18n.you_saved + ' ' + rm(meta.was - meta.price);
+      box.appendChild(sv);
+    }
+    var a = document.createElement('a');
+    a.href = CFG.cart_url || '/cart/';
+    a.textContent = CFG.i18n.view_basket + ' \u2192';
+    box.appendChild(a);
+    note.appendChild(box);
   }
 
   /** Hide the WCPA accessory rows this shelf replaces (admin-editable list). */

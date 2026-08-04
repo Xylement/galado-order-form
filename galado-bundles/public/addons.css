@@ -41,3 +41,10 @@
   .gld-addons__row{flex-wrap:wrap;overflow:visible;gap:16px 18px}
   .gld-addons__opts{max-width:520px}
 }
+
+/* Post-add confirmation (mirrors the combos card treatment). */
+.gld-addons__note .gld-added{display:block;color:#111111;font-size:13px;line-height:1.5;margin-top:6px;padding:12px 14px;background:#F7F7F5;border:1px solid #ECECEA;border-radius:12px;text-align:left}
+.gld-addons__note .gld-added b{display:block;font-weight:700}
+.gld-addons__note .gld-added .gld-added__save{display:block;color:#1a7f37;font-weight:700;margin-top:2px}
+.gld-addons__note .gld-added a{display:inline-block;margin-top:6px;font-weight:700;color:#111111;text-decoration:underline}
+.gld-addons .added_to_cart{display:none !important}

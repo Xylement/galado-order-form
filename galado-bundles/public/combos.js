@@ -165,15 +165,45 @@
         var $ = window.jQuery;
         $.each(res.fragments, function (k, v) { $(k).replaceWith(v); });
         $(document.body).trigger('wc_fragments_refreshed');
-        $(document.body).trigger('added_to_cart', [res.fragments, res.cart_hash, $(btn)]);
+        // No button element in the trigger: passing it makes WooCommerce
+        // append its own half-styled "View basket" link into the card (the
+        // misaligned pill). The confirmation below replaces it properly.
+        $(document.body).trigger('added_to_cart', [res.fragments, res.cart_hash]);
       }
       btn.textContent = CFG.i18n.added;
+      showAdded(card, slug);
       setTimeout(function () { btn.textContent = idle; }, 1400);
     }).catch(function () {
       btn.disabled = false;
       btn.textContent = idle;
       if (note) note.textContent = CFG.i18n.failed;
     });
+  }
+
+  /** Post-add confirmation (owner deck slides 6-7): WHAT was added, the
+   * saving, and a proper basket link, in place of the note line. */
+  function showAdded(card, slug) {
+    var note = card.querySelector('[data-gld-note]');
+    if (!note) return;
+    var info = (CFG.cards[slug] || {})[model] || {};
+    var title = (card.querySelector('.gld-combo__name') || {}).textContent || '';
+    note.textContent = '';
+    var box = document.createElement('span');
+    box.className = 'gld-added';
+    var line = document.createElement('b');
+    line.textContent = '\u2713 ' + title + ' ' + CFG.i18n.added_for + ' ' + modelLabel(model);
+    box.appendChild(line);
+    if (info.save > 0) {
+      var sv = document.createElement('span');
+      sv.className = 'gld-added__save';
+      sv.textContent = CFG.i18n.you_saved + ' ' + rm(info.save);
+      box.appendChild(sv);
+    }
+    var a = document.createElement('a');
+    a.href = CFG.cart_url || '/cart/';
+    a.textContent = CFG.i18n.view_basket + ' \u2192';
+    box.appendChild(a);
+    note.appendChild(box);
   }
 
   /** Hide the configured WCPA protector rows on pages where the module shows,

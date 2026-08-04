@@ -206,7 +206,8 @@ class GALADO_Bundles_Addons {
         wp_enqueue_style('galado-addons', GALADO_BUNDLES_URL . 'public/addons.css', [], GALADO_BUNDLES_VERSION);
         wp_enqueue_script('galado-addons', GALADO_BUNDLES_URL . 'public/addons.js', [], GALADO_BUNDLES_VERSION, true);
         wp_localize_script('galado-addons', 'GALADO_ADDONS', [
-            'ajax'    => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_addon_add') : '',
+            'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_addon_add') : '',
+            'cart_url' => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/',
             'groups'  => $groups,
             'preview' => !galado_bundles_can_transact(),
             'hide'    => galado_bundles_wcpa_hide_keys_addons(),
@@ -217,6 +218,9 @@ class GALADO_Bundles_Addons {
                 'pick'    => __('Choose an option first', 'galado-bundles'),
                 'preview' => __('Preview mode. Turn the storefront on to enable adds.', 'galado-bundles'),
                 'failed'  => __('Could not add it, please try again.', 'galado-bundles'),
+                'added_lbl'   => __('added to basket', 'galado-bundles'),
+                'you_saved'   => __('You saved', 'galado-bundles'),
+                'view_basket' => __('View basket', 'galado-bundles'),
             ],
         ]);
     }

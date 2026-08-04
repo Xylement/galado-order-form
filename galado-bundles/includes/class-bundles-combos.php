@@ -356,7 +356,8 @@ class GALADO_Bundles_Combos {
         wp_enqueue_style('galado-combos', GALADO_BUNDLES_URL . 'public/combos.css', [], GALADO_BUNDLES_VERSION);
         wp_enqueue_script('galado-combos', GALADO_BUNDLES_URL . 'public/combos.js', [], GALADO_BUNDLES_VERSION, true);
         wp_localize_script('galado-combos', 'GALADO_COMBOS', [
-            'ajax'    => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_combo_add') : '',
+            'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_combo_add') : '',
+            'cart_url' => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/',
             'models'  => $models,
             'cards'   => wp_list_pluck($cards, 'models', 'slug'),
             'preview' => !galado_bundles_can_transact(),
@@ -369,6 +370,9 @@ class GALADO_Bundles_Combos {
                 'preview'    => __('Preview mode. Turn the storefront on to enable adds.', 'galado-bundles'),
                 'failed'     => __('Could not add the set, please try again.', 'galado-bundles'),
                 'na'         => __('Not available for this model', 'galado-bundles'),
+                'added_for'  => __('added for', 'galado-bundles'),
+                'you_saved'  => __('You saved', 'galado-bundles'),
+                'view_basket' => __('View basket', 'galado-bundles'),
             ],
         ]);
     }

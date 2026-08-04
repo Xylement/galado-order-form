@@ -64,3 +64,12 @@
   .gld-combo__cta{grid-area:cta;justify-self:end;align-self:end;margin-top:6px;width:auto;min-width:150px}
   .gld-combo__note{grid-area:note}
 }
+
+/* Post-add confirmation; note colour resets from the error red. Any
+   theme-injected added_to_cart link is suppressed: the confirmation owns
+   this moment. */
+.gld-combo__note .gld-added{display:block;color:#111111;font-size:13px;line-height:1.5;margin-top:8px;padding:12px 14px;background:#F7F7F5;border:1px solid #ECECEA;border-radius:12px;text-align:left}
+.gld-added b{display:block;font-weight:700}
+.gld-added .gld-added__save{display:block;color:#1a7f37;font-weight:700;margin-top:2px}
+.gld-added a{display:inline-block;margin-top:6px;font-weight:700;color:#111111;text-decoration:underline}
+.gld-combo .added_to_cart{display:none !important}
