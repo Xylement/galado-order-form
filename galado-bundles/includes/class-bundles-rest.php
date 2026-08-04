@@ -62,9 +62,10 @@ class GALADO_Bundles_REST {
         ]);
     }
 
-    /** Run the launch-combo seeder; report every combo's descriptor + health. */
+    /** Run the launch seeders (combos + accessories shelf); report state. */
     public static function ops_seed() {
-        $made = GALADO_Bundles_Combos::seed_launch_combos();
+        $made  = GALADO_Bundles_Combos::seed_launch_combos();
+        $made += GALADO_Bundles_Addons::seed_accessories_group();
         return rest_ensure_response(['created' => $made, 'combos' => self::combo_report()]);
     }
 
@@ -72,6 +73,7 @@ class GALADO_Bundles_REST {
     public static function ops_publish(WP_REST_Request $req) {
         $slugs = (array) ($req->get_param('slugs') ?: [
             'combo-protect-complete', 'combo-protect-screen', 'combo-protect-camera', 'combo-protect-screen-lens',
+            'addons-accessories',
         ]);
         $done = [];
         foreach ($slugs as $slug) {
@@ -100,7 +102,7 @@ class GALADO_Bundles_REST {
             }
         }
         $out = [];
-        foreach (['combos_enabled' => 'galado_bundles_combos_enabled', 'sticky_cart' => 'galado_bundles_sticky_cart'] as $key => $option) {
+        foreach (['combos_enabled' => 'galado_bundles_combos_enabled', 'addons_enabled' => 'galado_bundles_addons_enabled', 'sticky_cart' => 'galado_bundles_sticky_cart'] as $key => $option) {
             $val = $req->get_param($key);
             if (null !== $val) update_option($option, '1' === (string) $val || 1 === $val || true === $val ? '1' : '0');
             $out[$key] = get_option($option, '0');
@@ -109,13 +111,15 @@ class GALADO_Bundles_REST {
         return rest_ensure_response($out);
     }
 
-    /** The combo module exactly as it would render on one product, visibility
-     * toggles bypassed, for verification while everything is dark. */
+    /** The combo module AND the add-on shelves exactly as they would render on
+     * one product, visibility toggles bypassed, for dark verification. */
     public static function ops_probe(WP_REST_Request $req) {
         $pid = (int) $req->get_param('product_id');
         $product = $pid ? wc_get_product($pid) : null;
         if (!$product) return new WP_Error('bad_product', 'Unknown product.', ['status' => 404]);
-        return rest_ensure_response(GALADO_Bundles_Combos::probe($product));
+        $out = GALADO_Bundles_Combos::probe($product);
+        $out['addons'] = GALADO_Bundles_Addons::page_groups($product);
+        return rest_ensure_response($out);
     }
 
     private static function combo_report() {

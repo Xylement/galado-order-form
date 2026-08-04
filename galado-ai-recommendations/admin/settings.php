@@ -24,6 +24,7 @@ function gair_settings_page() {
             'ranking_mode'     => in_array($_POST['gair_ranking_mode'] ?? 'hybrid', ['hybrid', 'trending', 'newest', 'lifetime'], true)
                 ? $_POST['gair_ranking_mode']
                 : 'hybrid',
+            'hot_first'        => isset($_POST['gair_hot_first']) ? 1 : 0,
         ];
         update_option('gair_settings', $settings);
 
@@ -200,6 +201,13 @@ function gair_settings_page() {
                             <option value="lifetime" <?php selected($s['ranking_mode'] ?? 'hybrid', 'lifetime'); ?>>Lifetime bestsellers — original behaviour</option>
                         </select>
                         <p class="description">Controls how the rule-based fallback and AI candidate pool are ranked. Hybrid keeps things fresh while preserving social proof. Trending data is cached for 6 hours.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Hot Sellers First</th>
+                    <td>
+                        <label><input type="checkbox" name="gair_hot_first" value="1" <?php checked($s['hot_first'] ?? 0, 1); ?>> Show the final list in hot-selling order (30-day trending first, lifetime sales tie-break)</label>
+                        <p class="description">Off = legacy behaviour: the list is shuffled for variety on every load.</p>
                     </td>
                 </tr>
                 <tr>

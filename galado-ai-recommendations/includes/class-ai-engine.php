@@ -236,9 +236,30 @@ class GAIR_AI_Engine {
             }
         }
 
-        // Shuffle for variety, then trim
-        shuffle($unique);
+        // Ordering (owner 2026-08-04): hot sellers first when the toggle is on
+        // (30-day trending rank, lifetime sales as tie-break); the legacy
+        // behaviour shuffles for variety and stays the default while dark.
+        if (!empty(get_option('gair_settings', [])['hot_first'])) {
+            $unique = self::sort_hot_first($unique);
+        } else {
+            shuffle($unique);
+        }
         return array_slice($unique, 0, $max);
+    }
+
+    /**
+     * Hot sellers first: 30-day trending rank, lifetime total_sales as the
+     * tie-break for anything that has not sold this month.
+     */
+    private static function sort_hot_first($ids) {
+        $rank = array_flip(self::get_trending_product_ids());
+        usort($ids, function ($a, $b) use ($rank) {
+            $ra = $rank[$a] ?? PHP_INT_MAX;
+            $rb = $rank[$b] ?? PHP_INT_MAX;
+            if ($ra !== $rb) return $ra <=> $rb;
+            return (int) get_post_meta($b, 'total_sales', true) <=> (int) get_post_meta($a, 'total_sales', true);
+        });
+        return $ids;
     }
 
     /**

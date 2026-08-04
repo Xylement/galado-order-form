@@ -30,6 +30,7 @@ add_action('admin_init', function() {
         'galado_cs_max_products' => 4,
         'galado_cs_smart_matching' => 'yes',
         'galado_cs_ranking_mode' => 'hybrid',
+        'galado_cs_hot_first' => 'no',
     ];
 
     foreach ($settings as $key => $default) {
@@ -70,6 +71,16 @@ function galado_cs_settings_page() {
                             Auto-match complementary products by category
                         </label>
                         <p class="description">When enabled, the plugin automatically suggests accessories for cases, and cases for accessories. Disable to only show manually-set WooCommerce cross-sells.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Hot Sellers First</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="galado_cs_hot_first" value="yes" <?php checked(get_option('galado_cs_hot_first', 'no'), 'yes'); ?>>
+                            Keep the full hot-selling order (skip the variety shuffle)
+                        </label>
+                        <p class="description">Off = legacy behaviour: top sellers lead, the rest is shuffled for variety.</p>
                     </td>
                 </tr>
                 <tr>
@@ -179,6 +190,7 @@ add_action('pre_update_option_galado_cs_enable_cart', 'galado_cs_checkbox_handle
 add_action('pre_update_option_galado_cs_enable_checkout', 'galado_cs_checkbox_handler', 10, 2);
 add_action('pre_update_option_galado_cs_enable_thankyou', 'galado_cs_checkbox_handler', 10, 2);
 add_action('pre_update_option_galado_cs_smart_matching', 'galado_cs_checkbox_handler', 10, 2);
+add_action('pre_update_option_galado_cs_hot_first', 'galado_cs_checkbox_handler', 10, 2);
 
 function galado_cs_checkbox_handler($new_value, $old_value) {
     return $new_value ?: 'no';
@@ -186,7 +198,7 @@ function galado_cs_checkbox_handler($new_value, $old_value) {
 
 add_action('admin_init', function() {
     if (isset($_POST['option_page']) && $_POST['option_page'] === 'galado_cs_settings') {
-        $checkboxes = ['galado_cs_enable_cart', 'galado_cs_enable_checkout', 'galado_cs_enable_thankyou', 'galado_cs_smart_matching'];
+        $checkboxes = ['galado_cs_enable_cart', 'galado_cs_enable_checkout', 'galado_cs_enable_thankyou', 'galado_cs_smart_matching', 'galado_cs_hot_first'];
         foreach ($checkboxes as $cb) {
             if (!isset($_POST[$cb])) {
                 update_option($cb, 'no');

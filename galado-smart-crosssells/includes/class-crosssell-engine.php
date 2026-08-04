@@ -296,8 +296,10 @@ class Galado_Crosssell_Engine {
             }
         }
 
-        // Randomise from the pool — keep top 2 trending, shuffle the rest
-        if (count($products) > $limit) {
+        // Randomise from the pool — keep top 2 trending, shuffle the rest.
+        // Hot-first toggle (owner 2026-08-04): keep the full trending order
+        // instead; the ranked pool is already hottest-first.
+        if (count($products) > $limit && get_option('galado_cs_hot_first', 'no') !== 'yes') {
             $top = array_slice($products, 0, 2);
             $rest = array_slice($products, 2);
             shuffle($rest);
@@ -326,8 +328,9 @@ class Galado_Crosssell_Engine {
             }
         }
 
-        // Randomise — keep top 1 trending, shuffle rest
-        if (count($products) > $limit) {
+        // Randomise — keep top 1 trending, shuffle rest. Hot-first toggle
+        // keeps the full trending order instead.
+        if (count($products) > $limit && get_option('galado_cs_hot_first', 'no') !== 'yes') {
             $top = array_slice($products, 0, 1);
             $rest = array_slice($products, 1);
             shuffle($rest);

@@ -1,16 +1,22 @@
-/* PDP protector combos (ADDON-COMBOS-SPEC section 4). Mobile-first at 390:
-   swipe row, 84% cards, next card peeking; desktop becomes a 3-up grid.
+/* PDP protector combos (ADDON-COMBOS-SPEC section 4).
+   Three deliberate view types (owner 2026-08-04):
+     mobile  <=640   swipe row, 84% cards, next peeking (approved look)
+     tablet  641-1024  swipe row, 2-up with peek
+     desktop >=1025  stacked horizontal rows, designed for the ~650px summary
+                     column the module actually lives in on desktop layouts
    Brand v1.0: Ink #111111, red #E4002B for the Save chip only, radius 16.
-   min-height reserves space so hydration causes no layout shift. */
+   Self-contained box-sizing; min-height reserves space (no CLS). Buttons pin
+   their own width/case so theme button styles cannot collapse or uppercase
+   them. */
+.gld-protect,.gld-protect *,.gld-protect *::before,.gld-protect *::after{box-sizing:border-box}
 .gld-protect{margin:26px 0 8px;min-height:280px}
 .gld-protect__head{font-family:'Archivo',sans-serif;font-weight:800;font-size:19px;letter-spacing:-.01em;margin:0 0 12px;color:#111111}
 .gld-protect__row{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:6px}
 .gld-protect__row::-webkit-scrollbar{display:none}
 
-.gld-protect *,.gld-protect *::before,.gld-protect *::after{box-sizing:border-box}
-.gld-combo{position:relative;box-sizing:border-box;flex:0 0 84%;min-width:0;max-width:84%;scroll-snap-align:start;background:#fff;border:1px solid #ECECEA;border-radius:16px;padding:14px 14px 16px;display:flex;flex-direction:column;gap:8px;color:#111111}
+.gld-combo{position:relative;flex:0 0 84%;min-width:0;max-width:84%;scroll-snap-align:start;background:#fff;border:1px solid #ECECEA;border-radius:16px;padding:14px 14px 16px;display:flex;flex-direction:column;gap:8px;color:#111111}
 .gld-combo[hidden]{display:none}
-.gld-combo__chip{position:absolute;top:10px;left:10px;background:#E4002B;color:#fff;font-size:12px;font-weight:700;padding:4px 9px;border-radius:999px}
+.gld-combo__chip{position:absolute;top:10px;left:10px;background:#E4002B;color:#fff;font-size:12px;font-weight:700;padding:4px 9px;border-radius:999px;white-space:nowrap}
 .gld-combo__chip[hidden]{display:none}
 .gld-combo__imgs{display:flex;gap:6px;justify-content:flex-end}
 .gld-combo__imgs img{width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid #ECECEA;background:#F5F5F3}
@@ -23,17 +29,38 @@
 
 .gld-combo__axis{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:2px}
 .gld-combo__axislab{font-size:11.5px;color:#6B6B66;text-transform:capitalize;flex:0 0 100%}
-.gld-combo__opt{min-height:32px;padding:5px 11px;border:1.5px solid #ECECEA;border-radius:999px;background:#fff;font-size:12px;cursor:pointer;font:inherit;color:#111111}
+.gld-combo__opt{min-height:32px;padding:5px 11px;border:1.5px solid #ECECEA;border-radius:999px;background:#fff;font-size:12px;cursor:pointer;font:inherit;color:#111111;text-transform:none;white-space:nowrap}
 .gld-combo__opt.is-on{border-color:#111111;background:#111111;color:#fff}
 
-.gld-combo__cta{margin-top:auto;min-height:44px;padding:12px 18px;background:#111111;color:#fff;border:1px solid #111111;border-radius:999px;font-size:14.5px;font-weight:700;cursor:pointer;font:inherit;transition:background .15s,opacity .15s}
+.gld-combo__cta{margin-top:auto;width:100%;display:block;min-height:44px;padding:12px 18px;background:#111111;color:#fff;border:1px solid #111111;border-radius:999px;font-size:14.5px;font-weight:700;line-height:1.2;cursor:pointer;font-family:inherit;text-transform:none;letter-spacing:0;white-space:nowrap;transition:background .15s,opacity .15s}
 .gld-combo__cta:hover{background:#000}
 .gld-combo__cta.is-off,.gld-combo__cta:disabled{background:#fff;color:#9A9A94;border-color:#ECECEA}
 .gld-combo__cta.is-off:hover{background:#fff}
 .gld-combo__cta:disabled{cursor:default}
 .gld-combo__note{margin:0;font-size:12px;color:#E4002B;min-height:1px}
 
-@media (min-width:901px){
-  .gld-protect__row{display:grid;grid-template-columns:repeat(3,1fr);overflow:visible;gap:16px}
-  .gld-combo{flex:none}
+/* ---- tablet: 2-up swipe with peek ---------------------------------------- */
+@media (min-width:641px) and (max-width:1024px){
+  .gld-combo{flex-basis:46%;max-width:46%}
+}
+
+/* ---- desktop: stacked horizontal rows for the summary column ------------- */
+@media (min-width:1025px){
+  .gld-protect{min-height:0}
+  .gld-protect__row{display:flex;flex-direction:column;overflow:visible;gap:12px;padding-bottom:0}
+  .gld-combo{flex:none;width:100%;max-width:none;display:grid;grid-template-columns:118px minmax(0,1fr) 168px;grid-template-areas:
+    "imgs name  chip"
+    "imgs list  price"
+    "axes axes  cta"
+    "note note  note";
+    column-gap:16px;row-gap:4px;align-items:start;padding:14px 16px}
+  .gld-combo__imgs{grid-area:imgs;justify-content:flex-start;flex-wrap:wrap;gap:5px;align-self:center}
+  .gld-combo__imgs img{width:52px;height:52px}
+  .gld-combo__chip{grid-area:chip;position:static;justify-self:end}
+  .gld-combo__name{grid-area:name;-webkit-line-clamp:1}
+  .gld-combo__list{grid-area:list}
+  .gld-combo__axis{grid-area:axes;margin-top:6px}
+  .gld-combo__price{grid-area:price;justify-self:end;margin:0}
+  .gld-combo__cta{grid-area:cta;justify-self:end;align-self:end;margin-top:6px;width:auto;min-width:150px}
+  .gld-combo__note{grid-area:note}
 }

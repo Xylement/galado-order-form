@@ -26,8 +26,29 @@ class GALADO_Bundles_Data {
         $out = [];
         foreach ($ids as $id) {
             $b = self::get($id);
-            if ($b && $b['buyable'] && !$b['combo']) $out[] = $b;
+            if ($b && $b['buyable'] && !$b['combo'] && !$b['addon_group']) $out[] = $b;
             if (count($out) >= GALADO_BUNDLES_FEATURED_MAX) break;
+        }
+        return $out;
+    }
+
+    /** Active PDP accessory add-on groups, in menu order. Items are sold at
+     * their own price (no combo pricing, no fee); the group is a curated,
+     * ordered shelf. */
+    public static function get_addon_groups() {
+        $ids = get_posts([
+            'post_type'      => GALADO_BUNDLES_CPT,
+            'post_status'    => 'publish',
+            'posts_per_page' => 4,
+            'orderby'        => ['menu_order' => 'ASC', 'date' => 'DESC'],
+            'meta_query'     => [['key' => GALADO_BUNDLES_META . 'addon_group', 'value' => '1']],
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+        ]);
+        $out = [];
+        foreach ($ids as $id) {
+            $b = self::get($id);
+            if ($b) $out[] = $b;
         }
         return $out;
     }
@@ -78,6 +99,7 @@ class GALADO_Bundles_Data {
             'featured'     => '1' === get_post_meta($id, GALADO_BUNDLES_META . 'featured', true),
             'combo'          => '1' === get_post_meta($id, GALADO_BUNDLES_META . 'combo', true),
             'combo_fallback' => '1' === get_post_meta($id, GALADO_BUNDLES_META . 'combo_fallback', true),
+            'addon_group'    => '1' === get_post_meta($id, GALADO_BUNDLES_META . 'addon_group', true),
             'combo_price'    => max(0.0, (float) get_post_meta($id, GALADO_BUNDLES_META . 'combo_price', true)),
             'fee_label'    => (string) get_post_meta($id, GALADO_BUNDLES_META . 'fee_label', true),
             'mode'         => $mode,
