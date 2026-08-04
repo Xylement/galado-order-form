@@ -71,6 +71,14 @@ class GALADO_Bundles_Discount {
                 if ($own > $paid) $saving += ($own - $paid) * max(1, (int) $ci['quantity']);
             }
         }
+        // Quantity tier promos (clip-ons): percentage off the member lines.
+        foreach ($cart->get_cart() as $ci) {
+            $pct = GALADO_Bundles_Addons::line_tier_pct($ci);
+            if ($pct <= 0) continue;
+            $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
+            $own = $p ? (float) wc_get_price_to_display($p) : 0.0;
+            $saving += round($own * $pct / 100, 2) * max(1, (int) $ci['quantity']);
+        }
         return round($saving, 2);
     }
 

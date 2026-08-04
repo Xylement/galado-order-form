@@ -59,7 +59,9 @@
         circle: String(item.circle || item.product_id || ''),
         own: own > 0 ? own : ap,
         promised: pwp ? ap : (own > 0 ? own : ap),
-        pwp: pwp
+        pwp: pwp,
+        tier_key: String(item.tier_key || ''),
+        tiers: item.tiers || null
       };
       stage.push(entry);
       render();
@@ -87,6 +89,27 @@
   function totals() {
     var own = 0, pay = 0;
     for (var i = 0; i < stage.length; i++) { own += stage[i].own; pay += stage[i].promised; }
+    // Quantity tier promos: percentage off the tier group's staged lines
+    // once the count is met (server recomputes with the full basket, which
+    // can only match or beat this promise).
+    var groups = {};
+    for (var j = 0; j < stage.length; j++) {
+      var s = stage[j];
+      if (s.type !== 'addon' || !s.tier_key || !s.tiers) continue;
+      var g = groups[s.tier_key] = groups[s.tier_key] || { own: 0, n: 0, tiers: s.tiers };
+      g.own += s.own;
+      g.n += 1;
+    }
+    for (var k in groups) {
+      var gg = groups[k], pct = 0;
+      for (var t = 0; t < gg.tiers.length; t++) {
+        if (gg.n >= gg.tiers[t][0]) pct = gg.tiers[t][1];
+      }
+      if (pct > 0) {
+        var disc = Math.round(gg.own * pct) / 100;
+        pay -= disc;
+      }
+    }
     return { own: own, pay: pay, saved: Math.max(0, own - pay) };
   }
 

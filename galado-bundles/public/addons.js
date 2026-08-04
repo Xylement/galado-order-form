@@ -40,7 +40,7 @@
       if (!item) return;
       btn.disabled = false; // server ships disabled for no-JS; JS takes over
 
-      btn.addEventListener('click', function () {
+      var activate = function () {
         if (item.type === 'simple') {
           add(section, item.product_id, 0, btn, {
             name: item.name, price: item.price, was: item.was,
@@ -52,7 +52,11 @@
         // Variable and grouped items: toggle the option row.
         if (open && open.pid === key) { closeOpts(); return; }
         openOpts(card, item);
-      });
+      };
+      btn.addEventListener('click', activate);
+      // The circle image is the biggest tap target - same action (owner r20).
+      var circle = card.querySelector('.gld-addon__circle');
+      if (circle) circle.addEventListener('click', activate);
     });
 
     function optById(item, id) {
@@ -85,6 +89,64 @@
       title.textContent = item.name;
       optsHost.appendChild(title);
 
+      // Quantity tier teaser (owner r20, clip-ons): picked thumbnails plus
+      // dashed + circles up to the next tier, title counting down to it.
+      var tiers = (group.tiers && open.multi) ? group.tiers : null;
+      var tierBox = null;
+      if (tiers) {
+        tierBox = document.createElement('div');
+        tierBox.className = 'gld-tier';
+        var tTitle = document.createElement('p');
+        tTitle.className = 'gld-tier__title';
+        var tSlots = document.createElement('div');
+        tSlots.className = 'gld-tier__slots';
+        tierBox.appendChild(tTitle);
+        tierBox.appendChild(tSlots);
+        optsHost.appendChild(tierBox);
+      }
+      function renderTier() {
+        if (!tierBox) return;
+        var n = open.picked.length;
+        var cur = 0, next = null;
+        for (var ti = 0; ti < tiers.length; ti++) {
+          if (n >= tiers[ti][0]) cur = tiers[ti][1];
+          else if (!next) next = tiers[ti];
+        }
+        var tpl;
+        if (!next) tpl = CFG.i18n.tier_max;
+        else if (n === 0) tpl = CFG.i18n.tier_start;
+        else tpl = CFG.i18n.tier_more;
+        var need = next ? (next[0] - n) : 0;
+        var pct = next ? next[1] : cur;
+        tierBox.querySelector('.gld-tier__title').textContent =
+          tpl.replace('{n}', String(need)).replace('{p}', String(pct));
+        tierBox.classList.toggle('is-on', cur > 0);
+
+        var slots = tierBox.querySelector('.gld-tier__slots');
+        slots.textContent = '';
+        var target = next ? next[0] : tiers[tiers.length - 1][0];
+        var show = Math.max(target, Math.min(n, tiers[tiers.length - 1][0]));
+        for (var si = 0; si < show; si++) {
+          if (si < n) {
+            var o3 = optById(item, open.picked[si]);
+            var slot = document.createElement('span');
+            slot.className = 'gld-tier__slot';
+            if (o3 && o3.thumb) {
+              var im = document.createElement('img');
+              im.src = o3.thumb; im.alt = '';
+              slot.appendChild(im);
+            }
+            slots.appendChild(slot);
+          } else {
+            var plus = document.createElement('span');
+            plus.className = 'gld-tier__plus';
+            plus.textContent = '+';
+            slots.appendChild(plus);
+          }
+        }
+      }
+      renderTier();
+
       var row = document.createElement('div');
       row.className = 'gld-addons__optrow';
       item.options.forEach(function (o) {
@@ -110,6 +172,7 @@
             else { open.picked.push(o.id); b.classList.add('is-on'); }
             go.disabled = !open.picked.length;
             go.textContent = open.picked.length > 1 ? lbl + ' (' + open.picked.length + ')' : lbl;
+            renderTier();
             return;
           }
           open.chosen = o.id;
@@ -142,7 +205,8 @@
               window.GALADO_PWP.stageAddon({
                 product_id: id, variation_id: 0,
                 name: item.name + (o2 ? ' (' + o2.label + ')' : ''),
-                own: o2 ? o2.price : item.price, addon_price: 0, circle: String(item.key)
+                own: o2 ? o2.price : item.price, addon_price: 0, circle: String(item.key),
+                tier_key: group.tiers ? group.slug : '', tiers: group.tiers || null
               });
             });
             if (section.__close) section.__close();

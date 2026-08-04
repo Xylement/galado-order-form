@@ -38,6 +38,9 @@ class GALADO_Bundles_Addons {
         // price (the old WCPA rows were priced this way). The override is set
         // server-side at add time and applied on every totals pass.
         add_action('woocommerce_before_calculate_totals', [__CLASS__, 'apply_addon_prices'], 20);
+        // Quantity tier promos (owner r20: 3 clip-ons = 5%, 5 = 10%, off
+        // those lines only). Runs after the PWP overrides, before combos.
+        add_action('woocommerce_before_calculate_totals', [__CLASS__, 'apply_tier_prices'], 22);
         add_filter('woocommerce_get_cart_item_from_session', [__CLASS__, 'rehydrate'], 20, 2);
     }
 
@@ -55,6 +58,75 @@ class GALADO_Bundles_Addons {
             return false;
         }
         return $passed;
+    }
+
+    /** Quantity tier promos per shelf slug: [[qty, pct], ...] ascending.
+     * The percentage applies to the member lines only, never the order. */
+    public static function shelf_tiers() {
+        return apply_filters('galado_bundles_shelf_tiers', [
+            'addons-clipons' => [[3, 5], [5, 10]],
+        ]);
+    }
+
+    /** Per-request tier verdicts: [slug => ['pct', 'count', 'members' => [pid => true]]].
+     * Member lines are counted untagged-only: a line already on a PWP
+     * override never double-dips into a tier. */
+    public static function tier_state($cart = null) {
+        static $memo_hash = null, $memo = null;
+        $cart = $cart ?: (function_exists('WC') ? WC()->cart : null);
+        if (!$cart) return [];
+        $sig = [];
+        foreach ($cart->get_cart() as $k => $ci) $sig[] = $k . ':' . (int) $ci['quantity'];
+        $hash = md5(implode('|', $sig));
+        if ($memo_hash === $hash && null !== $memo) return $memo;
+
+        $out = [];
+        foreach (self::shelf_tiers() as $slug => $tiers) {
+            $desc = GALADO_Bundles_Data::get($slug);
+            if (!$desc || empty($desc['addon_group']) || 'publish' !== ($desc['status'] ?? '')) continue;
+            $members = [];
+            foreach ($desc['items'] as $it) $members[(int) $it['product_id']] = true;
+            $count = 0;
+            foreach ($cart->get_cart() as $ci) {
+                if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_price'])) continue;
+                if (isset($members[(int) $ci['product_id']])) $count += max(1, (int) $ci['quantity']);
+            }
+            $pct = 0;
+            foreach ($tiers as $t) {
+                if ($count >= (int) $t[0]) $pct = (int) $t[1];
+            }
+            $out[$slug] = ['pct' => $pct, 'count' => $count, 'members' => $members];
+        }
+        $memo_hash = $hash; $memo = $out;
+        return $out;
+    }
+
+    /** Tier percentage this line earns right now (0 when none). */
+    public static function line_tier_pct($cart_item) {
+        if (!empty($cart_item['galado_bundle']) || !empty($cart_item['galado_addon_price'])) return 0;
+        foreach (self::tier_state() as $t) {
+            if ($t['pct'] > 0 && isset($t['members'][(int) $cart_item['product_id']])) return $t['pct'];
+        }
+        return 0;
+    }
+
+    /** Reprice member lines when a tier is met - from fresh product prices on
+     * every pass, so it is idempotent and reverts the moment the count drops. */
+    public static function apply_tier_prices($cart) {
+        if (!$cart) return;
+        if (!galado_bundles_can_transact()) return;
+        $state = self::tier_state($cart);
+        if (!$state) return;
+        foreach ($cart->get_cart() as $ci) {
+            if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_price']) || empty($ci['data'])) continue;
+            foreach ($state as $t) {
+                if ($t['pct'] > 0 && isset($t['members'][(int) $ci['product_id']])) {
+                    $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
+                    if ($p) $ci['data']->set_price(round((float) $p->get_price() * (1 - $t['pct'] / 100), 2));
+                    break;
+                }
+            }
+        }
     }
 
     /** Is this product curated into an active shelf, and on what terms?
@@ -330,7 +402,10 @@ class GALADO_Bundles_Addons {
                 $items[$i]['varies'] = count($prices) > 1 && (max($prices) - min($prices)) > 0.004;
             }
             if ($items) {
-                $out[] = ['slug' => $group['slug'], 'title' => $group['title'], 'items' => $items];
+                $entry = ['slug' => $group['slug'], 'title' => $group['title'], 'items' => $items];
+                $tiers_map = self::shelf_tiers();
+                if (isset($tiers_map[$group['slug']])) $entry['tiers'] = $tiers_map[$group['slug']];
+                $out[] = $entry;
             }
         }
         return $out ?: null;
@@ -433,6 +508,9 @@ class GALADO_Bundles_Addons {
                 'failed'  => __('Could not add it, please try again.', 'galado-bundles'),
                 'added_lbl'   => __('added', 'galado-bundles'),
                 'add_basket'  => __('Add to Basket', 'galado-bundles'),
+                'tier_start'  => __('Add {n} and enjoy {p}% off', 'galado-bundles'),
+                'tier_more'   => __('Add {n} more and enjoy {p}% off', 'galado-bundles'),
+                'tier_max'    => __('{p}% off unlocked', 'galado-bundles'),
                 'you_saved'   => __('You saved', 'galado-bundles'),
             ],
         ]);

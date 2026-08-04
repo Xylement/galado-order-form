@@ -8,7 +8,7 @@
 .gld-addons__row::-webkit-scrollbar{display:none}
 
 .gld-addon{flex:0 0 auto;width:104px;scroll-snap-align:start;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;color:#111111}
-.gld-addon__circle{width:72px;height:72px;border-radius:50%;overflow:hidden;border:1.5px solid #ECECEA;background:#F5F5F3;display:block}
+.gld-addon__circle{width:72px;height:72px;border-radius:50%;overflow:hidden;border:1.5px solid #ECECEA;background:#F5F5F3;display:block;cursor:pointer}
 .gld-addon__circle img{width:100%;height:100%;object-fit:cover;display:block}
 .gld-addon.is-open .gld-addon__circle{border-color:#111111;box-shadow:0 0 0 2px #111111}
 .gld-addon__name{font-size:11.5px;line-height:1.3;height:30px;overflow:hidden}
@@ -21,8 +21,10 @@
 .gld-addons__opts{margin-top:12px;padding:14px;background:#F7F7F5;border:1px solid #ECECEA;border-radius:14px}
 .gld-addons__opts[hidden]{display:none}
 .gld-addons__optstitle{margin:0 0 10px;font-size:13px;font-weight:700}
-.gld-addons__optrow{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
-.gld-addons__opt{display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;padding:4px;border:none;background:none;cursor:pointer;font:inherit}
+/* Even 3-per-row option grid (owner r20: the flex wrap left a ragged
+   right edge on the big clip-on list). */
+.gld-addons__optrow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 10px;margin-bottom:12px}
+.gld-addons__opt{display:flex;flex-direction:column;align-items:center;gap:4px;width:auto;padding:4px;border:none;background:none;cursor:pointer;font:inherit}
 .gld-addons__opt img{width:56px;height:56px;border-radius:50%;object-fit:cover;border:1.5px solid #ECECEA;background:#fff}
 .gld-addons__opt.is-on img{border-color:#111111;box-shadow:0 0 0 2px #111111}
 .gld-addons__opt.is-text{width:auto;padding:8px 14px;border:1.5px solid #ECECEA;border-radius:999px;background:#fff;min-height:36px;justify-content:center}
@@ -56,3 +58,14 @@
 /* Inside the cart form (rendered above the Buy Now button) the module must
    never shrink if the theme flexes the button row. */
 .gld-addons{width:100%;flex:0 0 100%;min-width:0}
+
+/* Quantity tier teaser (owner r20, Stylink clip-ons): picked thumbnails plus
+   dashed + circles counting up to the next tier. Brand tone: Ink text, the
+   title flips red once a tier is active. */
+.gld-tier{margin:0 0 14px;padding:10px 12px;background:#fff;border:1px solid #ECECEA;border-radius:12px}
+.gld-tier__title{margin:0 0 8px;font-size:13px;font-weight:700;color:#111111}
+.gld-tier.is-on .gld-tier__title{color:#E4002B}
+.gld-tier__slots{display:flex;flex-wrap:wrap;gap:8px}
+.gld-tier__slot{width:40px;height:40px;border-radius:50%;overflow:hidden;border:1.5px solid #ECECEA;background:#F5F5F3;flex:0 0 auto}
+.gld-tier__slot img{width:100%;height:100%;object-fit:cover;display:block}
+.gld-tier__plus{width:40px;height:40px;border-radius:50%;border:2px dashed #C9C9C4;display:flex;align-items:center;justify-content:center;color:#9A9A94;font-size:18px;font-weight:600;background:#fff;flex:0 0 auto}

@@ -403,6 +403,11 @@ class GALADO_Bundles_Cart {
         if (self::addon_override_active($cart_item)) {
             return self::sale_html(self::addon_own($cart_item), (float) $cart_item['galado_addon_price']);
         }
+        $pct = GALADO_Bundles_Addons::line_tier_pct($cart_item);
+        if ($pct > 0) {
+            $own = self::addon_own($cart_item);
+            return self::sale_html($own, round($own * (1 - $pct / 100), 2));
+        }
         return $price;
     }
 
@@ -415,6 +420,12 @@ class GALADO_Bundles_Cart {
         if (self::addon_override_active($cart_item)) {
             $qty = max(1, (int) $cart_item['quantity']);
             return self::sale_html(self::addon_own($cart_item) * $qty, (float) $cart_item['galado_addon_price'] * $qty);
+        }
+        $pct = GALADO_Bundles_Addons::line_tier_pct($cart_item);
+        if ($pct > 0) {
+            $qty = max(1, (int) $cart_item['quantity']);
+            $own = self::addon_own($cart_item);
+            return self::sale_html($own * $qty, round($own * (1 - $pct / 100), 2) * $qty);
         }
         return $subtotal;
     }
