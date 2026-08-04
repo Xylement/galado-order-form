@@ -409,15 +409,12 @@ class GALADO_Bundles_Addons {
 
     private static function enqueue($groups, $is_case = true) {
         wp_enqueue_style('galado-addons', GALADO_BUNDLES_URL . 'public/addons.css', [], GALADO_BUNDLES_VERSION);
-        // The staged-Buy-Now bar belongs to case pages only; non-case shelves
-        // add straight to the basket through the per-item endpoint (the JS
-        // falls back automatically when GALADO_PWP is absent).
-        $deps = [];
-        if ($is_case) {
-            self::enqueue_bar();
-            $deps = ['galado-pwp-bar'];
-        }
-        wp_enqueue_script('galado-addons', GALADO_BUNDLES_URL . 'public/addons.js', $deps, GALADO_BUNDLES_VERSION, true);
+        // ONE add method everywhere (owner r14): every shelf surface stages
+        // picks and buys atomically through the bar; non-case anchors simply
+        // carry no PWP savings. The per-item endpoint stays as the no-bar
+        // fallback only.
+        self::enqueue_bar();
+        wp_enqueue_script('galado-addons', GALADO_BUNDLES_URL . 'public/addons.js', ['galado-pwp-bar'], GALADO_BUNDLES_VERSION, true);
         wp_localize_script('galado-addons', 'GALADO_ADDONS', [
             'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_addon_add') : '',
             'state_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
@@ -447,14 +444,29 @@ class GALADO_Bundles_Addons {
         if (wp_script_is('galado-pwp-bar', 'enqueued')) return;
         wp_enqueue_style('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.css', [], GALADO_BUNDLES_VERSION);
         wp_enqueue_script('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.js', [], GALADO_BUNDLES_VERSION, true);
+        // The page's own product anchors the staged buy. Variable anchors are
+        // tracked live off found_variation; simple anchors (charm pages) are
+        // priced here so the bar can count them from load.
+        global $product;
+        $anchor = ['type' => '', 'product_id' => 0, 'price' => 0, 'is_case' => false];
+        if ($product instanceof WC_Product) {
+            $anchor = [
+                'type'       => $product->is_type('variable') ? 'variable' : 'simple',
+                'product_id' => (int) $product->get_id(),
+                'price'      => (float) wc_get_price_to_display($product),
+                'is_case'    => GALADO_Bundles_Combos::is_case_pdp($product),
+            ];
+        }
         wp_localize_script('galado-pwp-bar', 'GALADO_PWP_BAR', [
             'state_url'    => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
             'checkout_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_checkout') : '',
+            'anchor'       => $anchor,
             'i18n'         => [
                 'items'         => __('items', 'galado-bundles'),
                 'item'          => __('item', 'galado-bundles'),
                 'discount'      => __('Discount', 'galado-bundles'),
                 'pick_case'     => __('Please select your case model and colour first.', 'galado-bundles'),
+                'pick_options'  => __('Please select your options first.', 'galado-bundles'),
                 'adding'        => __('Adding...', 'galado-bundles'),
                 'failed'        => __('Could not add to basket, please try again.', 'galado-bundles'),
                 'combo_dropped' => __('Protection set removed because the model changed. Pick it again below.', 'galado-bundles'),

@@ -151,23 +151,32 @@ class GALADO_Bundles_Cart {
     }
 
     private static function pwp_checkout_body() {
-        // --- the case ---------------------------------------------------
+        // --- the anchor product (owner r14: ANY product page stages the same
+        // way; a non-case anchor simply funds no PWP discounts - the case
+        // gates at totals time stay the money authority) -------------------
         $pid = isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0;
         $vid = isset($_POST['variation_id']) ? (int) $_POST['variation_id'] : 0;
         $qty = isset($_POST['quantity']) ? max(1, (int) $_POST['quantity']) : 1;
         $parent = $pid ? wc_get_product($pid) : null;
-        if (!$parent || !GALADO_Bundles_Combos::is_case_pdp($parent)) {
-            wp_send_json(['ok' => false, 'message' => __('Please select your case first.', 'galado-bundles')]);
+        if (!$parent || !$parent->is_purchasable() || !$parent->is_in_stock()) {
+            wp_send_json(['ok' => false, 'message' => __('Please select your product first.', 'galado-bundles')]);
         }
-        $v = $vid ? wc_get_product($vid) : null;
-        if (!$v || $v->get_parent_id() !== $pid || !$v->is_purchasable() || !$v->is_in_stock()) {
-            wp_send_json(['ok' => false, 'message' => __('Please select your case model and colour first.', 'galado-bundles')]);
+        $is_case_anchor = GALADO_Bundles_Combos::is_case_pdp($parent);
+        if ($parent->is_type('variable')) {
+            $v = $vid ? wc_get_product($vid) : null;
+            if (!$v || $v->get_parent_id() !== $pid || !$v->is_purchasable() || !$v->is_in_stock()) {
+                wp_send_json(['ok' => false, 'message' => $is_case_anchor
+                    ? __('Please select your case model and colour first.', 'galado-bundles')
+                    : __('Please select your options first.', 'galado-bundles')]);
+            }
+            $case_key = WC()->cart->add_to_cart($pid, $qty, $vid, $v->get_variation_attributes());
+        } else {
+            $case_key = WC()->cart->add_to_cart($pid, $qty);
         }
-        $case_key = WC()->cart->add_to_cart($pid, $qty, $vid, $v->get_variation_attributes());
         if (!$case_key) {
             // Woo queued the reason (stock, validation) as a notice; surface it.
             wc_clear_notices();
-            wp_send_json(['ok' => false, 'message' => __('Could not add the case, please try again.', 'galado-bundles')]);
+            wp_send_json(['ok' => false, 'message' => __('Could not add it, please try again.', 'galado-bundles')]);
         }
 
         // --- staged PWP items -------------------------------------------

@@ -24,6 +24,12 @@
   var caseModel = '';
   var sum = null;
   var busy = false;
+  // The anchor is the page's own product. Simple anchors (charm pages) are
+  // priced from load and need no variation; variable anchors track
+  // found_variation exactly as before (owner r14: one method everywhere).
+  var anchor = CFG.anchor || {};
+  var anchorSimple = anchor.type === 'simple';
+  if (anchorSimple) casePrice = parseFloat(anchor.price) || 0;
 
   function rm(n) { n = Math.round((+n || 0) * 100) / 100; return 'RM' + n.toFixed(2); }
   function form() { return document.querySelector('form.variations_form.cart') || document.querySelector('form.variations_form') || document.querySelector('form.cart'); }
@@ -227,9 +233,9 @@
     if (!f) return;
     var btn = f.querySelector('.single_add_to_cart_button');
     var blocked = btn && (btn.classList.contains('disabled') || btn.classList.contains('wc-variation-selection-needed'));
-    if (blocked || !caseVid) {
+    if (!anchorSimple && (blocked || !caseVid)) {
       highlightMissing();
-      toast(CFG.i18n.pick_case);
+      toast(anchor.is_case === false ? CFG.i18n.pick_options : CFG.i18n.pick_case);
       return;
     }
     busy = true;
@@ -246,6 +252,9 @@
     // generic failure (owner's 2026-08-04 "could not add to basket").
     fd.delete('add-to-cart');
     fd.delete('added-to-cart');
+    // Simple-product forms carry product_id only on the submit button, which
+    // FormData excludes - supply it from the localized anchor.
+    if (!fd.get('product_id') && anchor.product_id) fd.set('product_id', String(anchor.product_id));
     if (!fd.get('variation_id') && caseVid) fd.set('variation_id', String(caseVid));
     if (!fd.get('quantity')) fd.set('quantity', '1');
     fd.set('gld_stage', JSON.stringify(stage));
