@@ -267,10 +267,13 @@ class GALADO_Bundles_Addons {
     }
 
     private static function build_page_groups($product) {
-        // PWP prices show on EVERY surface (owner r15): the page's own
-        // product is the qualifying purchase, whatever it is. The totals
-        // gate (cart_has_anchor) honours exactly what is promised here.
-        $is_case = GALADO_Bundles_Combos::is_case_pdp($product);
+        // Surface pricing follows the owner's r16 list: pages whose product
+        // QUALIFIES as a PWP anchor (cases, charms, Stylink, grips, straps)
+        // show PWP prices - honoured because the product rides the same Buy
+        // Now into the basket. Non-qualifying pages (clip-ons, glass, rings,
+        // cards, Instax) still show the shelf, at normal prices.
+        $is_case  = GALADO_Bundles_Combos::is_case_pdp($product);
+        $apply_pwp = GALADO_Bundles_Combos::is_pwp_anchor($product);
 
         $out = [];
         foreach (GALADO_Bundles_Data::get_addon_groups() as $group) {
@@ -283,7 +286,7 @@ class GALADO_Bundles_Addons {
             $items = [];
             $group_index = [];
             foreach ($group['items'] as $it) {
-                $item = self::item_data($it, $product->get_id());
+                $item = self::item_data($it, $product->get_id(), $apply_pwp);
                 if (!$item) continue;
                 $lbl = trim((string) ($it['label'] ?? ''));
                 if ('' === $lbl || 'variable' === $item['type']) {
@@ -596,12 +599,15 @@ class GALADO_Bundles_Addons {
         }
         if (!$items) return 0;
 
-        // Audiences (owner r12): all case pages PLUS charm pages and the
-        // Stylink product (at normal prices there). MacBook never qualifies.
+        // Audiences (owner r16): the shelf shows on every accessory-family
+        // surface - charms, straps, grips/rings, clip-ons, glass/protectors -
+        // plus the Stylink chain and the Instax print by id. Whether the
+        // prices are PWP or normal is decided per page by is_pwp_anchor().
+        // MacBook never shows add-on modules.
         $audience = [
             'show_on_cases' => '1',
-            'audience_cats' => 'phone-charm,bag-charm',
-            'audience_ids'  => '389955',
+            'audience_cats' => 'phone-charm,bag-charm,phone-strap,magnetic-ring-stand,clip-on,screen-protector,tempered-glass,lens-protector,camera-lens-protector',
+            'audience_ids'  => '389955,265794',
         ];
 
         $existing = get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT);

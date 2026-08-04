@@ -63,9 +63,10 @@ class GALADO_Bundles_Cart {
         return self::case_count($cart) > 0;
     }
 
-    /** How many ANCHOR lines are in the cart: any untagged product line.
-     * Accessory PWP prices apply with ANY purchase (owner r15: a charm
-     * qualifies like a case); protection sets stay strictly case-anchored. */
+    /** How many QUALIFYING anchor lines are in the cart: untagged lines whose
+     * product is on the PWP-applicable list (cases, charms, Stylink, grips,
+     * straps - owner r16). A clip-on or a strap card in the basket funds no
+     * accessory PWP; protection sets stay strictly case-anchored. */
     public static function anchor_count($cart = null) {
         static $memo_hash = null, $memo = null;
         $cart = $cart ?: (function_exists('WC') ? WC()->cart : null);
@@ -78,7 +79,10 @@ class GALADO_Bundles_Cart {
         $count = 0;
         foreach ($cart->get_cart() as $ci) {
             if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price'])) continue;
-            $count += max(1, (int) $ci['quantity']);
+            $parent = wc_get_product((int) $ci['product_id']);
+            if ($parent && GALADO_Bundles_Combos::is_pwp_anchor($parent)) {
+                $count += max(1, (int) $ci['quantity']);
+            }
         }
         $memo_hash = $hash; $memo = $count;
         return $count;
@@ -125,7 +129,7 @@ class GALADO_Bundles_Cart {
         if (!self::cart_has_anchor($cart)) {
             foreach ($cart->get_cart() as $ci) {
                 if (!empty($ci['galado_addon_price'])) {
-                    wc_add_notice(__('PWP prices apply when bought together with another product. Add a product to unlock the PWP prices.', 'galado-bundles'), 'notice');
+                    wc_add_notice(__('PWP prices apply together with a qualifying product (a case, charm, grip or strap). Add one to unlock the PWP prices.', 'galado-bundles'), 'notice');
                     break;
                 }
             }

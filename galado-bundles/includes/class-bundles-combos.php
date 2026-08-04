@@ -127,6 +127,49 @@ class GALADO_Bundles_Combos {
         return (bool) apply_filters('galado_bundles_is_case_pdp', true, $product, $slugs);
     }
 
+    /**
+     * Does buying THIS product qualify the shopper for accessory PWP prices?
+     * Owner's list (2026-08-04 r16):
+     *   YES - all phone cases, charms, the Stylink chain, grips, straps
+     *   NO  - clip-ons (except Stylink), tempered glass / screen protectors,
+     *         magnet rings, Instax-photo-only, strap cards of any kind
+     * Catalogue notes: grips share the magnetic-ring-stand category with
+     * rings (the name decides); the 360/Ultra Slim cards live inside the
+     * charm/strap categories (the word "card" excludes them); clip-ons carry
+     * the charm categories too (their own category excludes them).
+     */
+    public static function is_pwp_anchor($product) {
+        static $memo = [];
+        if (!$product instanceof WC_Product) return false;
+        $pid = (int) $product->get_id();
+        if (isset($memo[$pid])) return $memo[$pid];
+
+        $ids_yes = apply_filters('galado_bundles_pwp_anchor_ids', [389955]); // Stylink Metal Chain
+        if (in_array($pid, array_map('intval', (array) $ids_yes), true)) return $memo[$pid] = true;
+        if (self::is_case_pdp($product)) return $memo[$pid] = true;
+
+        $terms = get_the_terms($pid, 'product_cat');
+        $slugs = [];
+        foreach ((array) $terms as $t) {
+            if ($t instanceof WP_Term) $slugs[] = $t->slug;
+        }
+        $name = (string) $product->get_name();
+
+        $qualifies = false;
+        if (in_array('clip-on', $slugs, true)) {
+            $qualifies = false;
+        } elseif (preg_match('/\bcard\b/i', $name)) {
+            $qualifies = false;
+        } elseif (array_intersect(['phone-charm', 'bag-charm'], $slugs)) {
+            $qualifies = true;  // charms
+        } elseif (in_array('phone-strap', $slugs, true)) {
+            $qualifies = true;  // wrist + crossbody straps
+        } elseif (in_array('magnetic-ring-stand', $slugs, true) && false !== stripos($name, 'grip')) {
+            $qualifies = true;  // grips, never ring stands
+        }
+        return $memo[$pid] = (bool) apply_filters('galado_bundles_is_pwp_anchor', $qualifies, $product, $slugs);
+    }
+
     // ---- model matching -----------------------------------------------------
 
     /**
