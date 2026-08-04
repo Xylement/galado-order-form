@@ -105,6 +105,26 @@ class GALADO_Bundles_Cart {
             wp_send_json(['ok' => false, 'message' => __('Could not reach the basket, please try again.', 'galado-bundles')]);
         }
 
+        // Anything fatal below (a plugin hooked into add-to-cart, a data
+        // surprise) must still answer JSON: a white-screen here reads as a
+        // generic client error with zero clues. The code in the message
+        // pinpoints the throw site from a single owner report.
+        try {
+            self::pwp_checkout_body();
+        } catch (Throwable $e) {
+            error_log('[galado-bundles] pwp_checkout fatal: ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            wp_send_json([
+                'ok'      => false,
+                'message' => sprintf(
+                    /* translators: %s: internal error code */
+                    __('Something went wrong adding your set (code %s). Please try again.', 'galado-bundles'),
+                    basename(str_replace('\\', '/', get_class($e))) . '#' . $e->getLine()
+                ),
+            ]);
+        }
+    }
+
+    private static function pwp_checkout_body() {
         // --- the case ---------------------------------------------------
         $pid = isset($_POST['product_id']) ? (int) $_POST['product_id'] : 0;
         $vid = isset($_POST['variation_id']) ? (int) $_POST['variation_id'] : 0;
@@ -230,7 +250,7 @@ class GALADO_Bundles_Cart {
         $sum = 0.0;
         foreach ($e['keys'] as $k) {
             $ci = $cart->get_cart_item($k);
-            if ($ci) $sum += (float) $ci['line_subtotal'];
+            if ($ci && isset($ci['line_subtotal'])) $sum += (float) $ci['line_subtotal'];
         }
         return $sum;
     }

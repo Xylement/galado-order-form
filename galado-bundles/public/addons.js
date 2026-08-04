@@ -211,7 +211,7 @@
     var box = document.createElement('span');
     box.className = 'gld-added';
     var line = document.createElement('b');
-    line.textContent = '\u2713 ' + meta.name + ' ' + CFG.i18n.added_lbl + ' (' + rm(meta.price) + ')';
+    line.textContent = '\u2713 ' + meta.name + ' ' + CFG.i18n.added_lbl;
     box.appendChild(line);
     if (meta.was > 0 && meta.was > meta.price) {
       var sv = document.createElement('span');

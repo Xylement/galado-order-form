@@ -210,15 +210,39 @@
       return;
     }
     busy = true;
-    // Multipart on purpose: string fields feed $_POST (WCPA reads its posted
-    // name fields there) and any raw file inputs still travel in $_FILES.
+    // Transport: urlencoded by default - the exact format every other module
+    // endpoint has used successfully - switching to multipart ONLY when a
+    // real file is attached (then $_FILES must travel too). String fields
+    // feed $_POST either way, so WCPA's posted name fields always arrive.
     var fd = new FormData(f);
     if (!fd.get('variation_id') && caseVid) fd.set('variation_id', String(caseVid));
     if (!fd.get('quantity')) fd.set('quantity', '1');
     fd.set('gld_stage', JSON.stringify(stage));
-    fetch(CFG.checkout_url, { method: 'POST', credentials: 'same-origin', body: fd })
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
+
+    var hasFile = false;
+    var fileInputs = f.querySelectorAll('input[type=file]');
+    for (var i = 0; i < fileInputs.length; i++) {
+      if (fileInputs[i].files && fileInputs[i].files.length) { hasFile = true; break; }
+    }
+    var opts = { method: 'POST', credentials: 'same-origin' };
+    if (hasFile) {
+      opts.body = fd;
+    } else {
+      var body = new URLSearchParams();
+      fd.forEach(function (v, k) { if (typeof v === 'string') body.append(k, v); });
+      opts.headers = { 'content-type': 'application/x-www-form-urlencoded' };
+      opts.body = body.toString();
+    }
+
+    fetch(CFG.checkout_url, opts)
+      .then(function (r) { return r.text(); })
+      .then(function (txt) {
+        var res = null;
+        try { res = JSON.parse(txt); } catch (err) {
+          // Server answered non-JSON (fatal HTML, edge page): keep the first
+          // chunk in the console so a screenshot of it identifies the cause.
+          console.error('galado pwp_checkout: non-JSON response:', String(txt).slice(0, 400));
+        }
         if (res && res.ok && res.redirect) { window.location.href = res.redirect; return; }
         busy = false;
         toast((res && res.message) || CFG.i18n.failed);
