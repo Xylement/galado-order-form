@@ -120,29 +120,36 @@ class GALADO_Recovery_Klaviyo {
     }
 
     /**
-     * Hand the row and a fresh recovery token to GALADO Send (Resend).
-     * GALADO Send owns suppression and delivery; this plugin owns identity,
-     * the cart snapshot and the token. Listeners must return true to confirm
-     * they accepted it, otherwise the send is retried like any other failure.
+     * POST the capture to G-Send, signed (channel spec v2). G-Send owns
+     * suppression, delivery and send-time voucher minting; this plugin owns
+     * identity, the cart snapshot and the token. Replaces the earlier
+     * in-process galado_recovery_send filter seam, which never gained a
+     * listener and is now retired.
      */
     private static function send_via_galado_send($row, $event_id, $attempt) {
-        $token = self::mint_token($row);
-        $accepted = apply_filters('galado_recovery_send', null, $row, $token, [
-            'event_id' => $event_id,
-            'cart'     => json_decode((string) $row->cart_contents, true),
-            'link'     => home_url('/?galado_recover=' . $token),
-        ]);
+        $token   = self::mint_token($row);
+        $payload = GALADO_Recovery_GSend::abandoned_event($row, $event_id, $token);
+        if (!$payload) {
+            self::note_error('Row ' . $row->id . ' has no usable cart snapshot; push skipped.');
+            return;
+        }
 
-        if (true === $accepted) {
+        $result = GALADO_Recovery_GSend::post_event($payload);
+
+        if (true === $result) {
             self::record_push($row->email);
             update_option('galado_recovery_last_push', gmdate('Y-m-d H:i:s') . ' (galado_send)', false);
             return;
         }
-        if (null === $accepted) {
-            self::note_error('send_channel is galado_send but nothing is listening on the galado_recovery_send filter.');
-            return; // no listener yet: do not spin the retry queue
+        if (401 === $result) {
+            self::note_error('G-Send rejected row ' . $row->id . ': bad signature or missing galado_gsend_events_secret.');
+            return; // configuration problem: retrying cannot help
         }
-        self::retry_or_give_up($row->id, $event_id, $attempt, 'galado_send rejected the hand-off');
+        if (400 === $result) {
+            self::note_error('G-Send called row ' . $row->id . ' malformed (HTTP 400); fix the payload, do not retry.');
+            return;
+        }
+        self::retry_or_give_up($row->id, $event_id, $attempt, 'G-Send unreachable or 5xx');
     }
 
     /** Mint a recovery token: raw goes out, only the SHA-256 hash is stored. */

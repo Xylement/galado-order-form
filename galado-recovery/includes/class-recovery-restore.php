@@ -100,6 +100,13 @@ class GALADO_Recovery_Restore {
         }
         GALADO_Recovery_DB::set_status($row->id, GALADO_Recovery_DB::STATUS_RECOVERED);
 
+        // Channel spec v2: tell G-Send the token was used so it cancels any
+        // still-pending recovery email for this address. Queued, so the
+        // redirect never waits on it. No-op on other channels.
+        if ('galado_send' === galado_recovery_send_channel()) {
+            GALADO_Recovery_GSend::queue_recovered($row->id);
+        }
+
         // Phase 3 (FR-10): the token proved who this is, server-side and
         // unforgeably. Hold that for the session so if they now change their
         // cart and leave again, we capture the NEW cart without asking them to

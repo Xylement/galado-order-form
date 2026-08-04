@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Cart Recovery
  * Description: Guest cart and checkout identity capture. Moves the email field to the top of checkout, captures it on entry, persists the cart server-side, and fires the "Started Checkout" event to Klaviyo so the existing recovery flow (W2GqDu) can reach guests. Replaces the capability lost with Metorik. Spec: GALADO-Cart-Recovery-Identity-Spec-2026-08-03.md.
- * Version: 0.3.0
+ * Version: 0.4.0
  * Author: GALADO
  * Text Domain: galado-recovery
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_RECOVERY_VERSION', '0.3.0');
+define('GALADO_RECOVERY_VERSION', '0.4.0');
 define('GALADO_RECOVERY_PATH', plugin_dir_path(__FILE__));
 define('GALADO_RECOVERY_URL', plugin_dir_url(__FILE__));
 
@@ -32,8 +32,9 @@ define('GALADO_RECOVERY_DEDUPE_TTL', 4 * HOUR_IN_SECONDS);
  *                Klaviyo's own wck-started-checkout.js already fires
  *                Started Checkout for checkout email entry.
  *   klaviyo      server-side Started Checkout on the WooCommerce metric.
- *   galado_send  hands the row + recovery token to GALADO Send (Resend) via
- *                the galado_recovery_send action.
+ *   galado_send  POSTs the capture to the G-Send events endpoint, signed
+ *                (HMAC-SHA256, channel spec v2). Also fires cart_recovered
+ *                when a recovery token is used.
  */
 function galado_recovery_settings() {
     $defaults = [
@@ -160,6 +161,7 @@ require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-identity.php';
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-checkout.php';
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-rest.php';
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-klaviyo.php';
+require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-gsend.php';
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-restore.php';
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-prompt.php';
 require_once GALADO_RECOVERY_PATH . 'includes/class-recovery-admin.php';
@@ -179,6 +181,7 @@ add_action('plugins_loaded', function () {
     GALADO_Recovery_REST::init();
     GALADO_Recovery_Restore::init();
     GALADO_Recovery_Klaviyo::init();
+    GALADO_Recovery_GSend::init();
     if (is_admin()) {
         GALADO_Recovery_Admin::init();
     }
