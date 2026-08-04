@@ -8,4 +8,8 @@
   .woocommerce div.product form.cart .quantity,
   .woocommerce div.product form.cart .single_add_to_cart_button{display:none!important}
 }
-.single-product form.cart p.points{display:none!important}
+/* The earn line renders inside form.cart on variable products but can land
+   elsewhere in the summary (member renders, simple products) - hide it
+   wherever Points & Rewards puts it on a product page (owner r18). */
+.single-product p.points,
+.single-product .wc_points_rewards_product_message{display:none!important}
