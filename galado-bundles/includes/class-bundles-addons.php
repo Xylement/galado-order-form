@@ -412,6 +412,7 @@ class GALADO_Bundles_Addons {
                 'item'          => __('item', 'galado-bundles'),
                 'discount'      => __('Discount', 'galado-bundles'),
                 'pick_case'     => __('Please select your case model and colour first.', 'galado-bundles'),
+                'adding'        => __('Adding...', 'galado-bundles'),
                 'failed'        => __('Could not add to basket, please try again.', 'galado-bundles'),
                 'combo_dropped' => __('Protection set removed because the model changed. Pick it again below.', 'galado-bundles'),
             ],

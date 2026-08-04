@@ -198,6 +198,25 @@
     setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 3500);
   }
 
+  /** Instant feedback on the buy buttons while the atomic add runs (owner
+   * r8: the pause read as "nothing happened" and invited double taps). */
+  function setBusyUi(on) {
+    var btns = document.querySelectorAll('.galado-sticky-btn, form.cart .single_add_to_cart_button');
+    Array.prototype.forEach.call(btns, function (b) {
+      if (on) {
+        if (!b.getAttribute('data-gld-idle')) b.setAttribute('data-gld-idle', b.textContent);
+        b.textContent = CFG.i18n.adding;
+        b.style.opacity = '.65';
+        b.style.pointerEvents = 'none';
+      } else {
+        var idle = b.getAttribute('data-gld-idle');
+        if (idle) b.textContent = idle;
+        b.style.opacity = '';
+        b.style.pointerEvents = '';
+      }
+    });
+  }
+
   function checkout() {
     if (busy) return;
     var f = form();
@@ -210,6 +229,7 @@
       return;
     }
     busy = true;
+    setBusyUi(true);
     // Transport: urlencoded by default - the exact format every other module
     // endpoint has used successfully - switching to multipart ONLY when a
     // real file is attached (then $_FILES must travel too). String fields
@@ -252,9 +272,10 @@
         }
         if (res && res.ok && res.redirect) { window.location.href = res.redirect; return; }
         busy = false;
+        setBusyUi(false);
         toast((res && res.message) || CFG.i18n.failed);
       })
-      .catch(function () { busy = false; toast(CFG.i18n.failed); });
+      .catch(function () { busy = false; setBusyUi(false); toast(CFG.i18n.failed); });
   }
 
   function nativeBuy() {

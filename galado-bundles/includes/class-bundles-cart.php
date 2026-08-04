@@ -22,7 +22,11 @@ class GALADO_Bundles_Cart {
         add_filter('woocommerce_get_cart_item_from_session', [__CLASS__, 'rehydrate'], 20, 2);
         add_filter('woocommerce_get_item_data', [__CLASS__, 'line_meta'], 10, 2);
         add_filter('woocommerce_cart_item_class', [__CLASS__, 'line_class'], 10, 3);
-        add_action('woocommerce_cart_item_removed', [__CLASS__, 'noop']); // reserved
+        // PWP items travel WITH the case (owner r8, matching the old WCPA
+        // behaviour): removing the last case sweeps every PWP line out too,
+        // with a notice. No caseless PWP cart state can then ever render -
+        // fresh, stale, or mid-AJAX.
+        add_action('woocommerce_cart_item_removed', [__CLASS__, 'case_removed_sweep'], 10, 2);
         add_action('woocommerce_before_cart', [__CLASS__, 'handle_remove_set']);
 
         // One-product presentation for COMPLETE protector combos (owner
@@ -386,6 +390,31 @@ class GALADO_Bundles_Cart {
     }
 
     public static function noop() {}
+
+    /** When the LAST case leaves the basket, the PWP configuration leaves
+     * with it. Module lines re-fire this hook as they are swept; they are
+     * tagged, so the early return keeps it from recursing. */
+    public static function case_removed_sweep($removed_key, $cart) {
+        if (!galado_bundles_can_transact()) return;
+        if (!($cart instanceof WC_Cart)) return;
+        $removed = $cart->removed_cart_contents[$removed_key] ?? null;
+        if (!$removed) return;
+        if (!empty($removed['galado_bundle']) || !empty($removed['galado_addon_key']) || !empty($removed['galado_addon_price'])) return;
+        $parent = wc_get_product((int) ($removed['product_id'] ?? 0));
+        if (!$parent || !GALADO_Bundles_Combos::is_case_pdp($parent)) return;
+        if (self::cart_has_case($cart)) return; // another case still anchors the deal
+
+        $swept = 0;
+        foreach ($cart->get_cart() as $k => $ci) {
+            if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price'])) {
+                $cart->remove_cart_item($k);
+                $swept++;
+            }
+        }
+        if ($swept) {
+            wc_add_notice(__('Your PWP items go together with the case, so they were removed too. Add a case to pick them again at PWP prices.', 'galado-bundles'), 'notice');
+        }
+    }
 
     /** Primary path: AJAX, all-or-nothing, stay on page. */
     public static function ajax_add() {
