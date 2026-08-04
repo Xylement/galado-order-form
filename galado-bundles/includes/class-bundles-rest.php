@@ -35,6 +35,106 @@ class GALADO_Bundles_REST {
             'permission_callback' => [__CLASS__, 'can_manage'],
             'callback'            => [__CLASS__, 'variations'],
         ]);
+
+        // Ops routes: what the Bundle settings screen can do, minus the one
+        // thing it must never do remotely. The storefront master switch (the
+        // real cutover: cart fee everywhere + #95 stand-down) is deliberately
+        // NOT reachable here; it stays a deliberate wp-admin act.
+        register_rest_route('galado-bundles/v1', '/ops/seed', [
+            'methods'             => 'POST',
+            'permission_callback' => [__CLASS__, 'can_manage'],
+            'callback'            => [__CLASS__, 'ops_seed'],
+        ]);
+        register_rest_route('galado-bundles/v1', '/ops/publish', [
+            'methods'             => 'POST',
+            'permission_callback' => [__CLASS__, 'can_manage'],
+            'callback'            => [__CLASS__, 'ops_publish'],
+        ]);
+        register_rest_route('galado-bundles/v1', '/ops/settings', [
+            'methods'             => 'POST',
+            'permission_callback' => [__CLASS__, 'can_manage'],
+            'callback'            => [__CLASS__, 'ops_settings'],
+        ]);
+        register_rest_route('galado-bundles/v1', '/ops/probe', [
+            'methods'             => 'GET',
+            'permission_callback' => [__CLASS__, 'can_manage'],
+            'callback'            => [__CLASS__, 'ops_probe'],
+        ]);
+    }
+
+    /** Run the launch-combo seeder; report every combo's descriptor + health. */
+    public static function ops_seed() {
+        $made = GALADO_Bundles_Combos::seed_launch_combos();
+        return rest_ensure_response(['created' => $made, 'combos' => self::combo_report()]);
+    }
+
+    /** Publish draft combos by slug (default: the four launch slugs). */
+    public static function ops_publish(WP_REST_Request $req) {
+        $slugs = (array) ($req->get_param('slugs') ?: [
+            'combo-protect-complete', 'combo-protect-screen', 'combo-protect-camera', 'combo-protect-screen-lens',
+        ]);
+        $done = [];
+        foreach ($slugs as $slug) {
+            $post = get_page_by_path(sanitize_title($slug), OBJECT, GALADO_BUNDLES_CPT);
+            if (!$post) { $done[$slug] = 'not found'; continue; }
+            if ('publish' === $post->post_status) { $done[$slug] = 'already published'; continue; }
+            wp_update_post(['ID' => $post->ID, 'post_status' => 'publish']);
+            $done[$slug] = 'published';
+        }
+        do_action('galado_bundles_changed', []);
+        return rest_ensure_response(['result' => $done, 'combos' => self::combo_report()]);
+    }
+
+    /**
+     * Flip the auxiliary toggles. ONLY combos_enabled and sticky_cart are
+     * accepted; any attempt to set the storefront master is rejected loudly
+     * rather than ignored, so a miswired call can never soft-launch the cart
+     * engine.
+     */
+    public static function ops_settings(WP_REST_Request $req) {
+        foreach (['storefront_enabled', 'galado_bundles_storefront_enabled', 'storefront'] as $forbidden) {
+            if (null !== $req->get_param($forbidden)) {
+                return new WP_Error('storefront_locked',
+                    'The storefront master switch cannot be set over REST. Use wp-admin: GALADO > Bundle settings.',
+                    ['status' => 403]);
+            }
+        }
+        $out = [];
+        foreach (['combos_enabled' => 'galado_bundles_combos_enabled', 'sticky_cart' => 'galado_bundles_sticky_cart'] as $key => $option) {
+            $val = $req->get_param($key);
+            if (null !== $val) update_option($option, '1' === (string) $val || 1 === $val || true === $val ? '1' : '0');
+            $out[$key] = get_option($option, '0');
+        }
+        $out['storefront_enabled'] = galado_bundles_storefront_enabled() ? '1' : '0'; // read-only echo
+        return rest_ensure_response($out);
+    }
+
+    /** The combo module exactly as it would render on one product, visibility
+     * toggles bypassed, for verification while everything is dark. */
+    public static function ops_probe(WP_REST_Request $req) {
+        $pid = (int) $req->get_param('product_id');
+        $product = $pid ? wc_get_product($pid) : null;
+        if (!$product) return new WP_Error('bad_product', 'Unknown product.', ['status' => 404]);
+        return rest_ensure_response(GALADO_Bundles_Combos::probe($product));
+    }
+
+    private static function combo_report() {
+        $out = [];
+        foreach (get_posts([
+            'post_type' => GALADO_BUNDLES_CPT, 'post_status' => ['publish', 'draft'],
+            'posts_per_page' => 20, 'fields' => 'ids', 'no_found_rows' => true,
+            'meta_query' => [['key' => GALADO_BUNDLES_META . 'combo', 'value' => '1']],
+        ]) as $id) {
+            $b = GALADO_Bundles_Data::get($id);
+            if (!$b) continue;
+            $h = GALADO_Bundles_Data::health($id);
+            $out[] = [
+                'slug' => $b['slug'], 'title' => $b['title'], 'status' => $b['status'],
+                'combo_price' => $b['combo_price'], 'sum' => $b['sum'], 'save' => $b['save'],
+                'fallback' => $b['combo_fallback'], 'buyable' => $b['buyable'], 'health' => $h,
+            ];
+        }
+        return $out;
     }
 
     public static function can_manage() {

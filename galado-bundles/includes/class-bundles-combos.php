@@ -192,10 +192,24 @@ class GALADO_Bundles_Combos {
         if (!function_exists('is_product') || !is_product()) return;
 
         global $product;
-        if (!self::is_case_pdp($product)) return;
+        $data = self::page_data($product);
+        if (!$data) return;
+
+        self::enqueue($data['models'], $data['cards']);
+        echo self::markup($data['cards']);
+    }
+
+    /**
+     * Everything the module needs for one PDP: the model universe and the
+     * per-combo cards with per-model maps, exclusivity already applied.
+     * Shared by render() and the admin probe route. Returns null when the
+     * module does not belong on this product.
+     */
+    public static function page_data($product) {
+        if (!self::is_case_pdp($product)) return null;
 
         $combos = GALADO_Bundles_Data::get_combos();
-        if (!$combos) return;
+        if (!$combos) return null;
 
         // The PDP's own model terms are the model universe for this page.
         $models = [];
@@ -204,7 +218,7 @@ class GALADO_Bundles_Combos {
             $term = get_term_by('slug', $slug, 'pa_model');
             $models[$slug] = $term && !is_wp_error($term) ? $term->name : $slug;
         }
-        if (!$models) return;
+        if (!$models) return null;
 
         // Build every combo's per-model map first, then apply the mutual
         // exclusivity rule (spec section 2): a FALLBACK combo is hidden for any
@@ -257,10 +271,28 @@ class GALADO_Bundles_Combos {
                 'models'   => $map,
             ];
         }
-        if (!$cards) return;
+        if (!$cards) return null;
 
-        self::enqueue($models, $cards);
-        echo self::markup($cards);
+        return ['models' => $models, 'cards' => $cards];
+    }
+
+    /** Admin probe (ops REST): the module exactly as it would render on this
+     * product, regardless of the visibility toggles, for dark verification. */
+    public static function probe($product) {
+        $data = self::page_data($product);
+        if (!$data) return ['is_case_pdp' => self::is_case_pdp($product), 'renders' => false];
+        return [
+            'is_case_pdp' => true,
+            'renders'     => true,
+            'models'      => $data['models'],
+            'cards'       => array_map(function ($c) {
+                return [
+                    'slug' => $c['slug'], 'title' => $c['title'], 'fallback' => $c['fallback'],
+                    'names' => $c['names'], 'models' => $c['models'],
+                ];
+            }, $data['cards']),
+            'html'        => self::markup($data['cards']),
+        ];
     }
 
     private static function enqueue($models, $cards) {
