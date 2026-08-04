@@ -355,6 +355,7 @@ class GALADO_Bundles_Combos {
     private static function enqueue($models, $cards) {
         wp_enqueue_style('galado-combos', GALADO_BUNDLES_URL . 'public/combos.css', [], GALADO_BUNDLES_VERSION);
         wp_enqueue_script('galado-combos', GALADO_BUNDLES_URL . 'public/combos.js', [], GALADO_BUNDLES_VERSION, true);
+        GALADO_Bundles_Addons::enqueue_bar();
         wp_localize_script('galado-combos', 'GALADO_COMBOS', [
             'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_combo_add') : '',
             'cart_url' => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/',
@@ -448,7 +449,12 @@ class GALADO_Bundles_Combos {
         if (!$res['ok']) {
             wp_send_json(['ok' => false, 'message' => $res['message']]);
         }
-        WC_AJAX::get_refreshed_fragments();
+        wp_send_json([
+            'ok'        => true,
+            'fragments' => apply_filters('woocommerce_add_to_cart_fragments', []),
+            'cart_hash' => WC()->cart->get_cart_hash(),
+            'state'     => GALADO_Bundles_Addons::state_payload(),
+        ]);
     }
 
     /** One concrete variation for a model_match item: fits the model and pins,

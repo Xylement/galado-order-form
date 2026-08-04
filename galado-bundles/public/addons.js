@@ -152,7 +152,12 @@
         $(document.body).trigger('wc_fragments_refreshed');
       }
       btn.textContent = CFG.i18n.added;
+      if (res && res.reused && meta) { meta.price = meta.was || meta.price; meta.reused = true; }
       showAdded(section, meta);
+      if (res && res.state) {
+        applyState(res.state);
+        if (window.GALADO_PWP_REFRESH) window.GALADO_PWP_REFRESH(res.state);
+      }
       setTimeout(function () {
         btn.textContent = idle;
         if (section.__close) section.__close();
@@ -174,7 +179,12 @@
     var line = document.createElement('b');
     line.textContent = '\u2713 ' + meta.name + ' ' + CFG.i18n.added_lbl + ' (' + rm(meta.price) + ')';
     box.appendChild(line);
-    if (meta.was > 0 && meta.was > meta.price) {
+    if (meta.reused) {
+      var ru = document.createElement('span');
+      ru.className = 'gld-added__reused';
+      ru.textContent = CFG.i18n.reused_note;
+      box.appendChild(ru);
+    } else if (meta.was > 0 && meta.was > meta.price) {
       var sv = document.createElement('span');
       sv.className = 'gld-added__save';
       sv.textContent = CFG.i18n.you_saved + ' ' + rm(meta.was - meta.price);
@@ -205,9 +215,43 @@
     });
   }
 
+  /** Mark circles whose with-case price is already claimed in this cart:
+   * the strike goes, the normal price shows, a small note explains. */
+  function applyState(state) {
+    if (!state || !state.used) return;
+    Array.prototype.forEach.call(sections, function (section) {
+      var group = groupData(section.getAttribute('data-group'));
+      if (!group) return;
+      Array.prototype.forEach.call(section.querySelectorAll('.gld-addon'), function (card) {
+        var item = itemData(group, card.getAttribute('data-key'));
+        if (!item || !(item.was > 0)) return;
+        var priceEl = card.querySelector('.gld-addon__price');
+        var note = card.querySelector('[data-gld-once]');
+        if (!note) {
+          note = document.createElement('span');
+          note.className = 'gld-addon__once';
+          note.setAttribute('data-gld-once', '');
+          card.insertBefore(note, card.querySelector('[data-gld-addon-add]'));
+        }
+        if (state.used.indexOf(String(item.key)) !== -1) {
+          card.classList.add('is-used');
+          if (priceEl) priceEl.textContent = '+' + rm(item.was);
+          note.textContent = CFG.i18n.once_used;
+        } else {
+          card.classList.remove('is-used');
+          note.textContent = CFG.i18n.once_hint;
+        }
+      });
+    });
+  }
+
   function boot() {
     Array.prototype.forEach.call(sections, bindSection);
     dedupeWcpa();
+    fetch(CFG.state_url || (CFG.ajax || '').replace('galado_addon_add', 'galado_pwp_state'), { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(applyState)
+      .catch(function () {});
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();

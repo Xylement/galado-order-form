@@ -25,6 +25,14 @@ class GALADO_Bundles_Addons {
         add_action('woocommerce_after_single_product_summary', [__CLASS__, 'render'], 6);
         add_action('wc_ajax_galado_addon_add', [__CLASS__, 'ajax_add']);
         add_action('wc_ajax_nopriv_galado_addon_add', [__CLASS__, 'ajax_add']);
+        // Cart-derived PWP state (used circles + counters for the floating
+        // bar). Cart data must never bake into cacheable page markup, so the
+        // client fetches this per visitor, uncached.
+        add_action('wc_ajax_galado_pwp_state', [__CLASS__, 'ajax_state']);
+        add_action('wc_ajax_nopriv_galado_pwp_state', [__CLASS__, 'ajax_state']);
+        // The with-case price is one piece per circle: block cart quantity
+        // bumps on override lines (a second piece is welcome at normal price).
+        add_filter('woocommerce_update_cart_validation', [__CLASS__, 'limit_qty'], 10, 4);
         // With-case add-on pricing: shelf items can sell below their standalone
         // price (the old WCPA rows were priced this way). The override is set
         // server-side at add time and applied on every totals pass.
@@ -35,7 +43,63 @@ class GALADO_Bundles_Addons {
     /** Keep the add-on price across sessions. */
     public static function rehydrate($item, $values) {
         if (!empty($values['galado_addon_price'])) $item['galado_addon_price'] = $values['galado_addon_price'];
+        if (!empty($values['galado_addon_key'])) $item['galado_addon_key'] = $values['galado_addon_key'];
         return $item;
+    }
+
+    /** One piece per circle at the with-case price (owner 2026-08-04). */
+    public static function limit_qty($passed, $cart_item_key, $values, $quantity) {
+        if (!empty($values['galado_addon_price']) && $quantity > 1) {
+            wc_add_notice(__('The with-case price is limited to 1 piece. You can add another at the normal price.', 'galado-bundles'), 'error');
+            return false;
+        }
+        return $passed;
+    }
+
+    /** Cart-derived module state: which circles already claimed their
+     * with-case price, plus the floating-bar counters. */
+    public static function state_payload() {
+        $used = []; $count = 0; $saved = 0.0; $total = 0.0;
+        if (function_exists('WC') && WC()->cart) {
+            WC()->cart->calculate_totals();
+            foreach (WC()->cart->get_cart() as $ci) {
+                $qty = max(1, (int) $ci['quantity']);
+                if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price'])) {
+                    $count += $qty;
+                }
+                if (!empty($ci['galado_addon_key'])) $used[] = (string) $ci['galado_addon_key'];
+                if (!empty($ci['galado_addon_price'])) {
+                    $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
+                    $own = $p ? (float) wc_get_price_to_display($p) : 0.0;
+                    $paid = (float) $ci['galado_addon_price'];
+                    if ($own > $paid) $saved += ($own - $paid) * $qty;
+                }
+            }
+            foreach (WC()->cart->get_fees() as $fee) {
+                if (0 === strpos((string) $fee->id, 'galado-bundle-') && $fee->total < 0) {
+                    $saved += -1 * (float) $fee->total;
+                }
+            }
+            $total = (float) WC()->cart->get_total('edit');
+        }
+        return ['used' => array_values(array_unique($used)), 'count' => $count, 'saved' => round($saved, 2), 'total' => round($total, 2)];
+    }
+
+    public static function ajax_state() {
+        if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
+        nocache_headers();
+        wp_send_json(self::state_payload());
+    }
+
+    /** Fragments + our state in one response (get_refreshed_fragments dies
+     * before we could append anything, so the payload is built directly). */
+    private static function respond_added($extra = []) {
+        wp_send_json(array_merge([
+            'ok'        => true,
+            'fragments' => apply_filters('woocommerce_add_to_cart_fragments', []),
+            'cart_hash' => WC()->cart->get_cart_hash(),
+            'state'     => self::state_payload(),
+        ], $extra));
     }
 
     /** Set the with-case price on lines added from a shelf. The key is only
@@ -205,9 +269,11 @@ class GALADO_Bundles_Addons {
     private static function enqueue($groups) {
         wp_enqueue_style('galado-addons', GALADO_BUNDLES_URL . 'public/addons.css', [], GALADO_BUNDLES_VERSION);
         wp_enqueue_script('galado-addons', GALADO_BUNDLES_URL . 'public/addons.js', [], GALADO_BUNDLES_VERSION, true);
+        self::enqueue_bar();
         wp_localize_script('galado-addons', 'GALADO_ADDONS', [
             'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_addon_add') : '',
-            'cart_url' => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/',
+            'cart_url'  => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/',
+            'state_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
             'groups'  => $groups,
             'preview' => !galado_bundles_can_transact(),
             'hide'    => galado_bundles_wcpa_hide_keys_addons(),
@@ -219,8 +285,30 @@ class GALADO_Bundles_Addons {
                 'preview' => __('Preview mode. Turn the storefront on to enable adds.', 'galado-bundles'),
                 'failed'  => __('Could not add it, please try again.', 'galado-bundles'),
                 'added_lbl'   => __('added to basket', 'galado-bundles'),
+                'once_hint'   => __('1 at this price per order', 'galado-bundles'),
+                'once_used'   => __('With-case price used', 'galado-bundles'),
+                'reused_note' => __('With-case price already used, normal price applied.', 'galado-bundles'),
                 'you_saved'   => __('You saved', 'galado-bundles'),
                 'view_basket' => __('View basket', 'galado-bundles'),
+            ],
+        ]);
+    }
+
+    /** The shared floating PWP summary bar (items, saved, total). Enqueued by
+     * whichever module renders first; localized once. */
+    public static function enqueue_bar() {
+        if (wp_script_is('galado-pwp-bar', 'enqueued')) return;
+        wp_enqueue_style('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.css', [], GALADO_BUNDLES_VERSION);
+        wp_enqueue_script('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.js', [], GALADO_BUNDLES_VERSION, true);
+        wp_localize_script('galado-pwp-bar', 'GALADO_PWP_BAR', [
+            'state_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
+            'cart_url'  => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/',
+            'i18n'      => [
+                'items'  => __('bundle items', 'galado-bundles'),
+                'item'   => __('bundle item', 'galado-bundles'),
+                'saved'  => __('Saved', 'galado-bundles'),
+                'total'  => __('Total', 'galado-bundles'),
+                'view'   => __('View basket', 'galado-bundles'),
             ],
         ]);
     }
@@ -267,13 +355,25 @@ class GALADO_Bundles_Addons {
         // this endpoint is not a generic add-to-cart.
         $allowed = false;
         $addon_price = 0.0;
+        $circle = '';
         foreach (GALADO_Bundles_Data::get_addon_groups() as $group) {
             foreach ($group['items'] as $it) {
                 if ((int) $it['product_id'] === $pid) {
                     $allowed = true;
                     $addon_price = max(0.0, (float) ($it['addon_price'] ?? 0));
+                    $lbl = trim((string) ($it['label'] ?? ''));
+                    $circle = '' !== $lbl ? 'g-' . sanitize_title($lbl) : (string) $pid;
                     break 2;
                 }
+            }
+        }
+
+        // One with-case price per circle per order: a circle already claimed
+        // in the cart re-adds at the NORMAL price instead (owner 2026-08-04).
+        $reused = false;
+        if ($addon_price > 0 && function_exists('WC') && WC()->cart) {
+            foreach (WC()->cart->get_cart() as $ci) {
+                if (($ci['galado_addon_key'] ?? '') === $circle) { $reused = true; break; }
             }
         }
         $p = $allowed && $pid ? wc_get_product($pid) : null;
@@ -281,20 +381,24 @@ class GALADO_Bundles_Addons {
             wp_send_json(['ok' => false, 'message' => __('That add-on is not available.', 'galado-bundles')]);
         }
 
+        $data = (!$reused && $addon_price > 0)
+            ? ['galado_addon_price' => $addon_price, 'galado_addon_key' => $circle]
+            : [];
+
         if ($p->is_type('variable')) {
             $v = $vid ? wc_get_product($vid) : null;
             if (!$v || $v->get_parent_id() !== $pid || !$v->is_purchasable() || !$v->is_in_stock()) {
                 wp_send_json(['ok' => false, 'message' => __('That option just sold out, please pick another.', 'galado-bundles')]);
             }
-            $key = WC()->cart->add_to_cart($pid, 1, $vid, $v->get_variation_attributes(), $addon_price > 0 ? ['galado_addon_price' => $addon_price] : []);
+            $key = WC()->cart->add_to_cart($pid, 1, $vid, $v->get_variation_attributes(), $data);
         } else {
-            $key = WC()->cart->add_to_cart($pid, 1, 0, [], $addon_price > 0 ? ['galado_addon_price' => $addon_price] : []);
+            $key = WC()->cart->add_to_cart($pid, 1, 0, [], $data);
         }
 
         if (!$key) {
             wp_send_json(['ok' => false, 'message' => __('Could not add it, please try again.', 'galado-bundles')]);
         }
-        WC_AJAX::get_refreshed_fragments();
+        self::respond_added(['reused' => $reused ? 1 : 0]);
     }
 
     // ---- launch seed --------------------------------------------------------
@@ -337,7 +441,13 @@ class GALADO_Bundles_Addons {
             [384065, 79.0, 'Crossbody Strap (7mm)'],
             [404021, 79.0, 'Crossbody Strap (7mm)'],
             [288133, 79.0, 'Crossbody Strap (7mm)'],
-            [277284, 55.0, ''],
+            [277284, 55.0, 'MagSafe Grip'],
+            [316373, 55.0, 'MagSafe Grip'],
+            [316200, 55.0, 'MagSafe Grip'],
+            [316192, 55.0, 'MagSafe Grip'],
+            [315788, 55.0, 'MagSafe Grip'],
+            [315780, 55.0, 'MagSafe Grip'],
+            [314178, 55.0, 'MagSafe Grip'],
         ];
 
         $items = [];

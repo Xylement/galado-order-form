@@ -172,6 +172,7 @@
       }
       btn.textContent = CFG.i18n.added;
       showAdded(card, slug);
+      if (res && res.state && window.GALADO_PWP_REFRESH) window.GALADO_PWP_REFRESH(res.state);
       setTimeout(function () { btn.textContent = idle; }, 1400);
     }).catch(function () {
       btn.disabled = false;
