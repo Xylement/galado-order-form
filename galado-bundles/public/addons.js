@@ -83,7 +83,7 @@
           Array.prototype.forEach.call(row.children, function (n) { n.classList.remove('is-on'); });
           b.classList.add('is-on');
           go.disabled = false;
-          go.textContent = CFG.i18n.add + '  ' + rm(o.price);
+          go.textContent = CFG.i18n.add_basket || 'Add to Basket';
         });
         row.appendChild(b);
       });
@@ -179,12 +179,7 @@
     var line = document.createElement('b');
     line.textContent = '\u2713 ' + meta.name + ' ' + CFG.i18n.added_lbl + ' (' + rm(meta.price) + ')';
     box.appendChild(line);
-    if (meta.reused) {
-      var ru = document.createElement('span');
-      ru.className = 'gld-added__reused';
-      ru.textContent = CFG.i18n.reused_note;
-      box.appendChild(ru);
-    } else if (meta.was > 0 && meta.was > meta.price) {
+    if (meta.was > 0 && meta.was > meta.price) {
       var sv = document.createElement('span');
       sv.className = 'gld-added__save';
       sv.textContent = CFG.i18n.you_saved + ' ' + rm(meta.was - meta.price);
@@ -216,7 +211,8 @@
   }
 
   /** Mark circles whose with-case price is already claimed in this cart:
-   * the strike goes, the normal price shows, a small note explains. */
+   * the strike goes and the normal price shows (no label, owner 2026-08-04
+   * round 2 - the price speaks for itself). */
   function applyState(state) {
     if (!state || !state.used) return;
     Array.prototype.forEach.call(sections, function (section) {
@@ -226,20 +222,17 @@
         var item = itemData(group, card.getAttribute('data-key'));
         if (!item || !(item.was > 0)) return;
         var priceEl = card.querySelector('.gld-addon__price');
-        var note = card.querySelector('[data-gld-once]');
-        if (!note) {
-          note = document.createElement('span');
-          note.className = 'gld-addon__once';
-          note.setAttribute('data-gld-once', '');
-          card.insertBefore(note, card.querySelector('[data-gld-addon-add]'));
-        }
+        if (!priceEl) return;
         if (state.used.indexOf(String(item.key)) !== -1) {
           card.classList.add('is-used');
-          if (priceEl) priceEl.textContent = '+' + rm(item.was);
-          note.textContent = CFG.i18n.once_used;
-        } else {
+          priceEl.textContent = '+' + rm(item.was);
+        } else if (card.classList.contains('is-used')) {
           card.classList.remove('is-used');
-          note.textContent = CFG.i18n.once_hint;
+          priceEl.textContent = '';
+          priceEl.appendChild(document.createTextNode('+' + rm(item.price) + ' '));
+          var s = document.createElement('s');
+          s.textContent = rm(item.was);
+          priceEl.appendChild(s);
         }
       });
     });

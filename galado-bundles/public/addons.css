@@ -49,9 +49,10 @@
 .gld-addons__note .gld-added a{display:inline-block;margin-top:6px;font-weight:700;color:#111111;text-decoration:underline}
 .gld-addons .added_to_cart{display:none !important}
 
-/* Once-per-order state (owner 2026-08-04): claimed circles lose the strike
-   and show the normal price with a small explainer. */
-.gld-addon__once{font-size:10px;color:#9A9A94;line-height:1.3}
-.gld-addon.is-used .gld-addon__once{color:#111111;font-weight:700}
+/* Once-per-order (owner 2026-08-04 r2: no explainer text): a claimed circle
+   simply loses the strike and shows the normal price. */
 .gld-addon.is-used .gld-addon__price s{display:none}
-.gld-addons__note .gld-added .gld-added__reused{display:block;color:#6B6B66;margin-top:2px}
+
+/* Inside the cart form (rendered above the Buy Now button) the module must
+   never shrink if the theme flexes the button row. */
+.gld-addons{width:100%;flex:0 0 100%;min-width:0}

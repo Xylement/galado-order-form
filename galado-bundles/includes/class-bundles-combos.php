@@ -37,6 +37,11 @@ class GALADO_Bundles_Combos {
         // Primary: directly below the variations form. Fallbacks: the summary
         // hook after the add-to-cart block (fires on virtually every Woo
         // theme), then after the whole summary. First one that fires wins.
+        // Preferred placement (owner 2026-08-04): inside the cart form, after
+        // the WCPA name fields (prio 10 there), directly ABOVE the Buy Now
+        // button. The summary/after-form hooks stay as fallbacks for layouts
+        // that skip the core button template; render-once keeps it single.
+        add_action('woocommerce_before_add_to_cart_button', [__CLASS__, 'render'], 20);
         add_action('woocommerce_after_add_to_cart_form', [__CLASS__, 'render']);
         add_action('woocommerce_single_product_summary', [__CLASS__, 'render'], 39);
         add_action('woocommerce_after_single_product_summary', [__CLASS__, 'render'], 5);
@@ -398,7 +403,7 @@ class GALADO_Bundles_Combos {
               <p class="gld-combo__list"><?php echo esc_html(implode(' + ', $c['names'])); ?></p>
               <div class="gld-combo__axes" data-gld-axes></div>
               <p class="gld-combo__price"><b class="now" data-gld-now></b> <s class="was" data-gld-was aria-hidden="true"></s></p>
-              <button type="button" class="gld-combo__cta" data-gld-add disabled><?php esc_html_e('Add set +', 'galado-bundles'); ?></button>
+              <button type="button" class="gld-combo__cta" data-gld-add disabled><?php esc_html_e('Add to Basket', 'galado-bundles'); ?></button>
               <p class="gld-combo__note" data-gld-note aria-live="polite"></p>
             </article>
             <?php endforeach; ?>

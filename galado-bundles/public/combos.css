@@ -73,3 +73,7 @@
 .gld-added .gld-added__save{display:block;color:#1a7f37;font-weight:700;margin-top:2px}
 .gld-added a{display:inline-block;margin-top:6px;font-weight:700;color:#111111;text-decoration:underline}
 .gld-combo .added_to_cart{display:none !important}
+
+/* Inside the cart form (rendered above the Buy Now button) the module must
+   never shrink if the theme flexes the button row. */
+.gld-protect{width:100%;flex:0 0 100%;min-width:0}

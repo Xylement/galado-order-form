@@ -18,8 +18,9 @@ class GALADO_Bundles_Addons {
     private static $rendered = false;
 
     public static function init() {
-        // Same three placements as the combos module, one priority later, so
+        // Same placements as the combos module, one priority later, so
         // whichever hook the theme fires, combos render first, this below.
+        add_action('woocommerce_before_add_to_cart_button', [__CLASS__, 'render'], 21);
         add_action('woocommerce_after_add_to_cart_form', [__CLASS__, 'render'], 12);
         add_action('woocommerce_single_product_summary', [__CLASS__, 'render'], 40);
         add_action('woocommerce_after_single_product_summary', [__CLASS__, 'render'], 6);
@@ -59,13 +60,14 @@ class GALADO_Bundles_Addons {
     /** Cart-derived module state: which circles already claimed their
      * with-case price, plus the floating-bar counters. */
     public static function state_payload() {
-        $used = []; $count = 0; $saved = 0.0; $total = 0.0;
+        $used = []; $count = 0; $saved = 0.0; $total = 0.0; $bundle_total = 0.0;
         if (function_exists('WC') && WC()->cart) {
             WC()->cart->calculate_totals();
             foreach (WC()->cart->get_cart() as $ci) {
                 $qty = max(1, (int) $ci['quantity']);
                 if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price'])) {
                     $count += $qty;
+                    $bundle_total += isset($ci['line_total']) ? (float) $ci['line_total'] : 0.0;
                 }
                 if (!empty($ci['galado_addon_key'])) $used[] = (string) $ci['galado_addon_key'];
                 if (!empty($ci['galado_addon_price'])) {
@@ -78,11 +80,18 @@ class GALADO_Bundles_Addons {
             foreach (WC()->cart->get_fees() as $fee) {
                 if (0 === strpos((string) $fee->id, 'galado-bundle-') && $fee->total < 0) {
                     $saved += -1 * (float) $fee->total;
+                    $bundle_total += (float) $fee->total; // negative: nets the combo saving into what the items add
                 }
             }
             $total = (float) WC()->cart->get_total('edit');
         }
-        return ['used' => array_values(array_unique($used)), 'count' => $count, 'saved' => round($saved, 2), 'total' => round($total, 2)];
+        return [
+            'used'         => array_values(array_unique($used)),
+            'count'        => $count,
+            'saved'        => round($saved, 2),
+            'total'        => round($total, 2),
+            'bundle_total' => round($bundle_total, 2),
+        ];
     }
 
     public static function ajax_state() {
@@ -285,30 +294,27 @@ class GALADO_Bundles_Addons {
                 'preview' => __('Preview mode. Turn the storefront on to enable adds.', 'galado-bundles'),
                 'failed'  => __('Could not add it, please try again.', 'galado-bundles'),
                 'added_lbl'   => __('added to basket', 'galado-bundles'),
-                'once_hint'   => __('1 at this price per order', 'galado-bundles'),
-                'once_used'   => __('With-case price used', 'galado-bundles'),
-                'reused_note' => __('With-case price already used, normal price applied.', 'galado-bundles'),
+                'add_basket'  => __('Add to Basket', 'galado-bundles'),
                 'you_saved'   => __('You saved', 'galado-bundles'),
                 'view_basket' => __('View basket', 'galado-bundles'),
             ],
         ]);
     }
 
-    /** The shared floating PWP summary bar (items, saved, total). Enqueued by
-     * whichever module renders first; localized once. */
+    /** The PWP summary in the sticky Buy Now bar (owner 2026-08-04, Casetify
+     * reference): the decorator script takes over snippet #7's info column
+     * with "N items" + combined price once there is something to say. Enqueued
+     * by whichever module renders first; localized once. Only loads when a
+     * module renders, so while dark this never reaches customers. */
     public static function enqueue_bar() {
         if (wp_script_is('galado-pwp-bar', 'enqueued')) return;
         wp_enqueue_style('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.css', [], GALADO_BUNDLES_VERSION);
         wp_enqueue_script('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.js', [], GALADO_BUNDLES_VERSION, true);
         wp_localize_script('galado-pwp-bar', 'GALADO_PWP_BAR', [
             'state_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
-            'cart_url'  => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/',
             'i18n'      => [
-                'items'  => __('bundle items', 'galado-bundles'),
-                'item'   => __('bundle item', 'galado-bundles'),
-                'saved'  => __('Saved', 'galado-bundles'),
-                'total'  => __('Total', 'galado-bundles'),
-                'view'   => __('View basket', 'galado-bundles'),
+                'items' => __('items', 'galado-bundles'),
+                'item'  => __('item', 'galado-bundles'),
             ],
         ]);
     }
