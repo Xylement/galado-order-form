@@ -55,8 +55,24 @@
       });
     });
 
+    function optById(item, id) {
+      for (var i = 0; i < item.options.length; i++) {
+        if (String(item.options[i].id) === String(id)) return item.options[i];
+      }
+      return null;
+    }
+
     function openOpts(card, item) {
-      open = { pid: String(item.key), chosen: 0, type: item.type };
+      // Multi-select (owner r13): circles WITHOUT a PWP price (the Stylink
+      // Clip-Ons) let the shopper tick several designs and add them in one
+      // go. PWP circles stay single-pick - that price is one per order.
+      open = {
+        pid: String(item.key),
+        chosen: 0,
+        picked: [],
+        multi: item.type === 'group' && !(item.addon_price > 0) && !(item.was > 0),
+        type: item.type
+      };
       section.querySelectorAll('.gld-addon.is-open').forEach
         ? section.querySelectorAll('.gld-addon.is-open').forEach(function (c) { c.classList.remove('is-open'); })
         : null;
@@ -87,11 +103,20 @@
         t.textContent = o.label + ((item.varies || o.price !== item.price) ? ' ' + rm(o.price) : '');
         b.appendChild(t);
         b.addEventListener('click', function () {
+          var lbl = CFG.i18n.add_basket || 'Add to Basket';
+          if (open.multi) {
+            var at = open.picked.indexOf(o.id);
+            if (at >= 0) { open.picked.splice(at, 1); b.classList.remove('is-on'); }
+            else { open.picked.push(o.id); b.classList.add('is-on'); }
+            go.disabled = !open.picked.length;
+            go.textContent = open.picked.length > 1 ? lbl + ' (' + open.picked.length + ')' : lbl;
+            return;
+          }
           open.chosen = o.id;
           Array.prototype.forEach.call(row.children, function (n) { n.classList.remove('is-on'); });
           b.classList.add('is-on');
           go.disabled = false;
-          go.textContent = CFG.i18n.add_basket || 'Add to Basket';
+          go.textContent = lbl;
         });
         row.appendChild(b);
       });
@@ -103,6 +128,30 @@
       go.disabled = true;
       go.textContent = CFG.i18n.pick;
       go.addEventListener('click', function () {
+        if (open && open.multi) {
+          var picks = open.picked.slice();
+          if (!picks.length) { if (note) note.textContent = CFG.i18n.pick; return; }
+          var first = optById(item, picks[0]);
+          var metaAll = {
+            name: picks.length === 1 && first ? item.name + ' (' + first.label + ')' : item.name + ' × ' + picks.length,
+            price: 0, was: 0, circle: String(item.key), addon_price: 0, own: 0
+          };
+          if (window.GALADO_PWP) {
+            picks.forEach(function (id) {
+              var o2 = optById(item, id);
+              window.GALADO_PWP.stageAddon({
+                product_id: id, variation_id: 0,
+                name: item.name + (o2 ? ' (' + o2.label + ')' : ''),
+                own: o2 ? o2.price : item.price, addon_price: 0, circle: String(item.key)
+              });
+            });
+            if (section.__close) section.__close();
+            showAdded(section, metaAll);
+            return;
+          }
+          addMany(section, picks, go, metaAll);
+          return;
+        }
         if (!open || !open.chosen) { if (note) note.textContent = CFG.i18n.pick; return; }
         // Grouped: the chosen option IS the product. Variable: it is the variation.
         var picked = null;
@@ -131,6 +180,49 @@
     }
 
     section.__close = closeOpts;
+  }
+
+  /** Sequential fallback adds for a multi-pick (non-case surfaces have no
+   * stage): one request per design, fragments refreshed as they land. */
+  function addMany(section, ids, btn, meta) {
+    var note = section.querySelector('[data-gld-note]');
+    if (CFG.preview) { if (note) note.textContent = CFG.i18n.preview; return; }
+    if (btn.disabled) return;
+    btn.disabled = true;
+    var idle = btn.textContent;
+    btn.textContent = CFG.i18n.adding;
+    var ok = 0, i = 0;
+    function next() {
+      if (i >= ids.length) {
+        btn.disabled = false;
+        btn.textContent = idle;
+        if (ok) {
+          if (section.__close) section.__close();
+          showAdded(section, meta);
+        }
+        if (ok < ids.length && note) note.textContent = CFG.i18n.failed;
+        return;
+      }
+      var body = new URLSearchParams();
+      body.set('product_id', ids[i]);
+      i++;
+      fetch(CFG.ajax, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: body.toString()
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        if (res && res.ok !== false) {
+          ok++;
+          if (res.fragments && window.jQuery) {
+            var $ = window.jQuery;
+            $.each(res.fragments, function (k, v) { $(k).replaceWith(v); });
+            $(document.body).trigger('wc_fragments_refreshed');
+          }
+        }
+        next();
+      }).catch(function () { next(); });
+    }
+    next();
   }
 
   function add(section, productId, variationId, btn, meta) {
