@@ -114,8 +114,11 @@ class GALADO_Bundles_Combos {
             'camera-lens-protector', 'screen-protector', 'tempered-glass', 'accessories',
             // MacBook cases vary by pa_model too, but get NO add-on modules
             // at all (owner r12) - blocking here covers combos AND the
-            // case-default shelf audience in one place.
+            // case-default shelf audience in one place. Watch Bands + Watch
+            // Covers are the same for now (owner r17); the parent category
+            // covers every Apple Watch size subcategory.
             'macbook',
+            'apple-watch-apple',
         ]);
         $terms = get_the_terms($pid, 'product_cat');
         $slugs = [];
