@@ -310,7 +310,9 @@ class GALADO_Bundles_Combos {
                 'sum'   => round($sum, 2),
                 'save'  => round($save, 2),
                 'total' => round($sum - $save, 2),
-                'axes'  => $axes,
+                // Omit when empty: PHP json-encodes an empty assoc array as []
+                // which typed clients (the iOS app) reject as a dict.
+                'axes'  => $axes ?: null,
             ];
         }
         return $map;
