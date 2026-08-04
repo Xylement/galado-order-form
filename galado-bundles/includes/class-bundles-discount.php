@@ -35,8 +35,12 @@ class GALADO_Bundles_Discount {
         // total stays the real charged amount. Display only - the accounting
         // underneath (repriced lines) is untouched.
         add_filter('woocommerce_cart_subtotal', [__CLASS__, 'display_subtotal'], 20, 3);
-        add_action('woocommerce_cart_totals_before_shipping', [__CLASS__, 'display_pwp_row']);
-        add_action('woocommerce_review_order_before_shipping', [__CLASS__, 'display_pwp_row']);
+        // before_order_total, NOT before_shipping: the shipping section (and
+        // its hooks) only renders once an address is known, so a fresh guest
+        // saw the original-price subtotal with no discount row explaining it
+        // (caught in the live cutover sweep). This slot always renders.
+        add_action('woocommerce_cart_totals_before_order_total', [__CLASS__, 'display_pwp_row']);
+        add_action('woocommerce_review_order_before_order_total', [__CLASS__, 'display_pwp_row']);
     }
 
     /** RM actually taken off by PWP pricing in this cart right now (applied,
