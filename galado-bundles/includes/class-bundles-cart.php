@@ -19,6 +19,182 @@ class GALADO_Bundles_Cart {
         add_filter('woocommerce_cart_item_class', [__CLASS__, 'line_class'], 10, 3);
         add_action('woocommerce_cart_item_removed', [__CLASS__, 'noop']); // reserved
         add_action('woocommerce_before_cart', [__CLASS__, 'handle_remove_set']);
+
+        // One-product presentation for COMPLETE protector combos (owner
+        // 2026-08-04 r5): the components stay real cart lines underneath
+        // (stock + fulfilment untouched) but cart, checkout review and the
+        // mini-cart show a single set row at the combo price with ONE remove
+        // control - so a shopper can never strip one piece and silently lose
+        // the deal. Incomplete sets (stale session, sold-out removal) fall
+        // back to plain per-line display at natural prices, self-healing.
+        add_filter('woocommerce_cart_item_visible', [__CLASS__, 'set_line_visible'], 10, 3);
+        add_filter('woocommerce_checkout_cart_item_visible', [__CLASS__, 'set_line_visible'], 10, 3);
+        add_filter('woocommerce_widget_cart_item_visible', [__CLASS__, 'set_line_visible'], 10, 3);
+        add_filter('woocommerce_cart_item_name', [__CLASS__, 'set_line_name'], 20, 3);
+        add_filter('woocommerce_cart_item_price', [__CLASS__, 'set_line_price'], 20, 3);
+        add_filter('woocommerce_cart_item_subtotal', [__CLASS__, 'set_line_subtotal'], 20, 3);
+        add_filter('woocommerce_cart_item_quantity', [__CLASS__, 'set_line_qty'], 20, 3);
+        add_filter('woocommerce_widget_cart_item_quantity', [__CLASS__, 'set_widget_qty'], 20, 3);
+        add_filter('woocommerce_cart_item_remove_link', [__CLASS__, 'set_remove_link'], 20, 2);
+        add_filter('woocommerce_cart_contents_count', [__CLASS__, 'set_contents_count'], 20);
+    }
+
+    // ---- combo set grouping ------------------------------------------------
+
+    /**
+     * Per-request map of combo set instances in the cart, keyed by the add-time
+     * uid: slug/title/combo_price, completeness against the recipe, all line
+     * keys and the lead line (first key). Only sets with a combo price join;
+     * legacy save-based sets keep the fee flow and per-line display.
+     */
+    public static function combo_instances($cart = null) {
+        static $memo_hash = null, $memo = null;
+        $cart = $cart ?: (function_exists('WC') ? WC()->cart : null);
+        if (!$cart) return [];
+
+        $sig = [];
+        foreach ($cart->get_cart() as $k => $ci) $sig[] = $k . ':' . (int) $ci['quantity'];
+        $hash = md5(implode('|', $sig));
+        if ($memo_hash === $hash && null !== $memo) return $memo;
+
+        $inst = [];
+        foreach ($cart->get_cart() as $key => $ci) {
+            if (empty($ci['galado_bundle']) || empty($ci['galado_bundle_uid'])) continue;
+            $uid = (string) $ci['galado_bundle_uid'];
+            $slot = (string) ($ci['galado_bundle_slot'] ?? '');
+            $inst[$uid]['slug'] = (string) $ci['galado_bundle'];
+            $inst[$uid]['slots'][$slot] = ($inst[$uid]['slots'][$slot] ?? 0) + (int) $ci['quantity'];
+            $inst[$uid]['keys'][] = $key;
+        }
+
+        $out = [];
+        foreach ($inst as $uid => $d) {
+            $desc = GALADO_Bundles_Data::get($d['slug']);
+            if (!$desc || empty($desc['combo']) || $desc['combo_price'] <= 0) continue;
+            $need = [];
+            foreach ($desc['items'] as $it) $need[$it['slot']] = ($need[$it['slot']] ?? 0) + max(1, (int) $it['qty']);
+            $complete = true;
+            foreach ($need as $slot => $q) {
+                if (($d['slots'][$slot] ?? 0) < $q) { $complete = false; break; }
+            }
+            $out[$uid] = [
+                'slug'        => $d['slug'],
+                'title'       => $desc['title'],
+                'combo_price' => (float) $desc['combo_price'],
+                'complete'    => $complete,
+                'keys'        => $d['keys'],
+                'lead'        => $d['keys'][0],
+            ];
+        }
+        $memo_hash = $hash; $memo = $out;
+        return $out;
+    }
+
+    /** The COMPLETE instance a line belongs to, or null. */
+    private static function instance_for($cart_item) {
+        if (empty($cart_item['galado_bundle_uid'])) return null;
+        $map = self::combo_instances();
+        $e = $map[(string) $cart_item['galado_bundle_uid']] ?? null;
+        return ($e && $e['complete']) ? $e : null;
+    }
+
+    /** What the whole instance costs right now (repriced line subtotals). */
+    private static function instance_total($e) {
+        $cart = function_exists('WC') ? WC()->cart : null;
+        if (!$cart) return 0.0;
+        $sum = 0.0;
+        foreach ($e['keys'] as $k) {
+            $ci = $cart->get_cart_item($k);
+            if ($ci) $sum += (float) $ci['line_subtotal'];
+        }
+        return $sum;
+    }
+
+    public static function set_line_visible($visible, $cart_item, $cart_item_key = '') {
+        if (!$visible || !galado_bundles_can_transact()) return $visible;
+        $e = self::instance_for($cart_item);
+        if ($e && '' !== (string) $cart_item_key && $cart_item_key !== $e['lead']) return false;
+        return $visible;
+    }
+
+    public static function set_line_name($name, $cart_item, $cart_item_key = '') {
+        if (!galado_bundles_can_transact()) return $name;
+        $e = self::instance_for($cart_item);
+        if (!$e || $cart_item_key !== $e['lead']) return $name;
+        $cart = WC()->cart;
+        $parts = [];
+        foreach ($e['keys'] as $k) {
+            $ci = $cart ? $cart->get_cart_item($k) : null;
+            if ($ci && !empty($ci['data'])) $parts[] = $ci['data']->get_name();
+        }
+        $html = esc_html($e['title']);
+        if ($parts) {
+            $html .= '<span class="galado-set-includes" style="display:block;font-size:12px;font-weight:400;color:#6B6B66;margin-top:4px;line-height:1.5">'
+                   . esc_html(implode('  +  ', $parts)) . '</span>';
+        }
+        return $html;
+    }
+
+    public static function set_line_price($price, $cart_item, $cart_item_key = '') {
+        if (!galado_bundles_can_transact()) return $price;
+        $e = self::instance_for($cart_item);
+        if (!$e || $cart_item_key !== $e['lead']) return $price;
+        return wc_price(self::instance_total($e));
+    }
+
+    public static function set_line_subtotal($subtotal, $cart_item, $cart_item_key = '') {
+        if (!galado_bundles_can_transact()) return $subtotal;
+        $e = self::instance_for($cart_item);
+        if (!$e || $cart_item_key !== $e['lead']) return $subtotal;
+        return wc_price(self::instance_total($e));
+    }
+
+    /** One set = qty 1, not editable piece by piece. */
+    public static function set_line_qty($product_quantity, $cart_item_key, $cart_item = null) {
+        if (!galado_bundles_can_transact() || null === $cart_item) return $product_quantity;
+        $e = self::instance_for($cart_item);
+        if (!$e || $cart_item_key !== $e['lead']) return $product_quantity;
+        return '<span class="quantity">1</span>';
+    }
+
+    public static function set_widget_qty($html, $cart_item, $cart_item_key = '') {
+        if (!galado_bundles_can_transact()) return $html;
+        $e = self::instance_for($cart_item);
+        if (!$e || $cart_item_key !== $e['lead']) return $html;
+        return '<span class="quantity">1 &times; ' . wc_price(self::instance_total($e)) . '</span>';
+    }
+
+    /** The lead line's x removes the WHOLE set (existing grouped-removal path). */
+    public static function set_remove_link($link, $cart_item_key) {
+        if (!galado_bundles_can_transact()) return $link;
+        $ci = function_exists('WC') && WC()->cart ? WC()->cart->get_cart_item($cart_item_key) : null;
+        if (!$ci) return $link;
+        $e = self::instance_for($ci);
+        if (!$e || $cart_item_key !== $e['lead']) return $link;
+        $uid = (string) $ci['galado_bundle_uid'];
+        $url = wp_nonce_url(add_query_arg('galado_remove_set', rawurlencode($uid), wc_get_cart_url()), 'galado_remove_set_' . $uid);
+        return sprintf(
+            '<a href="%s" class="remove" aria-label="%s">&times;</a>',
+            esc_url($url),
+            esc_attr(sprintf(__('Remove %s', 'galado-bundles'), $e['title']))
+        );
+    }
+
+    /** Header cart bubble: a complete set counts as ONE item. */
+    public static function set_contents_count($count) {
+        if (!galado_bundles_can_transact()) return $count;
+        $cart = function_exists('WC') ? WC()->cart : null;
+        if (!$cart) return $count;
+        foreach (self::combo_instances($cart) as $e) {
+            if (!$e['complete']) continue;
+            $qty = 0;
+            foreach ($e['keys'] as $k) {
+                $ci = $cart->get_cart_item($k);
+                if ($ci) $qty += (int) $ci['quantity'];
+            }
+            $count -= max(0, $qty - 1);
+        }
+        return max(0, $count);
     }
 
     public static function noop() {}
@@ -157,10 +333,14 @@ class GALADO_Bundles_Cart {
         return $item;
     }
 
-    /** "Part of: The Icons Duo" under each tagged line. */
+    /** "Part of: The Icons Duo" under each tagged line. Lines of a COMPLETE
+     * combo skip it: the single set row names its contents itself, and the
+     * rest of the set is hidden. Incomplete combos keep the note so stray
+     * pieces still explain where they came from. */
     public static function line_meta($data, $cart_item) {
         if (!galado_bundles_can_transact()) return $data; // never decorate #95's lines for dark customers
         if (empty($cart_item['galado_bundle'])) return $data;
+        if (self::instance_for($cart_item)) return $data;
         $desc = GALADO_Bundles_Data::get((string) $cart_item['galado_bundle']);
         if ($desc) {
             $data[] = ['key' => __('Part of', 'galado-bundles'), 'value' => $desc['title'], 'display' => esc_html($desc['title'])];

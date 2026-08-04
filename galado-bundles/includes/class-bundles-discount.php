@@ -15,13 +15,81 @@ class GALADO_Bundles_Discount {
      * by slug. Analytics reads this so the order records what was really given,
      * not the pre-clamp map. */
     private static $applied = [];
-    public static function applied() { return self::$applied; }
+    /** Same, but for combo sets, whose saving is baked into the line prices
+     * (owner 2026-08-04 r5) instead of a fee. Kept separate because apply_fees
+     * resets its own map on every pass. */
+    private static $applied_combos = [];
+    public static function applied() { return array_merge(self::$applied_combos, self::$applied); }
 
     public static function init() {
+        // Combo sets: the discount is baked into the component line prices, so
+        // the cart shows ONE set row at the combo price with no fee line.
+        // Priority 25 runs after the addon-price pass (20).
+        add_action('woocommerce_before_calculate_totals', [__CLASS__, 'reprice_combos'], 25);
         // Priority 99 runs after Club Bridge fees (default 10), so the clamp can read them.
         add_action('woocommerce_cart_calculate_fees', [__CLASS__, 'apply_fees'], 99);
         // Tier coupons do not stack on satisfied-bundle lines (rule B).
         add_filter('woocommerce_coupon_is_valid_for_product', [__CLASS__, 'block_tier_on_bundle_lines'], 20, 3);
+    }
+
+    /**
+     * Combo sets sell as one product (owner 2026-08-04 r5): while an instance
+     * is COMPLETE, its component line prices are set so the instance sums to
+     * exactly the combo price - proportional per line, cent remainder on the
+     * lead. Prices are recomputed from fresh product prices on every totals
+     * pass, so the pass is idempotent and member/sale prices flow in
+     * naturally: if the shopper's own prices already total at or below the
+     * combo price, nothing is touched (whichever is cheaper wins, the old
+     * member-offset rule by construction). An incomplete instance is left
+     * entirely alone - natural full prices, exactly like today's fee lapse,
+     * but the shopper can only get there by session decay, not by a remove
+     * click, because the set row removes as one.
+     */
+    public static function reprice_combos($cart) {
+        if (is_admin() && !defined('DOING_AJAX')) return;
+        if (null === $cart || !($cart instanceof WC_Cart)) return;
+        if (!galado_bundles_can_transact()) return;
+
+        self::$applied_combos = [];
+        foreach (GALADO_Bundles_Cart::combo_instances($cart) as $e) {
+            if (!$e['complete']) continue;
+
+            $own = []; $sum = 0.0; $broken = false;
+            foreach ($e['keys'] as $k) {
+                $ci = $cart->get_cart_item($k);
+                $p = $ci ? wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']) : null;
+                if (!$p) { $broken = true; break; }
+                $qty = max(1, (int) $ci['quantity']);
+                $own[$k] = ['unit' => (float) $p->get_price(), 'qty' => $qty];
+                $sum += $own[$k]['unit'] * $qty;
+            }
+            $price = (float) $e['combo_price'];
+            if ($broken || $sum <= 0 || $sum <= $price) continue;
+
+            $targets = []; $acc = 0.0;
+            foreach ($own as $k => $o) {
+                $t = max(0.01 * $o['qty'], round($o['unit'] * $o['qty'] * $price / $sum, 2));
+                $targets[$k] = $t;
+                $acc += $t;
+            }
+            $lead = $e['lead'];
+            $targets[$lead] = max(0.01, round($targets[$lead] + ($price - $acc), 2));
+
+            foreach ($targets as $k => $t) {
+                $ci = $cart->get_cart_item($k);
+                if ($ci && !empty($ci['data'])) {
+                    $ci['data']->set_price($t / $own[$k]['qty']);
+                }
+            }
+
+            $slug = $e['slug'];
+            $prev = self::$applied_combos[$slug] ?? ['name' => $e['title'], 'complete_instances' => 0, 'saving' => 0.0];
+            self::$applied_combos[$slug] = [
+                'name'               => $e['title'],
+                'complete_instances' => $prev['complete_instances'] + 1,
+                'saving'             => round($prev['saving'] + ($sum - $price), 2),
+            ];
+        }
     }
 
     /** Tier-coupon codes, from one canonical list (centralised in Club Bridge
@@ -134,6 +202,13 @@ class GALADO_Bundles_Discount {
         if (!galado_bundles_can_transact()) return; // dark for this visitor
 
         $map = self::satisfied($cart);
+        // Combo sets are repriced at line level (reprice_combos); a fee on top
+        // would double-discount them. Drop them BEFORE the clamp math so the
+        // scale for legacy fee sets is not diluted by savings we never pay out.
+        foreach (array_keys($map) as $slug) {
+            $d = GALADO_Bundles_Data::get($slug);
+            if ($d && !empty($d['combo']) && $d['combo_price'] > 0) unset($map[$slug]);
+        }
         if (!$map) return;
 
         // Cart-level never-negative clamp (runs here at priority 99, after Club

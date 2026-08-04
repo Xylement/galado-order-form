@@ -63,24 +63,36 @@ class GALADO_Bundles_Addons {
         $used = []; $count = 0; $saved = 0.0; $total = 0.0; $bundle_total = 0.0;
         if (function_exists('WC') && WC()->cart) {
             WC()->cart->calculate_totals();
-            foreach (WC()->cart->get_cart() as $ci) {
+
+            // A COMPLETE combo instance presents as ONE item (owner r5): its
+            // lines count once and its saving now lives in the line prices.
+            $combo_line = [];
+            foreach (GALADO_Bundles_Cart::combo_instances(WC()->cart) as $e) {
+                if (!$e['complete']) continue;
+                $count += 1;
+                foreach ($e['keys'] as $k) $combo_line[$k] = true;
+            }
+
+            foreach (WC()->cart->get_cart() as $key => $ci) {
                 $qty = max(1, (int) $ci['quantity']);
-                if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price'])) {
-                    $count += $qty;
+                $is_module = !empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price']);
+                if ($is_module) {
+                    if (!isset($combo_line[$key])) $count += $qty;
                     $bundle_total += isset($ci['line_total']) ? (float) $ci['line_total'] : 0.0;
-                }
-                if (!empty($ci['galado_addon_key'])) $used[] = (string) $ci['galado_addon_key'];
-                if (!empty($ci['galado_addon_price'])) {
+                    // Saving = shelf/own price minus what the line actually
+                    // charges (covers addon overrides AND repriced combo lines).
                     $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
                     $own = $p ? (float) wc_get_price_to_display($p) : 0.0;
-                    $paid = (float) $ci['galado_addon_price'];
-                    if ($own > $paid) $saved += ($own - $paid) * $qty;
+                    $line_sub = isset($ci['line_subtotal']) ? (float) $ci['line_subtotal'] : 0.0;
+                    if ($own * $qty > $line_sub) $saved += $own * $qty - $line_sub;
                 }
+                if (!empty($ci['galado_addon_key'])) $used[] = (string) $ci['galado_addon_key'];
             }
+            // Legacy save-based sets still discount via a fee.
             foreach (WC()->cart->get_fees() as $fee) {
                 if (0 === strpos((string) $fee->id, 'galado-bundle-') && $fee->total < 0) {
                     $saved += -1 * (float) $fee->total;
-                    $bundle_total += (float) $fee->total; // negative: nets the combo saving into what the items add
+                    $bundle_total += (float) $fee->total; // negative: nets the saving into what the items add
                 }
             }
             $total = (float) WC()->cart->get_total('edit');
