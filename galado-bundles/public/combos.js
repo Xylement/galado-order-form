@@ -93,7 +93,11 @@
         row.className = 'gld-combo__axis';
         var lab = document.createElement('span');
         lab.className = 'gld-combo__axislab';
-        lab.textContent = attr.replace(/^pa_/, '').replace(/[-_]/g, ' ');
+        var labText = attr.replace(/^pa_/, '').replace(/[-_]/g, ' ');
+        // The colour axis here is always the G-Armor camera-lens colour;
+        // plain "Colour" read as the phone's (owner 2026-08-04 r9).
+        if (/^colou?r$/i.test(labText.trim())) labText = CFG.i18n.lens_colour || 'Camera Lens Colour';
+        lab.textContent = labText;
         row.appendChild(lab);
         Object.keys(values).forEach(function (val) {
           var b = document.createElement('button');

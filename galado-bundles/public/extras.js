@@ -41,7 +41,33 @@
     }
   }
 
-  function boot() { if (CFG.sticky) bindSticky(); }
+  /**
+   * Removing the last case sweeps the PWP items with it (plugin behaviour),
+   * so ask first (owner 2026-08-04 r9). The marker classes only render for
+   * sessions that can transact, so while the modules are dark this never
+   * fires for customers. Capture phase beats any theme AJAX-remove handler.
+   */
+  function bindCaseGuard() {
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var link = t.closest('tr.galado-case-line a.remove, tr.galado-case-line .remove');
+      if (!link) return;
+      if (document.querySelectorAll('tr.galado-case-line').length > 1) return; // another case anchors the deal
+      if (!document.querySelectorAll('tr.galado-bundle-line, tr.galado-addon-line').length) return; // nothing rides on it
+      var msg = (CFG.i18n && CFG.i18n.case_confirm) ||
+        'Removing your case also removes the PWP add-ons with it. Remove everything?';
+      if (!window.confirm(msg)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
+  }
+
+  function boot() {
+    if (CFG.sticky) bindSticky();
+    bindCaseGuard();
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
   else boot();
 })();

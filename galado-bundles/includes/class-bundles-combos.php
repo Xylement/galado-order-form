@@ -405,6 +405,7 @@ class GALADO_Bundles_Combos {
             'hide'    => galado_bundles_wcpa_hide_keys(),
             'i18n'    => [
                 'pick_model' => __('Select your model first', 'galado-bundles'),
+                'lens_colour' => __('Camera Lens Colour', 'galado-bundles'),
                 'pick_axis'  => __('Choose your option above first', 'galado-bundles'),
                 'added'      => __('Added', 'galado-bundles'),
                 'adding'     => __('Adding...', 'galado-bundles'),

@@ -29,6 +29,7 @@ class GALADO_Bundles_Extras {
             'checkout_url' => function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : '/checkout/',
             'i18n'         => [
                 'continue_label' => __('Continue to Checkout', 'galado-bundles'),
+                'case_confirm'   => __('Removing your case also removes the PWP add-ons with it. Remove everything?', 'galado-bundles'),
             ],
         ]);
     }

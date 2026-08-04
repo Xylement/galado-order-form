@@ -569,6 +569,15 @@ class GALADO_Bundles_Cart {
         if (!galado_bundles_can_transact()) return $class;
         if (!empty($cart_item['galado_bundle'])) {
             $class .= ' galado-bundle-line galado-bundle-' . sanitize_html_class($cart_item['galado_bundle']);
+        } elseif (!empty($cart_item['galado_addon_key']) || !empty($cart_item['galado_addon_price'])) {
+            $class .= ' galado-addon-line';
+        } else {
+            // Case rows get a marker so the cart JS can ask "removing this
+            // takes the PWP items too - sure?" before the sweep runs.
+            $parent = wc_get_product((int) $cart_item['product_id']);
+            if ($parent && GALADO_Bundles_Combos::is_case_pdp($parent)) {
+                $class .= ' galado-case-line';
+            }
         }
         return $class;
     }
