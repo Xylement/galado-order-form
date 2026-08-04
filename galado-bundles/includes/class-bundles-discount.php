@@ -44,26 +44,32 @@ class GALADO_Bundles_Discount {
     public static function pwp_display_saving() {
         if (!galado_bundles_can_transact()) return 0.0;
         $cart = function_exists('WC') ? WC()->cart : null;
-        if (!$cart || !GALADO_Bundles_Cart::cart_has_case($cart)) return 0.0;
+        if (!$cart) return 0.0;
         $saving = 0.0;
-        foreach (GALADO_Bundles_Cart::combo_instances($cart) as $e) {
-            if (empty($e['repriced'])) continue;
-            $own = 0.0; $paid = 0.0;
-            foreach ($e['keys'] as $k) {
-                $ci = $cart->get_cart_item($k);
-                if (!$ci) continue;
-                $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
-                $own  += ($p ? (float) wc_get_price_to_display($p) : 0.0) * max(1, (int) $ci['quantity']);
-                $paid += isset($ci['line_subtotal']) ? (float) $ci['line_subtotal'] : 0.0;
+        // Protection sets: strictly case-anchored.
+        if (GALADO_Bundles_Cart::cart_has_case($cart)) {
+            foreach (GALADO_Bundles_Cart::combo_instances($cart) as $e) {
+                if (empty($e['repriced'])) continue;
+                $own = 0.0; $paid = 0.0;
+                foreach ($e['keys'] as $k) {
+                    $ci = $cart->get_cart_item($k);
+                    if (!$ci) continue;
+                    $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
+                    $own  += ($p ? (float) wc_get_price_to_display($p) : 0.0) * max(1, (int) $ci['quantity']);
+                    $paid += isset($ci['line_subtotal']) ? (float) $ci['line_subtotal'] : 0.0;
+                }
+                if ($own > $paid) $saving += $own - $paid;
             }
-            if ($own > $paid) $saving += $own - $paid;
         }
-        foreach ($cart->get_cart() as $ci) {
-            if (empty($ci['galado_addon_price'])) continue;
-            $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
-            $own  = $p ? (float) wc_get_price_to_display($p) : 0.0;
-            $paid = (float) $ci['galado_addon_price'];
-            if ($own > $paid) $saving += ($own - $paid) * max(1, (int) $ci['quantity']);
+        // Accessory overrides: any anchor product qualifies (owner r15).
+        if (GALADO_Bundles_Cart::cart_has_anchor($cart)) {
+            foreach ($cart->get_cart() as $ci) {
+                if (empty($ci['galado_addon_price'])) continue;
+                $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
+                $own  = $p ? (float) wc_get_price_to_display($p) : 0.0;
+                $paid = (float) $ci['galado_addon_price'];
+                if ($own > $paid) $saving += ($own - $paid) * max(1, (int) $ci['quantity']);
+            }
         }
         return round($saving, 2);
     }

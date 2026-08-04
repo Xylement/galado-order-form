@@ -63,7 +63,7 @@ class GALADO_Bundles_Admin {
         echo '<p style="margin-left:16px"><label><input type="checkbox" name="galado_bundle_show_on_cases" value="1" ' . checked(true, '0' !== $soc, false) . '> Show on all case pages</label><br>';
         echo '<label>Also on categories (slugs, comma separated)<br><input type="text" name="galado_bundle_audience_cats" value="' . esc_attr(get_post_meta($post->ID, GALADO_BUNDLES_META . 'audience_cats', true)) . '" class="widefat" placeholder="phone-charm, bag-charm"></label>';
         echo '<label>Also on product IDs (comma separated)<br><input type="text" name="galado_bundle_audience_ids" value="' . esc_attr(get_post_meta($post->ID, GALADO_BUNDLES_META . 'audience_ids', true)) . '" class="widefat" placeholder="389955"></label>';
-        echo '<span class="description">Non-case pages show this shelf at NORMAL prices (PWP pricing needs a case). MacBook pages never show add-on modules.</span></p>';
+        echo '<span class="description">PWP prices show on every surface; they apply once the basket holds any anchor product (the page\'s own product counts). MacBook pages never show add-on modules.</span></p>';
         echo '<p><label>Cart fee label<br><input type="text" name="galado_bundle_fee_label" value="' . esc_attr($fee_label) . '" class="widefat" placeholder="Protect Set"></label>';
         echo '<span class="description">Cart shows "Bundle saving (label)". Empty = this bundle\'s title.</span></p>';
         echo '<p><label>Subtitle<br><input type="text" maxlength="140" name="galado_bundle_blurb" value="' . esc_attr($blurb) . '" class="widefat"></label></p>';

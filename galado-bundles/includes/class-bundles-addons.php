@@ -207,11 +207,11 @@ class GALADO_Bundles_Addons {
      * input, so this cannot reprice arbitrary lines. */
     public static function apply_addon_prices($cart) {
         if (!$cart) return;
-        // With-case means WITH A CASE (owner 2026-08-04 r6): no case line in
-        // the basket, no override. Re-checked on every totals pass, so
-        // removing the case reverts these prices instantly and re-adding it
-        // restores them - nothing to strip, nothing to un-strip.
-        if (!GALADO_Bundles_Cart::cart_has_case($cart)) return;
+        // PWP means WITH A PURCHASE (owner r15: any anchor product qualifies,
+        // a charm as much as a case). Re-checked on every totals pass, so
+        // removing the last anchor reverts these prices instantly and adding
+        // one back restores them - nothing to strip, nothing to un-strip.
+        if (!GALADO_Bundles_Cart::cart_has_anchor($cart)) return;
         foreach ($cart->get_cart() as $ci) {
             if (empty($ci['galado_addon_price']) || empty($ci['data'])) continue;
             $ci['data']->set_price((float) $ci['galado_addon_price']);
@@ -267,9 +267,9 @@ class GALADO_Bundles_Addons {
     }
 
     private static function build_page_groups($product) {
-        // Non-case surfaces (charm and Stylink pages) get their shelves at
-        // NORMAL prices - PWP pricing always needs a case - and add through
-        // the direct per-item path (no staging bar).
+        // PWP prices show on EVERY surface (owner r15): the page's own
+        // product is the qualifying purchase, whatever it is. The totals
+        // gate (cart_has_anchor) honours exactly what is promised here.
         $is_case = GALADO_Bundles_Combos::is_case_pdp($product);
 
         $out = [];
@@ -283,7 +283,7 @@ class GALADO_Bundles_Addons {
             $items = [];
             $group_index = [];
             foreach ($group['items'] as $it) {
-                $item = self::item_data($it, $product->get_id(), $is_case);
+                $item = self::item_data($it, $product->get_id());
                 if (!$item) continue;
                 $lbl = trim((string) ($it['label'] ?? ''));
                 if ('' === $lbl || 'variable' === $item['type']) {

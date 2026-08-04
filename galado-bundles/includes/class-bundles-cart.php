@@ -63,6 +63,31 @@ class GALADO_Bundles_Cart {
         return self::case_count($cart) > 0;
     }
 
+    /** How many ANCHOR lines are in the cart: any untagged product line.
+     * Accessory PWP prices apply with ANY purchase (owner r15: a charm
+     * qualifies like a case); protection sets stay strictly case-anchored. */
+    public static function anchor_count($cart = null) {
+        static $memo_hash = null, $memo = null;
+        $cart = $cart ?: (function_exists('WC') ? WC()->cart : null);
+        if (!$cart) return 0;
+        $sig = [];
+        foreach ($cart->get_cart() as $k => $ci) $sig[] = $k . ':' . (int) $ci['quantity'];
+        $hash = md5(implode('|', $sig));
+        if ($memo_hash === $hash && null !== $memo) return $memo;
+
+        $count = 0;
+        foreach ($cart->get_cart() as $ci) {
+            if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price'])) continue;
+            $count += max(1, (int) $ci['quantity']);
+        }
+        $memo_hash = $hash; $memo = $count;
+        return $count;
+    }
+
+    public static function cart_has_anchor($cart = null) {
+        return self::anchor_count($cart) > 0;
+    }
+
     /** How many cases anchor PWP deals: the sum of untagged case-line
      * quantities. One protection set is funded per case (owner r10: two
      * cases + two sets, remove one case, both sets kept the deal). */
@@ -95,13 +120,21 @@ class GALADO_Bundles_Cart {
         $cart = function_exists('WC') ? WC()->cart : null;
         if (!$cart) return;
         $map = self::combo_instances($cart);
-        if (!self::cart_has_case($cart)) {
-            $tagged = false;
+
+        // Accessory PWP lines with no anchor of any kind (owner r15).
+        if (!self::cart_has_anchor($cart)) {
             foreach ($cart->get_cart() as $ci) {
-                if (!empty($ci['galado_addon_price']) || isset($map[(string) ($ci['galado_bundle_uid'] ?? '')])) { $tagged = true; break; }
+                if (!empty($ci['galado_addon_price'])) {
+                    wc_add_notice(__('PWP prices apply when bought together with another product. Add a product to unlock the PWP prices.', 'galado-bundles'), 'notice');
+                    break;
+                }
             }
-            if ($tagged) {
-                wc_add_notice(__('PWP prices need a phone case in your basket. Add your case to unlock the PWP prices.', 'galado-bundles'), 'notice');
+        }
+
+        // Protection sets stay strictly case-anchored.
+        if (!self::cart_has_case($cart)) {
+            if ($map) {
+                wc_add_notice(__('Protection sets need a phone case in your basket for the PWP price.', 'galado-bundles'), 'notice');
             }
             return;
         }
@@ -354,7 +387,7 @@ class GALADO_Bundles_Cart {
     private static function addon_override_active($cart_item) {
         return !empty($cart_item['galado_addon_price'])
             && galado_bundles_can_transact()
-            && self::cart_has_case();
+            && self::cart_has_anchor();
     }
 
     public static function set_line_price($price, $cart_item, $cart_item_key = '') {
@@ -441,19 +474,26 @@ class GALADO_Bundles_Cart {
         $removed = $cart->removed_cart_contents[$removed_key] ?? null;
         if (!$removed) return;
         if (!empty($removed['galado_bundle']) || !empty($removed['galado_addon_key']) || !empty($removed['galado_addon_price'])) return;
-        $parent = wc_get_product((int) ($removed['product_id'] ?? 0));
-        if (!$parent || !GALADO_Bundles_Combos::is_case_pdp($parent)) return;
-        if (self::cart_has_case($cart)) return; // another case still anchors the deal
+
+        // Anchor semantics (owner r15): protection sets die with the LAST
+        // CASE; accessory PWP lines die with the LAST ANCHOR of any kind.
+        $sweep_combos = !self::cart_has_case($cart);
+        $sweep_addons = !self::cart_has_anchor($cart);
+        if (!$sweep_combos && !$sweep_addons) return;
 
         $swept = 0;
         foreach ($cart->get_cart() as $k => $ci) {
-            if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price'])) {
+            $is_combo_line = !empty($ci['galado_bundle']);
+            $is_addon_line = !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price']);
+            if (($sweep_combos && $is_combo_line) || ($sweep_addons && $is_addon_line)) {
                 $cart->remove_cart_item($k);
                 $swept++;
             }
         }
         if ($swept) {
-            wc_add_notice(__('Your PWP items go together with the case, so they were removed too. Add a case to pick them again at PWP prices.', 'galado-bundles'), 'notice');
+            wc_add_notice($sweep_combos
+                ? __('Your PWP items go together with the case, so they were removed too. Add a case to pick them again at PWP prices.', 'galado-bundles')
+                : __('PWP add-ons go together with your purchase, so they were removed too. Add a product to pick them again at PWP prices.', 'galado-bundles'), 'notice');
         }
     }
 
@@ -613,8 +653,11 @@ class GALADO_Bundles_Cart {
         } elseif (!empty($cart_item['galado_addon_key']) || !empty($cart_item['galado_addon_price'])) {
             $class .= ' galado-addon-line';
         } else {
-            // Case rows get a marker so the cart JS can ask "removing this
-            // takes the PWP items too - sure?" before the sweep runs.
+            // Anchor rows get markers so the cart JS can ask "removing this
+            // takes the PWP items too - sure?" before the sweep runs. Every
+            // untagged line anchors accessories; cases additionally anchor
+            // protection sets.
+            $class .= ' galado-anchor-line';
             $parent = wc_get_product((int) $cart_item['product_id']);
             if ($parent && GALADO_Bundles_Combos::is_case_pdp($parent)) {
                 $class .= ' galado-case-line';

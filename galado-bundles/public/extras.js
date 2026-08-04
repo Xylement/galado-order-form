@@ -56,14 +56,27 @@
       return document.querySelectorAll('tr.galado-bundle-line, tr.galado-addon-line').length > 0;
     };
 
-    // Path 1: the x remove link on a case row.
+    // Would removing this row end the deal for anything still in the basket?
+    // Protection rows ride the LAST CASE; accessory rows ride the LAST
+    // ANCHOR of any kind (owner r15).
+    var removalEndsDeal = function (row) {
+      var lastCase = row.classList.contains('galado-case-line') &&
+        document.querySelectorAll('tr.galado-case-line').length <= 1;
+      var lastAnchor = row.classList.contains('galado-anchor-line') &&
+        document.querySelectorAll('tr.galado-anchor-line').length <= 1;
+      if (lastCase && document.querySelector('tr.galado-bundle-line')) return true;
+      if (lastAnchor && document.querySelector('tr.galado-addon-line, tr.galado-bundle-line')) return true;
+      return false;
+    };
+
+    // Path 1: the x remove link on an anchor row.
     document.addEventListener('click', function (e) {
       var t = e.target;
       if (!t || !t.closest) return;
-      var link = t.closest('tr.galado-case-line a.remove, tr.galado-case-line .remove');
+      var link = t.closest('tr.galado-anchor-line a.remove, tr.galado-anchor-line .remove');
       if (!link) return;
-      if (document.querySelectorAll('tr.galado-case-line').length > 1) return; // another case anchors the deal
-      if (!pwpRows()) return; // nothing rides on it
+      var row = link.closest('tr.galado-anchor-line');
+      if (!row || !removalEndsDeal(row)) return;
       if (!window.confirm(msg())) {
         e.preventDefault();
         e.stopPropagation();
@@ -74,16 +87,22 @@
     // case without touching the x. If the update would leave ZERO cases
     // while PWP rows exist, confirm first; cancel keeps the basket as-is.
     var updateGuard = function (e) {
-      var rows = document.querySelectorAll('tr.galado-case-line');
-      if (!rows.length || !pwpRows()) return;
-      var remaining = 0;
-      Array.prototype.forEach.call(rows, function (row) {
-        var inp = row.querySelector('input.qty');
-        if (!inp) { remaining += 1; return; } // no input = row not editable, stays
-        var v = parseFloat(inp.value);
-        remaining += isNaN(v) ? 0 : v;
-      });
-      if (remaining > 0) return;
+      if (!pwpRows()) return;
+      var sumQty = function (selector) {
+        var total = 0;
+        Array.prototype.forEach.call(document.querySelectorAll(selector), function (row) {
+          var inp = row.querySelector('input.qty');
+          if (!inp) { total += 1; return; } // no input = row not editable, stays
+          var v = parseFloat(inp.value);
+          total += isNaN(v) ? 0 : v;
+        });
+        return total;
+      };
+      var casesLeft = sumQty('tr.galado-case-line');
+      var anchorsLeft = sumQty('tr.galado-anchor-line');
+      var endsCombos = casesLeft === 0 && document.querySelector('tr.galado-bundle-line');
+      var endsAddons = anchorsLeft === 0 && document.querySelector('tr.galado-addon-line');
+      if (!endsCombos && !endsAddons) return;
       if (!window.confirm(msg())) {
         e.preventDefault();
         e.stopPropagation();
