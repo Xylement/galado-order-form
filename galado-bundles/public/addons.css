@@ -13,6 +13,7 @@
 .gld-addon.is-open .gld-addon__circle{border-color:#111111;box-shadow:0 0 0 2px #111111}
 .gld-addon__name{font-size:11.5px;line-height:1.3;max-height:30px;overflow:hidden}
 .gld-addon__price{font-family:'Archivo',sans-serif;font-weight:700;font-size:12.5px}
+.gld-addon__price s{color:#9A9A94;font-weight:400;font-size:11px;margin-left:2px}
 .gld-addon__add{min-height:32px;padding:6px 14px;background:transparent;color:#111111;border:1.5px solid #111111;border-radius:999px;font-size:12px;font-weight:700;line-height:1.2;cursor:pointer;font-family:inherit;text-transform:none;letter-spacing:0;white-space:nowrap;transition:background .15s,color .15s}
 .gld-addon__add:hover{background:#111111;color:#fff}
 .gld-addon__add:disabled{opacity:.45;cursor:default}

@@ -18,6 +18,7 @@
         slot: it.slot, product_id: it.product_id, line_type: it.line_type, qty: it.qty,
         variation_mode: it.variation_mode, default_variation_id: it.default_variation_id,
         match_attrs: it.match_attrs || {},
+        addon_price: parseFloat(it.addon_price) || 0,
         label: it.label || '', name_cache: it.name_cache || '', price_cache: it.price_cache || 0
       };
     })));
@@ -88,6 +89,9 @@
     var $qty = $('<label class="gb-qty">Qty <input type="number" min="1" value="' + (it.qty || 1) + '"></label>');
     $qty.find('input').on('change', function () { it.qty = Math.max(1, parseInt(this.value, 10) || 1); serialize(); });
     $main.append($qty);
+    var $ap = $('<label class="gb-qty" title="Add-on shelves only: sell this item at a special with-case price. 0 = normal price.">Add-on RM <input type="number" min="0" step="0.01" value="' + (it.addon_price || 0) + '"></label>');
+    $ap.find('input').on('change', function () { it.addon_price = Math.max(0, parseFloat(this.value) || 0); serialize(); });
+    $main.append($ap);
     $row.append($main);
 
     var $rm = $('<button type="button" class="gb-remove button-link" title="Remove">&times;</button>');

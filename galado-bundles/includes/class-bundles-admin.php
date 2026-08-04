@@ -217,6 +217,7 @@ class GALADO_Bundles_Admin {
                 'variation_mode'       => $mode,
                 'default_variation_id' => $default_variation,
                 'match_attrs'          => $match_attrs,
+                'addon_price'          => max(0, (float) ($r['addon_price'] ?? 0)),
                 'label'                => sanitize_text_field($r['label'] ?? ''),
                 'name_cache'           => $p->get_name(),
                 'price_cache'          => round($price, 2),

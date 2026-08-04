@@ -282,6 +282,7 @@ class GALADO_Bundles_Data {
                 'variation_mode'       => $mode,
                 'default_variation_id' => 'simple' === $line_type ? 0 : (int) ($r['default_variation_id'] ?? 0),
                 'match_attrs'          => $match,
+                'addon_price'          => max(0.0, (float) ($r['addon_price'] ?? 0)),
                 'label'                => (string) ($r['label'] ?? ''),
                 'name_cache'           => (string) ($r['name_cache'] ?? ''),
                 'price_cache'          => (float) ($r['price_cache'] ?? 0),

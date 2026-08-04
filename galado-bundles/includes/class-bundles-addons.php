@@ -25,6 +25,28 @@ class GALADO_Bundles_Addons {
         add_action('woocommerce_after_single_product_summary', [__CLASS__, 'render'], 6);
         add_action('wc_ajax_galado_addon_add', [__CLASS__, 'ajax_add']);
         add_action('wc_ajax_nopriv_galado_addon_add', [__CLASS__, 'ajax_add']);
+        // With-case add-on pricing: shelf items can sell below their standalone
+        // price (the old WCPA rows were priced this way). The override is set
+        // server-side at add time and applied on every totals pass.
+        add_action('woocommerce_before_calculate_totals', [__CLASS__, 'apply_addon_prices'], 20);
+        add_filter('woocommerce_get_cart_item_from_session', [__CLASS__, 'rehydrate'], 20, 2);
+    }
+
+    /** Keep the add-on price across sessions. */
+    public static function rehydrate($item, $values) {
+        if (!empty($values['galado_addon_price'])) $item['galado_addon_price'] = $values['galado_addon_price'];
+        return $item;
+    }
+
+    /** Set the with-case price on lines added from a shelf. The key is only
+     * ever written by ajax_add from the CURATED item list, never from client
+     * input, so this cannot reprice arbitrary lines. */
+    public static function apply_addon_prices($cart) {
+        if (!$cart) return;
+        foreach ($cart->get_cart() as $ci) {
+            if (empty($ci['galado_addon_price']) || empty($ci['data'])) continue;
+            $ci['data']->set_price((float) $ci['galado_addon_price']);
+        }
     }
 
     private static function visible() {
@@ -73,13 +95,17 @@ class GALADO_Bundles_Addons {
         $p = wc_get_product($pid);
         if (!$p || 'publish' !== $p->get_status() || !$p->is_purchasable() || !$p->is_in_stock()) return null;
 
+        $addon_price = max(0.0, (float) ($it['addon_price'] ?? 0));
+        $own_price   = (float) wc_get_price_to_display($p);
         $base = [
-            'product_id' => $pid,
-            'name'       => $p->get_name(),
-            'thumb'      => wp_get_attachment_image_url($p->get_image_id(), 'woocommerce_thumbnail') ?: wc_placeholder_img_src(),
-            'price'      => (float) wc_get_price_to_display($p),
-            'type'       => $p->is_type('variable') ? 'variable' : 'simple',
-            'options'    => [],
+            'product_id'  => $pid,
+            'name'        => $p->get_name(),
+            'thumb'       => wp_get_attachment_image_url($p->get_image_id(), 'woocommerce_thumbnail') ?: wc_placeholder_img_src(),
+            'price'       => $addon_price > 0 ? $addon_price : $own_price,
+            'was'         => ($addon_price > 0 && $addon_price < $own_price) ? $own_price : 0,
+            'addon_price' => $addon_price,
+            'type'        => $p->is_type('variable') ? 'variable' : 'simple',
+            'options'     => [],
         ];
 
         if ('variable' === $base['type']) {
@@ -107,6 +133,9 @@ class GALADO_Bundles_Addons {
                 ];
             }
             if (!$opts) return null;
+            if ($addon_price > 0) {
+                foreach ($opts as $i => $o) $opts[$i]['price'] = $addon_price;
+            }
             $base['options'] = $opts;
             $base['price']   = min(wp_list_pluck($opts, 'price'));
         }
@@ -143,7 +172,7 @@ class GALADO_Bundles_Addons {
             <article class="gld-addon" role="listitem" data-product="<?php echo esc_attr($it['product_id']); ?>" data-type="<?php echo esc_attr($it['type']); ?>">
               <span class="gld-addon__circle"><img src="<?php echo esc_url($it['thumb']); ?>" alt="" loading="lazy" width="72" height="72"></span>
               <span class="gld-addon__name"><?php echo esc_html($it['name']); ?></span>
-              <span class="gld-addon__price">+RM<?php echo esc_html(self::rm($it['price'])); ?></span>
+              <span class="gld-addon__price">+RM<?php echo esc_html(self::rm($it['price'])); ?><?php if (!empty($it['was'])) : ?> <s>RM<?php echo esc_html(self::rm($it['was'])); ?></s><?php endif; ?></span>
               <button type="button" class="gld-addon__add" data-gld-addon-add disabled><?php esc_html_e('Add +', 'galado-bundles'); ?></button>
             </article>
             <?php endforeach; ?>
@@ -174,9 +203,14 @@ class GALADO_Bundles_Addons {
         // Only products curated into an active add-on group are addable here;
         // this endpoint is not a generic add-to-cart.
         $allowed = false;
+        $addon_price = 0.0;
         foreach (GALADO_Bundles_Data::get_addon_groups() as $group) {
             foreach ($group['items'] as $it) {
-                if ((int) $it['product_id'] === $pid) { $allowed = true; break 2; }
+                if ((int) $it['product_id'] === $pid) {
+                    $allowed = true;
+                    $addon_price = max(0.0, (float) ($it['addon_price'] ?? 0));
+                    break 2;
+                }
             }
         }
         $p = $allowed && $pid ? wc_get_product($pid) : null;
@@ -189,9 +223,9 @@ class GALADO_Bundles_Addons {
             if (!$v || $v->get_parent_id() !== $pid || !$v->is_purchasable() || !$v->is_in_stock()) {
                 wp_send_json(['ok' => false, 'message' => __('That option just sold out, please pick another.', 'galado-bundles')]);
             }
-            $key = WC()->cart->add_to_cart($pid, 1, $vid, $v->get_variation_attributes());
+            $key = WC()->cart->add_to_cart($pid, 1, $vid, $v->get_variation_attributes(), $addon_price > 0 ? ['galado_addon_price' => $addon_price] : []);
         } else {
-            $key = WC()->cart->add_to_cart($pid, 1);
+            $key = WC()->cart->add_to_cart($pid, 1, 0, [], $addon_price > 0 ? ['galado_addon_price' => $addon_price] : []);
         }
 
         if (!$key) {
@@ -206,15 +240,26 @@ class GALADO_Bundles_Addons {
      * hot-sellers first from verified live products. Draft; ops publishes. */
     public static function seed_accessories_group() {
         $slug = 'addons-accessories';
-        if (get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT)) return 0;
 
-        // Verified 2026-08-04, ordered by units sold: crossbody 6mm (94),
-        // Cloud grip (87), Nova ring stand (31), mini wrist strap (29),
-        // crossbody 7mm (15).
-        $product_ids = [236439, 277284, 300306, 321013, 384007];
+        // The old WCPA "Add Protection" accessory rows (owner 2026-08-04),
+        // minus tempered glass + camera lens (now protector combos), mapped to
+        // real products with their WITH-CASE add-on prices:
+        //   360 Ultra Slim Card #317620 RM35 (own price, colour variants)
+        //   Mini Wrist Strap (Titanium Gold) #321013 at RM59 (own RM75)
+        //   Crossbody (All Black 6mm) #236439 at RM69 (own RM89)
+        //   Cloud MagSafe Grip #277284 at RM55 (own RM69)
+        // The WCPA "Mini Phone Charm RM55" row has NO matching product in the
+        // catalogue and awaits the owner's pick.
+        $lineup = [
+            [317620, 0.0],
+            [321013, 59.0],
+            [236439, 69.0],
+            [277284, 55.0],
+        ];
 
         $items = [];
-        foreach ($product_ids as $n => $pid) {
+        foreach ($lineup as $n => $pair) {
+            $pid = $pair[0];
             $p = wc_get_product($pid);
             if (!$p || 'publish' !== $p->get_status()) continue;
             $items[] = [
@@ -225,12 +270,22 @@ class GALADO_Bundles_Addons {
                 'variation_mode'       => $p->is_type('variable') ? 'shopper_choice' : 'fixed',
                 'default_variation_id' => 0,
                 'match_attrs'          => [],
+                'addon_price'          => (float) $pair[1],
                 'label'                => '',
                 'name_cache'           => $p->get_name(),
                 'price_cache'          => (float) wc_get_price_to_display($p),
             ];
         }
         if (!$items) return 0;
+
+        $existing = get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT);
+        if ($existing) {
+            // Idempotent line-up sync: the seed button re-asserts the canonical
+            // shelf; staff tweaks beyond it live in wp-admin edits afterwards.
+            update_post_meta($existing->ID, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
+            do_action('galado_bundles_changed', [$existing->ID]);
+            return 0;
+        }
 
         $post_id = wp_insert_post([
             'post_type'   => GALADO_BUNDLES_CPT,
