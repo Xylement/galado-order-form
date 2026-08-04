@@ -130,7 +130,9 @@ class GALADO_Bundles_Addons {
             // gate-checked totals.
             $combo_line = [];
             foreach (GALADO_Bundles_Cart::combo_instances(WC()->cart) as $e) {
-                if (!$e['complete']) continue;
+                // Only case-funded sets carry the promise; an over-budget set's
+                // lines fall through to the per-line loop at real prices.
+                if (empty($e['repriced'])) continue;
                 $count += 1;
                 $own_sum = 0.0;
                 foreach ($e['keys'] as $k) {
@@ -276,7 +278,10 @@ class GALADO_Bundles_Addons {
                         'thumb'       => $item['thumb'],
                         'price'       => $item['price'],
                         'was'         => $item['was'],
-                        'addon_price' => 0,
+                        // The members' PWP price: the bar computes its staged
+                        // Discount from this (a hardcoded 0 here was why
+                        // accessory savings never reached the bar - owner r10).
+                        'addon_price' => $item['addon_price'],
                         'type'        => 'group',
                         'options'     => [],
                     ];

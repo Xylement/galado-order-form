@@ -60,6 +60,10 @@
       return { price: entry.promised, reused: !pwp && ap > 0 };
     },
     stageCombo: function (item) {
+      // One protection set per case (owner r10): staging a set replaces any
+      // previously staged one - two glasses cannot go on one phone, and the
+      // server prices only one set per case anyway.
+      stage = stage.filter(function (s) { return s.type !== 'combo'; });
       stage.push({
         type: 'combo',
         slug: String(item.slug || ''),

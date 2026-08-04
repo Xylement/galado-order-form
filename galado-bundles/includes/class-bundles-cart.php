@@ -60,20 +60,31 @@ class GALADO_Bundles_Cart {
      * pa_model product cannot self-justify its own discount.
      */
     public static function cart_has_case($cart = null) {
+        return self::case_count($cart) > 0;
+    }
+
+    /** How many cases anchor PWP deals: the sum of untagged case-line
+     * quantities. One protection set is funded per case (owner r10: two
+     * cases + two sets, remove one case, both sets kept the deal). */
+    public static function case_count($cart = null) {
         static $memo_hash = null, $memo = null;
         $cart = $cart ?: (function_exists('WC') ? WC()->cart : null);
-        if (!$cart) return false;
-        $hash = md5(implode('|', array_keys($cart->get_cart())));
+        if (!$cart) return 0;
+        $sig = [];
+        foreach ($cart->get_cart() as $k => $ci) $sig[] = $k . ':' . (int) $ci['quantity'];
+        $hash = md5(implode('|', $sig));
         if ($memo_hash === $hash && null !== $memo) return $memo;
 
-        $has = false;
+        $count = 0;
         foreach ($cart->get_cart() as $ci) {
             if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price'])) continue;
             $parent = wc_get_product((int) $ci['product_id']);
-            if ($parent && GALADO_Bundles_Combos::is_case_pdp($parent)) { $has = true; break; }
+            if ($parent && GALADO_Bundles_Combos::is_case_pdp($parent)) {
+                $count += max(1, (int) $ci['quantity']);
+            }
         }
-        $memo_hash = $hash; $memo = $has;
-        return $has;
+        $memo_hash = $hash; $memo = $count;
+        return $count;
     }
 
     /** Cart/checkout notice when with-case priced items sit in a caseless
@@ -82,14 +93,25 @@ class GALADO_Bundles_Cart {
     public static function caseless_notice() {
         if (!galado_bundles_can_transact()) return;
         $cart = function_exists('WC') ? WC()->cart : null;
-        if (!$cart || self::cart_has_case($cart)) return;
+        if (!$cart) return;
         $map = self::combo_instances($cart);
-        $tagged = false;
-        foreach ($cart->get_cart() as $ci) {
-            if (!empty($ci['galado_addon_price']) || isset($map[(string) ($ci['galado_bundle_uid'] ?? '')])) { $tagged = true; break; }
+        if (!self::cart_has_case($cart)) {
+            $tagged = false;
+            foreach ($cart->get_cart() as $ci) {
+                if (!empty($ci['galado_addon_price']) || isset($map[(string) ($ci['galado_bundle_uid'] ?? '')])) { $tagged = true; break; }
+            }
+            if ($tagged) {
+                wc_add_notice(__('PWP prices need a phone case in your basket. Add your case to unlock the PWP prices.', 'galado-bundles'), 'notice');
+            }
+            return;
         }
-        if (!$tagged) return;
-        wc_add_notice(__('PWP prices need a phone case in your basket. Add your case to unlock the PWP prices.', 'galado-bundles'), 'notice');
+        // Case budget exceeded: a set past the budget sits at normal price.
+        foreach ($map as $e) {
+            if ($e['complete'] && empty($e['repriced'])) {
+                wc_add_notice(__('Each protection set needs its own case for the PWP price, so the extra set is at normal price.', 'galado-bundles'), 'notice');
+                break;
+            }
+        }
     }
 
     /**
@@ -232,19 +254,29 @@ class GALADO_Bundles_Cart {
                 'lead'        => $d['keys'][0],
             ];
         }
+
+        // Case budget (owner r10): each complete set needs its OWN case for
+        // the deal. First-come order; the flag is computed here so pricing,
+        // grouping, counts and notices all read the same verdict.
+        $budget = self::case_count($cart);
+        foreach ($out as $uid => $e) {
+            $out[$uid]['repriced'] = $e['complete'] && $budget > 0;
+            if ($out[$uid]['repriced']) $budget--;
+        }
+
         $memo_hash = $hash; $memo = $out;
         return $out;
     }
 
-    /** The COMPLETE instance a line belongs to, or null. Caseless carts get
-     * null for everything: no case, no set deal, so the pieces ungroup into
-     * plain full-price lines that match the reverted totals. */
+    /** The case-funded instance a line belongs to, or null. Instances beyond
+     * the case budget (and everything in a caseless cart) return null, so
+     * those pieces ungroup into plain full-price lines that match the
+     * unrepriced totals. */
     private static function instance_for($cart_item) {
         if (empty($cart_item['galado_bundle_uid'])) return null;
-        if (!self::cart_has_case()) return null;
         $map = self::combo_instances();
         $e = $map[(string) $cart_item['galado_bundle_uid']] ?? null;
-        return ($e && $e['complete']) ? $e : null;
+        return ($e && !empty($e['repriced'])) ? $e : null;
     }
 
     /** What the whole instance costs right now (repriced line subtotals). */
@@ -378,7 +410,7 @@ class GALADO_Bundles_Cart {
         $cart = function_exists('WC') ? WC()->cart : null;
         if (!$cart || !self::cart_has_case($cart)) return $count;
         foreach (self::combo_instances($cart) as $e) {
-            if (!$e['complete']) continue;
+            if (empty($e['repriced'])) continue;
             $qty = 0;
             foreach ($e['keys'] as $k) {
                 $ci = $cart->get_cart_item($k);

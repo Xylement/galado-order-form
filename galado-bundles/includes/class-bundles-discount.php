@@ -47,7 +47,7 @@ class GALADO_Bundles_Discount {
         if (!$cart || !GALADO_Bundles_Cart::cart_has_case($cart)) return 0.0;
         $saving = 0.0;
         foreach (GALADO_Bundles_Cart::combo_instances($cart) as $e) {
-            if (!$e['complete']) continue;
+            if (empty($e['repriced'])) continue;
             $own = 0.0; $paid = 0.0;
             foreach ($e['keys'] as $k) {
                 $ci = $cart->get_cart_item($k);
@@ -103,11 +103,12 @@ class GALADO_Bundles_Discount {
         if (!galado_bundles_can_transact()) return;
 
         self::$applied_combos = [];
-        // Combo pricing is with-case pricing (owner 2026-08-04 r6): a caseless
-        // basket keeps every component at its natural price.
+        // Combo pricing is with-case pricing, ONE SET PER CASE (owner r6+r10):
+        // combo_instances() stamps 'repriced' on complete instances up to the
+        // case count; everything else keeps its natural price.
         if (!GALADO_Bundles_Cart::cart_has_case($cart)) return;
         foreach (GALADO_Bundles_Cart::combo_instances($cart) as $e) {
-            if (!$e['complete']) continue;
+            if (empty($e['repriced'])) continue;
 
             $own = []; $sum = 0.0; $broken = false;
             foreach ($e['keys'] as $k) {
