@@ -92,10 +92,19 @@ class GALADO_Bundles_Combos {
 
     // ---- PDP gate -----------------------------------------------------------
 
-    /** Is this product a phone-case PDP the module belongs on? */
+    /** Is this product a phone-case PDP the module belongs on? Memoized per
+     * request: post-launch this runs per cart line inside several display
+     * filters (line classes, anchor counts, sale prices), and each call was
+     * re-querying the combos list. */
     public static function is_case_pdp($product) {
+        static $memo = [];
         if (!$product || !$product->is_type('variable')) return false;
         $pid = $product->get_id();
+        if (isset($memo[$pid])) return $memo[$pid];
+        return $memo[$pid] = self::compute_is_case_pdp($product, $pid);
+    }
+
+    private static function compute_is_case_pdp($product, $pid) {
         if (in_array($pid, galado_bundles_excluded_products(), true)) return false;
 
         // Never on a page that IS one of the combo components.
