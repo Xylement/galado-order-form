@@ -48,19 +48,56 @@
    * fires for customers. Capture phase beats any theme AJAX-remove handler.
    */
   function bindCaseGuard() {
+    var msg = function () {
+      return (CFG.i18n && CFG.i18n.case_confirm) ||
+        'Removing your case also removes the PWP add-ons with it. Remove everything?';
+    };
+    var pwpRows = function () {
+      return document.querySelectorAll('tr.galado-bundle-line, tr.galado-addon-line').length > 0;
+    };
+
+    // Path 1: the x remove link on a case row.
     document.addEventListener('click', function (e) {
       var t = e.target;
       if (!t || !t.closest) return;
       var link = t.closest('tr.galado-case-line a.remove, tr.galado-case-line .remove');
       if (!link) return;
       if (document.querySelectorAll('tr.galado-case-line').length > 1) return; // another case anchors the deal
-      if (!document.querySelectorAll('tr.galado-bundle-line, tr.galado-addon-line').length) return; // nothing rides on it
-      var msg = (CFG.i18n && CFG.i18n.case_confirm) ||
-        'Removing your case also removes the PWP add-ons with it. Remove everything?';
-      if (!window.confirm(msg)) {
+      if (!pwpRows()) return; // nothing rides on it
+      if (!window.confirm(msg())) {
         e.preventDefault();
         e.stopPropagation();
       }
+    }, true);
+
+    // Path 2 (owner r11): quantity set to 0 + "Update basket" removes the
+    // case without touching the x. If the update would leave ZERO cases
+    // while PWP rows exist, confirm first; cancel keeps the basket as-is.
+    var updateGuard = function (e) {
+      var rows = document.querySelectorAll('tr.galado-case-line');
+      if (!rows.length || !pwpRows()) return;
+      var remaining = 0;
+      Array.prototype.forEach.call(rows, function (row) {
+        var inp = row.querySelector('input.qty');
+        if (!inp) { remaining += 1; return; } // no input = row not editable, stays
+        var v = parseFloat(inp.value);
+        remaining += isNaN(v) ? 0 : v;
+      });
+      if (remaining > 0) return;
+      if (!window.confirm(msg())) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener('submit', function (e) {
+      var f = e.target;
+      if (f && f.classList && f.classList.contains('woocommerce-cart-form')) updateGuard(e);
+    }, true);
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var btn = t.closest('button[name="update_cart"], input[name="update_cart"]');
+      if (btn) updateGuard(e);
     }, true);
   }
 
