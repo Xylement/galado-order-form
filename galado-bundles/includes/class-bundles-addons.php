@@ -141,11 +141,14 @@ class GALADO_Bundles_Addons {
                         'allowed'     => true,
                         'addon_price' => max(0.0, (float) ($it['addon_price'] ?? 0)),
                         'circle'      => '' !== $lbl ? 'g-' . sanitize_title($lbl) : (string) $pid,
+                        // Which shelf curates it: the app quote needs this to
+                        // apply per-shelf quantity tiers (clip-ons 3/5).
+                        'shelf'       => (string) $group['slug'],
                     ];
                 }
             }
         }
-        return ['allowed' => false, 'addon_price' => 0.0, 'circle' => ''];
+        return ['allowed' => false, 'addon_price' => 0.0, 'circle' => '', 'shelf' => ''];
     }
 
     /** Add one curated shelf item to the cart, honouring once-per-circle

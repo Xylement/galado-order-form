@@ -25,6 +25,22 @@ class GALADO_Bundles_REST {
                 'all'      => ['sanitize_callback' => 'absint'],
             ],
         ]);
+        // Native-app surface: same public data the web PDP renders, plus a
+        // stateless priced quote. Both master-gated inside the callbacks so
+        // the app goes dark with the web.
+        register_rest_route('galado-bundles/v1', '/app-page', [
+            'methods'             => 'GET',
+            'permission_callback' => '__return_true',
+            'callback'            => ['GALADO_Bundles_App', 'rest_page'],
+            'args'                => [
+                'product_id' => ['sanitize_callback' => 'absint', 'required' => true],
+            ],
+        ]);
+        register_rest_route('galado-bundles/v1', '/app-quote', [
+            'methods'             => 'POST',
+            'permission_callback' => '__return_true',
+            'callback'            => ['GALADO_Bundles_App', 'rest_quote'],
+        ]);
         register_rest_route('galado-bundles/v1', '/product-search', [
             'methods'             => 'GET',
             'permission_callback' => [__CLASS__, 'can_manage'],

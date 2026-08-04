@@ -64,9 +64,10 @@ class GALADO_Bundles_Combos {
         return $extra;
     }
 
-    /** Resolve a combo for a model and add it (all-or-nothing). Shared by the
-     * per-combo AJAX add and the atomic Buy Now checkout. */
-    public static function add_for_model($slug, $model, $extra) {
+    /** Resolve a combo's model_match variations WITHOUT carting anything.
+     * Shared by add_for_model (web cart) and the app quote (stateless), so
+     * both surfaces resolve components with byte-identical rules. */
+    public static function resolve_for_model($slug, $model, $extra) {
         $desc = GALADO_Bundles_Data::get($slug);
         if (!$desc || empty($desc['combo']) || 'publish' !== $desc['status'] || '' === $model) {
             return ['ok' => false, 'message' => __('That combo is not available.', 'galado-bundles')];
@@ -80,7 +81,15 @@ class GALADO_Bundles_Combos {
             }
             $selections[$it['slot']] = $vid;
         }
-        return GALADO_Bundles_Cart::add_bundle($desc, $selections);
+        return ['ok' => true, 'desc' => $desc, 'selections' => $selections];
+    }
+
+    /** Resolve a combo for a model and add it (all-or-nothing). Shared by the
+     * per-combo AJAX add and the atomic Buy Now checkout. */
+    public static function add_for_model($slug, $model, $extra) {
+        $resolved = self::resolve_for_model($slug, $model, $extra);
+        if (empty($resolved['ok'])) return $resolved;
+        return GALADO_Bundles_Cart::add_bundle($resolved['desc'], $resolved['selections']);
     }
 
     /** Customers need both flags; staff preview while dark (same gate as the
