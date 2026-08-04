@@ -131,6 +131,7 @@ class GALADO_Bundles_Discount {
     public static function apply_fees(WC_Cart $cart) {
         if (is_admin() && !defined('DOING_AJAX')) return;
         if (null === $cart) return;
+        if (!galado_bundles_can_transact()) return; // dark for this visitor
 
         $map = self::satisfied($cart);
         if (!$map) return;
@@ -170,6 +171,7 @@ class GALADO_Bundles_Discount {
      * valid on the rest of the cart. Only blocks while the bundle is complete. */
     public static function block_tier_on_bundle_lines($valid, $product, $coupon) {
         if (!$valid) return $valid;
+        if (!galado_bundles_can_transact()) return $valid;
         if (!($coupon instanceof WC_Coupon)) return $valid;
         if (!in_array(strtolower($coupon->get_code()), self::tier_codes(), true)) return $valid;
         $cart = WC()->cart;

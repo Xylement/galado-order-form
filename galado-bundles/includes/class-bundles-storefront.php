@@ -214,7 +214,7 @@ class GALADO_Bundles_Storefront {
             'cart_url' => wc_get_cart_url(),
             // Dark admin preview: the add endpoint is not registered, so the JS
             // shows a note instead of a broken request.
-            'preview'  => !galado_bundles_storefront_enabled(),
+            'preview'  => !galado_bundles_can_transact(),
         ]);
     }
 

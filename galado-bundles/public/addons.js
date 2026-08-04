@@ -157,6 +157,11 @@
   function dedupeWcpa() {
     var keys = CFG.hide || [];
     if (!keys.length) return;
+    // Owner 2026-08-04: the WCPA Case/Total price summary is redundant on
+    // pages where our modules sell the add-ons; remove it outright here.
+    Array.prototype.forEach.call(document.querySelectorAll('.wcpa_price_summary'), function (el) {
+      el.style.display = 'none';
+    });
     var fields = document.querySelectorAll('.wcpa_form_item, [class*="wcpa_type_"], .wcpa-form .form-group');
     Array.prototype.forEach.call(fields, function (el) {
       var name = ((el.getAttribute('data-name') || '') + ' ' + el.textContent).toLowerCase();

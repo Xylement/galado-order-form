@@ -26,6 +26,9 @@ class GALADO_Bundles_Cart {
     /** Primary path: AJAX, all-or-nothing, stay on page. */
     public static function ajax_add() {
         self::no_cache();
+        if (!galado_bundles_can_transact()) {
+            wp_send_json(['ok' => false, 'message' => __('Preview mode. Turn the storefront on to enable checkout.', 'galado-bundles')]);
+        }
         $slug = isset($_REQUEST['slug']) ? sanitize_title(wp_unslash($_REQUEST['slug'])) : '';
         if ('' === $slug && !empty($_REQUEST['bundle_id'])) {
             $desc = GALADO_Bundles_Data::get((int) $_REQUEST['bundle_id']);
@@ -50,6 +53,7 @@ class GALADO_Bundles_Cart {
         if ('' === $slug) return;
         if (is_admin() || (defined('DOING_AJAX') && DOING_AJAX)) return;
         self::no_cache();
+        if (!galado_bundles_can_transact()) return; // dark for this visitor
         if (!function_exists('WC') || !WC()->cart) return;
 
         $desc = GALADO_Bundles_Data::get($slug);
@@ -155,6 +159,7 @@ class GALADO_Bundles_Cart {
 
     /** "Part of: The Icons Duo" under each tagged line. */
     public static function line_meta($data, $cart_item) {
+        if (!galado_bundles_can_transact()) return $data; // never decorate #95's lines for dark customers
         if (empty($cart_item['galado_bundle'])) return $data;
         $desc = GALADO_Bundles_Data::get((string) $cart_item['galado_bundle']);
         if ($desc) {
@@ -164,6 +169,7 @@ class GALADO_Bundles_Cart {
     }
 
     public static function line_class($class, $cart_item, $cart_item_key) {
+        if (!galado_bundles_can_transact()) return $class;
         if (!empty($cart_item['galado_bundle'])) {
             $class .= ' galado-bundle-line galado-bundle-' . sanitize_html_class($cart_item['galado_bundle']);
         }
@@ -173,6 +179,7 @@ class GALADO_Bundles_Cart {
     /** "Remove set" (owner decision 6): delete all lines sharing one uid. */
     public static function handle_remove_set() {
         if (empty($_GET['galado_remove_set'])) return;
+        if (!galado_bundles_can_transact()) return;
         $uid = sanitize_text_field(wp_unslash($_GET['galado_remove_set']));
         if (!wp_verify_nonce($_GET['_wpnonce'] ?? '', 'galado_remove_set_' . $uid)) return;
         foreach (WC()->cart->get_cart() as $key => $ci) {

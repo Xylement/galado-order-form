@@ -34,10 +34,8 @@ class GALADO_Bundles_Combos {
         add_action('woocommerce_after_add_to_cart_form', [__CLASS__, 'render']);
         add_action('woocommerce_single_product_summary', [__CLASS__, 'render'], 39);
         add_action('woocommerce_after_single_product_summary', [__CLASS__, 'render'], 5);
-        if (galado_bundles_storefront_enabled()) {
-            add_action('wc_ajax_galado_combo_add', [__CLASS__, 'ajax_add']);
-            add_action('wc_ajax_nopriv_galado_combo_add', [__CLASS__, 'ajax_add']);
-        }
+        add_action('wc_ajax_galado_combo_add', [__CLASS__, 'ajax_add']);
+        add_action('wc_ajax_nopriv_galado_combo_add', [__CLASS__, 'ajax_add']);
     }
 
     /** Customers need both flags; staff preview while dark (same gate as the
@@ -313,7 +311,7 @@ class GALADO_Bundles_Combos {
             'ajax'    => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_combo_add') : '',
             'models'  => $models,
             'cards'   => wp_list_pluck($cards, 'models', 'slug'),
-            'preview' => !galado_bundles_storefront_enabled(),
+            'preview' => !galado_bundles_can_transact(),
             'hide'    => galado_bundles_wcpa_hide_keys(),
             'i18n'    => [
                 'pick_model' => __('Select your model first', 'galado-bundles'),
@@ -363,6 +361,9 @@ class GALADO_Bundles_Combos {
      * server-side, then hand the validated plan to the shared bundle adder. */
     public static function ajax_add() {
         if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
+        if (!galado_bundles_can_transact()) {
+            wp_send_json(['ok' => false, 'message' => __('Preview mode. Turn the storefront on to enable adds.', 'galado-bundles')]);
+        }
 
         $slug  = isset($_REQUEST['combo']) ? sanitize_title(wp_unslash($_REQUEST['combo'])) : '';
         $model = isset($_REQUEST['model']) ? sanitize_title(wp_unslash($_REQUEST['model'])) : '';

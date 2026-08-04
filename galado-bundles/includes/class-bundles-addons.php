@@ -23,10 +23,8 @@ class GALADO_Bundles_Addons {
         add_action('woocommerce_after_add_to_cart_form', [__CLASS__, 'render'], 12);
         add_action('woocommerce_single_product_summary', [__CLASS__, 'render'], 40);
         add_action('woocommerce_after_single_product_summary', [__CLASS__, 'render'], 6);
-        if (galado_bundles_storefront_enabled()) {
-            add_action('wc_ajax_galado_addon_add', [__CLASS__, 'ajax_add']);
-            add_action('wc_ajax_nopriv_galado_addon_add', [__CLASS__, 'ajax_add']);
-        }
+        add_action('wc_ajax_galado_addon_add', [__CLASS__, 'ajax_add']);
+        add_action('wc_ajax_nopriv_galado_addon_add', [__CLASS__, 'ajax_add']);
     }
 
     private static function visible() {
@@ -122,7 +120,7 @@ class GALADO_Bundles_Addons {
         wp_localize_script('galado-addons', 'GALADO_ADDONS', [
             'ajax'    => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_addon_add') : '',
             'groups'  => $groups,
-            'preview' => !galado_bundles_storefront_enabled(),
+            'preview' => !galado_bundles_can_transact(),
             'hide'    => galado_bundles_wcpa_hide_keys_addons(),
             'i18n'    => [
                 'add'     => __('Add +', 'galado-bundles'),
@@ -166,6 +164,9 @@ class GALADO_Bundles_Addons {
 
     public static function ajax_add() {
         if (!defined('DONOTCACHEPAGE')) define('DONOTCACHEPAGE', true);
+        if (!galado_bundles_can_transact()) {
+            wp_send_json(['ok' => false, 'message' => __('Preview mode. Turn the storefront on to enable adds.', 'galado-bundles')]);
+        }
 
         $pid = isset($_REQUEST['product_id']) ? (int) $_REQUEST['product_id'] : 0;
         $vid = isset($_REQUEST['variation_id']) ? (int) $_REQUEST['variation_id'] : 0;

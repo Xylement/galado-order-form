@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Bundles
  * Description: Self-service product bundles: staff build kits in wp-admin (simple + variable items), one flat margin-funded RM saving per bundle, rendered into home-v3 via [galado_bundles] and applied at cart as a complete-set-only negative fee. Generalises and retires Code Snippet #95. Writes no product data; reversible by deactivation. Spec: BUNDLES-SPEC.md.
- * Version: 0.3.0
+ * Version: 0.3.1
  * Author: GALADO
  * Text Domain: galado-bundles
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_BUNDLES_VERSION', '0.3.0');
+define('GALADO_BUNDLES_VERSION', '0.3.1');
 define('GALADO_BUNDLES_PATH', plugin_dir_path(__FILE__));
 define('GALADO_BUNDLES_URL', plugin_dir_url(__FILE__));
 
@@ -36,6 +36,18 @@ function galado_bundles_storefront_enabled() {
  * for staff preview only. */
 function galado_bundles_combos_enabled() {
     return '1' === get_option('galado_bundles_combos_enabled', '0');
+}
+
+/**
+ * May THIS REQUEST add sets and receive the bundle fee?
+ * True for everyone once the storefront master is on; while dark, true only
+ * for staff (owner 2026-08-04: staff test the full add-to-cart flow, every
+ * other customer stays exactly as today). Evaluated per request, never
+ * cached into markup: the pages are cacheable, the decision is not.
+ */
+function galado_bundles_can_transact() {
+    if (galado_bundles_storefront_enabled()) return true;
+    return class_exists('GALADO_Bundles_Storefront') && GALADO_Bundles_Storefront::can_preview();
 }
 
 /** Mobile cart sticky CTA (ADDON-COMBOS-SPEC section 5). Independent of the
@@ -115,14 +127,19 @@ add_action('plugins_loaded', function () {
     // the storefront flag is on.
     add_shortcode('galado_bundles', ['GALADO_Bundles_Storefront', 'shortcode']);
 
-    // Customer-facing: only when the flag is on. Everything below is inert
-    // (no shortcode output, no cart fee, no cart tagging) while dark.
+    // Cart, fee and analytics hooks register ALWAYS, but every cart-touching
+    // path guards on galado_bundles_can_transact() at request time: full
+    // behaviour for everyone once the storefront is on, full behaviour for
+    // staff while dark, and exactly today's nothing for customers while dark.
+    GALADO_Bundles_Cart::init();
+    GALADO_Bundles_Discount::init();
+    GALADO_Bundles_Analytics::init();
+
     if (galado_bundles_storefront_enabled()) {
         GALADO_Bundles_Storefront::init();
-        GALADO_Bundles_Cart::init();
-        GALADO_Bundles_Discount::init();
-        GALADO_Bundles_Analytics::init();
         // Signals #95 to stand down (its Phase-2 guard checks this constant).
+        // Deliberately NOT defined while dark, even for staff transactions:
+        // #95 must keep serving real customers until the actual cutover.
         if (!defined('GALADO_BUNDLES_OWNS_CART')) {
             define('GALADO_BUNDLES_OWNS_CART', true);
         }
