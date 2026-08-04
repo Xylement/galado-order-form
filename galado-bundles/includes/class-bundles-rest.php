@@ -66,6 +66,7 @@ class GALADO_Bundles_REST {
     public static function ops_seed() {
         $made  = GALADO_Bundles_Combos::seed_launch_combos();
         $made += GALADO_Bundles_Addons::seed_accessories_group();
+        $made += GALADO_Bundles_Addons::seed_clipons_group();
         return rest_ensure_response(['created' => $made, 'combos' => self::combo_report()]);
     }
 
@@ -74,6 +75,7 @@ class GALADO_Bundles_REST {
         $slugs = (array) ($req->get_param('slugs') ?: [
             'combo-protect-complete', 'combo-protect-screen', 'combo-protect-camera', 'combo-protect-screen-lens',
             'addons-accessories',
+            'addons-clipons',
         ]);
         $done = [];
         foreach ($slugs as $slug) {

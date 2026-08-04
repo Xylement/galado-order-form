@@ -112,6 +112,10 @@ class GALADO_Bundles_Combos {
         // by slug; device/prints categories are allowed. Both lists filterable.
         $blocked = apply_filters('galado_bundles_combo_blocked_cats', [
             'camera-lens-protector', 'screen-protector', 'tempered-glass', 'accessories',
+            // MacBook cases vary by pa_model too, but get NO add-on modules
+            // at all (owner r12) - blocking here covers combos AND the
+            // case-default shelf audience in one place.
+            'macbook',
         ]);
         $terms = get_the_terms($pid, 'product_cat');
         $slugs = [];

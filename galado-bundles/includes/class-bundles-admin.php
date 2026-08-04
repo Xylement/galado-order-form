@@ -59,6 +59,11 @@ class GALADO_Bundles_Admin {
         echo '<span class="description">Shows only for models where no fuller combo (one containing all of this combo\'s products) is available. Example: glass + lens shows only where the Camera Plateau combo cannot.</span></p>';
         echo '<p><label><input type="checkbox" name="galado_bundle_addon_group" value="1" ' . checked('1', get_post_meta($post->ID, GALADO_BUNDLES_META . 'addon_group', true), false) . '> <strong>Accessory add-on group</strong></label><br>';
         echo '<span class="description">A curated shelf of single add-ons (straps, grips, stands) shown on case pages below the protector combos. Items sell at their own price; no combo pricing. This post\'s title is the shelf heading.</span></p>';
+        $soc = get_post_meta($post->ID, GALADO_BUNDLES_META . 'show_on_cases', true);
+        echo '<p style="margin-left:16px"><label><input type="checkbox" name="galado_bundle_show_on_cases" value="1" ' . checked(true, '0' !== $soc, false) . '> Show on all case pages</label><br>';
+        echo '<label>Also on categories (slugs, comma separated)<br><input type="text" name="galado_bundle_audience_cats" value="' . esc_attr(get_post_meta($post->ID, GALADO_BUNDLES_META . 'audience_cats', true)) . '" class="widefat" placeholder="phone-charm, bag-charm"></label>';
+        echo '<label>Also on product IDs (comma separated)<br><input type="text" name="galado_bundle_audience_ids" value="' . esc_attr(get_post_meta($post->ID, GALADO_BUNDLES_META . 'audience_ids', true)) . '" class="widefat" placeholder="389955"></label>';
+        echo '<span class="description">Non-case pages show this shelf at NORMAL prices (PWP pricing needs a case). MacBook pages never show add-on modules.</span></p>';
         echo '<p><label>Cart fee label<br><input type="text" name="galado_bundle_fee_label" value="' . esc_attr($fee_label) . '" class="widefat" placeholder="Protect Set"></label>';
         echo '<span class="description">Cart shows "Bundle saving (label)". Empty = this bundle\'s title.</span></p>';
         echo '<p><label>Subtitle<br><input type="text" maxlength="140" name="galado_bundle_blurb" value="' . esc_attr($blurb) . '" class="widefat"></label></p>';
@@ -91,6 +96,9 @@ class GALADO_Bundles_Admin {
         update_post_meta($post_id, GALADO_BUNDLES_META . 'combo', isset($_POST['galado_bundle_combo']) ? '1' : '0');
         update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_fallback', isset($_POST['galado_bundle_combo_fallback']) ? '1' : '0');
         update_post_meta($post_id, GALADO_BUNDLES_META . 'addon_group', isset($_POST['galado_bundle_addon_group']) ? '1' : '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'show_on_cases', isset($_POST['galado_bundle_show_on_cases']) ? '1' : '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'audience_cats', sanitize_text_field(wp_unslash($_POST['galado_bundle_audience_cats'] ?? '')));
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'audience_ids', sanitize_text_field(wp_unslash($_POST['galado_bundle_audience_ids'] ?? '')));
         update_post_meta($post_id, GALADO_BUNDLES_META . 'fee_label', sanitize_text_field(wp_unslash($_POST['galado_bundle_fee_label'] ?? '')));
         update_post_meta($post_id, GALADO_BUNDLES_META . 'featured', isset($_POST['galado_bundle_featured']) ? '1' : '0');
         update_post_meta($post_id, GALADO_BUNDLES_META . 'stack_qty', isset($_POST['galado_bundle_stack_qty']) ? '1' : '0');

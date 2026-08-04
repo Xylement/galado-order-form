@@ -233,7 +233,7 @@ class GALADO_Bundles_Addons {
         if (!$groups) return;
 
         self::$rendered = true;
-        self::enqueue($groups);
+        self::enqueue($groups, GALADO_Bundles_Combos::is_case_pdp($product));
         foreach ($groups as $g) echo self::markup($g);
     }
 
@@ -250,11 +250,31 @@ class GALADO_Bundles_Addons {
         return $data;
     }
 
+    /** Does this shelf belong on this product page? Case pages by default,
+     * plus any per-shelf extra categories / product ids (owner r12). */
+    private static function group_matches($group, $product, $is_case) {
+        if (!empty($group['show_on_cases']) && $is_case) return true;
+        if (!empty($group['audience_ids']) && in_array((int) $product->get_id(), $group['audience_ids'], true)) return true;
+        if (!empty($group['audience_cats'])) {
+            $terms = get_the_terms($product->get_id(), 'product_cat');
+            $slugs = [];
+            foreach ((array) $terms as $t) {
+                if ($t instanceof WP_Term) $slugs[] = $t->slug;
+            }
+            if (array_intersect($group['audience_cats'], $slugs)) return true;
+        }
+        return false;
+    }
+
     private static function build_page_groups($product) {
-        if (!GALADO_Bundles_Combos::is_case_pdp($product)) return null;
+        // Non-case surfaces (charm and Stylink pages) get their shelves at
+        // NORMAL prices - PWP pricing always needs a case - and add through
+        // the direct per-item path (no staging bar).
+        $is_case = GALADO_Bundles_Combos::is_case_pdp($product);
 
         $out = [];
         foreach (GALADO_Bundles_Data::get_addon_groups() as $group) {
+            if (!self::group_matches($group, $product, $is_case)) continue;
             // Sibling grouping (owner 2026-08-04): SIMPLE item rows sharing a
             // "Group as" label collapse into ONE circle whose options are those
             // products (the old WCPA rows were exactly this: one offer, many
@@ -263,7 +283,7 @@ class GALADO_Bundles_Addons {
             $items = [];
             $group_index = [];
             foreach ($group['items'] as $it) {
-                $item = self::item_data($it, $product->get_id());
+                $item = self::item_data($it, $product->get_id(), $is_case);
                 if (!$item) continue;
                 $lbl = trim((string) ($it['label'] ?? ''));
                 if ('' === $lbl || 'variable' === $item['type']) {
@@ -309,6 +329,10 @@ class GALADO_Bundles_Addons {
     /** Compact option label: colour part after " - " when present, otherwise
      * the name minus common charm suffixes. */
     private static function short_label($name) {
+        // "Clip-On Charm (360 Starfish)" -> "360 Starfish"
+        if (preg_match('/\(([^)]+)\)\s*$/', $name, $m)) {
+            return trim($m[1]);
+        }
         if (false !== strpos($name, ' - ')) {
             $parts = explode(' - ', $name);
             return trim(end($parts));
@@ -319,13 +343,15 @@ class GALADO_Bundles_Addons {
     /** One shelf item: display data plus, for variable products, the option
      * circles (own-image chips when every variation has its own image, colour
      * dots otherwise; labels always carried for a11y). */
-    private static function item_data($it, $current_pid) {
+    private static function item_data($it, $current_pid, $apply_pwp = true) {
         $pid = (int) $it['product_id'];
         if ($pid === (int) $current_pid) return null; // never sell the page to itself
         $p = wc_get_product($pid);
         if (!$p || 'publish' !== $p->get_status() || !$p->is_purchasable() || !$p->is_in_stock()) return null;
 
-        $addon_price = max(0.0, (float) ($it['addon_price'] ?? 0));
+        // On non-case surfaces the with-case price does not apply: everything
+        // downstream (price, strike, option flattening) follows from zeroing it.
+        $addon_price = $apply_pwp ? max(0.0, (float) ($it['addon_price'] ?? 0)) : 0.0;
         $own_price   = (float) wc_get_price_to_display($p);
         $base = [
             'key'         => (string) $pid,
@@ -374,12 +400,17 @@ class GALADO_Bundles_Addons {
         return $base;
     }
 
-    private static function enqueue($groups) {
+    private static function enqueue($groups, $is_case = true) {
         wp_enqueue_style('galado-addons', GALADO_BUNDLES_URL . 'public/addons.css', [], GALADO_BUNDLES_VERSION);
-        self::enqueue_bar();
-        // Depends on the bar script: it defines the shared stage (GALADO_PWP)
-        // this module pushes picks into, so it must execute first.
-        wp_enqueue_script('galado-addons', GALADO_BUNDLES_URL . 'public/addons.js', ['galado-pwp-bar'], GALADO_BUNDLES_VERSION, true);
+        // The staged-Buy-Now bar belongs to case pages only; non-case shelves
+        // add straight to the basket through the per-item endpoint (the JS
+        // falls back automatically when GALADO_PWP is absent).
+        $deps = [];
+        if ($is_case) {
+            self::enqueue_bar();
+            $deps = ['galado-pwp-bar'];
+        }
+        wp_enqueue_script('galado-addons', GALADO_BUNDLES_URL . 'public/addons.js', $deps, GALADO_BUNDLES_VERSION, true);
         wp_localize_script('galado-addons', 'GALADO_ADDONS', [
             'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_addon_add') : '',
             'state_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
@@ -542,11 +573,20 @@ class GALADO_Bundles_Addons {
         }
         if (!$items) return 0;
 
+        // Audiences (owner r12): all case pages PLUS charm pages and the
+        // Stylink product (at normal prices there). MacBook never qualifies.
+        $audience = [
+            'show_on_cases' => '1',
+            'audience_cats' => 'phone-charm,bag-charm',
+            'audience_ids'  => '389955',
+        ];
+
         $existing = get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT);
         if ($existing) {
             // Idempotent line-up sync: the seed button re-asserts the canonical
             // shelf; staff tweaks beyond it live in wp-admin edits afterwards.
             update_post_meta($existing->ID, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
+            foreach ($audience as $k => $v) update_post_meta($existing->ID, GALADO_BUNDLES_META . $k, $v);
             do_action('galado_bundles_changed', [$existing->ID]);
             return 0;
         }
@@ -567,6 +607,66 @@ class GALADO_Bundles_Addons {
         update_post_meta($post_id, GALADO_BUNDLES_META . 'save', 0);
         update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_price', 0);
         update_post_meta($post_id, GALADO_BUNDLES_META . 'mode', 'link');
+        foreach ($audience as $k => $v) update_post_meta($post_id, GALADO_BUNDLES_META . $k, $v);
+        return 1;
+    }
+
+    /** Idempotent: the Stylink Clip-On shelf (owner r12): one circle holding
+     * every clip-on charm at its own price, shown ONLY on the Stylink
+     * product page (id targeting - Stylink has no category of its own). */
+    public static function seed_clipons_group() {
+        $slug = 'addons-clipons';
+        $pids = [
+            408078, 408067, 404402, 404401, 402574, 402573, 398828, 398827,
+            393088, 392630, 392545, 392476, 390788, 390738, 390737, 390736,
+            390715, 390706, 390697, 390688, 390679,
+        ];
+        $items = [];
+        foreach ($pids as $n => $pid) {
+            $p = wc_get_product($pid);
+            if (!$p || 'publish' !== $p->get_status()) continue;
+            $items[] = [
+                'slot'                 => 'clipon' . $n,
+                'product_id'           => (int) $pid,
+                'line_type'            => $p->is_type('variable') ? 'variable' : 'simple',
+                'qty'                  => 1,
+                'variation_mode'       => $p->is_type('variable') ? 'shopper_choice' : 'fixed',
+                'default_variation_id' => 0,
+                'match_attrs'          => [],
+                'addon_price'          => 0.0,
+                'label'                => 'Clip-On Charm',
+                'name_cache'           => $p->get_name(),
+                'price_cache'          => (float) wc_get_price_to_display($p),
+            ];
+        }
+        if (!$items) return 0;
+
+        $audience = ['show_on_cases' => '0', 'audience_cats' => '', 'audience_ids' => '389955'];
+        $existing = get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT);
+        if ($existing) {
+            update_post_meta($existing->ID, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
+            foreach ($audience as $k => $v) update_post_meta($existing->ID, GALADO_BUNDLES_META . $k, $v);
+            do_action('galado_bundles_changed', [$existing->ID]);
+            return 0;
+        }
+
+        $post_id = wp_insert_post([
+            'post_type'   => GALADO_BUNDLES_CPT,
+            'post_status' => 'draft',
+            'post_title'  => 'Clip-On Charms',
+            'post_name'   => $slug,
+            'menu_order'  => 0,
+        ]);
+        if (!$post_id || is_wp_error($post_id)) return 0;
+
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'addon_group', '1');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo', '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'featured', '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'save', 0);
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_price', 0);
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'mode', 'link');
+        foreach ($audience as $k => $v) update_post_meta($post_id, GALADO_BUNDLES_META . $k, $v);
         return 1;
     }
 }
