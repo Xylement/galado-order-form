@@ -64,27 +64,47 @@ class GALADO_Bundles_Addons {
         if (function_exists('WC') && WC()->cart) {
             WC()->cart->calculate_totals();
 
-            // A COMPLETE combo instance presents as ONE item (owner r5): its
-            // lines count once and its saving now lives in the line prices.
+            // The bar's numbers are the PROMISE, not the interim cart state:
+            // with-case prices only APPLY once the case line exists (it
+            // arrives via Buy Now, after the add-ons), so mid-flow the cart
+            // briefly holds add-ons at natural prices. Computing from the
+            // curated with-case tags keeps the bar telling the shopper what
+            // they WILL pay; cart and checkout always show the honest,
+            // gate-checked totals.
             $combo_line = [];
             foreach (GALADO_Bundles_Cart::combo_instances(WC()->cart) as $e) {
                 if (!$e['complete']) continue;
                 $count += 1;
-                foreach ($e['keys'] as $k) $combo_line[$k] = true;
+                $own_sum = 0.0;
+                foreach ($e['keys'] as $k) {
+                    $combo_line[$k] = true;
+                    $ci = WC()->cart->get_cart_item($k);
+                    if (!$ci) continue;
+                    $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
+                    if ($p) $own_sum += (float) wc_get_price_to_display($p) * max(1, (int) $ci['quantity']);
+                }
+                // Whichever is cheaper, same rule as the repricer.
+                $promised = ($own_sum > 0 && $own_sum < (float) $e['combo_price']) ? $own_sum : (float) $e['combo_price'];
+                $bundle_total += $promised;
+                if ($own_sum > $promised) $saved += $own_sum - $promised;
             }
 
             foreach (WC()->cart->get_cart() as $key => $ci) {
+                if (isset($combo_line[$key])) continue; // counted at set level
                 $qty = max(1, (int) $ci['quantity']);
                 $is_module = !empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price']);
                 if ($is_module) {
-                    if (!isset($combo_line[$key])) $count += $qty;
-                    $bundle_total += isset($ci['line_total']) ? (float) $ci['line_total'] : 0.0;
-                    // Saving = shelf/own price minus what the line actually
-                    // charges (covers addon overrides AND repriced combo lines).
+                    $count += $qty;
                     $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
                     $own = $p ? (float) wc_get_price_to_display($p) : 0.0;
-                    $line_sub = isset($ci['line_subtotal']) ? (float) $ci['line_subtotal'] : 0.0;
-                    if ($own * $qty > $line_sub) $saved += $own * $qty - $line_sub;
+                    if (!empty($ci['galado_addon_price'])) {
+                        $promised = min($own > 0 ? $own : (float) $ci['galado_addon_price'], (float) $ci['galado_addon_price']);
+                        $bundle_total += $promised * $qty;
+                        if ($own > $promised) $saved += ($own - $promised) * $qty;
+                    } else {
+                        // Untagged module lines (legacy sets, reused adds): real numbers.
+                        $bundle_total += isset($ci['line_total']) ? (float) $ci['line_total'] : 0.0;
+                    }
                 }
                 if (!empty($ci['galado_addon_key'])) $used[] = (string) $ci['galado_addon_key'];
             }
@@ -128,6 +148,11 @@ class GALADO_Bundles_Addons {
      * input, so this cannot reprice arbitrary lines. */
     public static function apply_addon_prices($cart) {
         if (!$cart) return;
+        // With-case means WITH A CASE (owner 2026-08-04 r6): no case line in
+        // the basket, no override. Re-checked on every totals pass, so
+        // removing the case reverts these prices instantly and re-adding it
+        // restores them - nothing to strip, nothing to un-strip.
+        if (!GALADO_Bundles_Cart::cart_has_case($cart)) return;
         foreach ($cart->get_cart() as $ci) {
             if (empty($ci['galado_addon_price']) || empty($ci['data'])) continue;
             $ci['data']->set_price((float) $ci['galado_addon_price']);
@@ -293,7 +318,6 @@ class GALADO_Bundles_Addons {
         self::enqueue_bar();
         wp_localize_script('galado-addons', 'GALADO_ADDONS', [
             'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_addon_add') : '',
-            'cart_url'  => function_exists('wc_get_cart_url') ? wc_get_cart_url() : '/cart/',
             'state_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
             'groups'  => $groups,
             'preview' => !galado_bundles_can_transact(),
@@ -308,7 +332,6 @@ class GALADO_Bundles_Addons {
                 'added_lbl'   => __('added to basket', 'galado-bundles'),
                 'add_basket'  => __('Add to Basket', 'galado-bundles'),
                 'you_saved'   => __('You saved', 'galado-bundles'),
-                'view_basket' => __('View basket', 'galado-bundles'),
             ],
         ]);
     }

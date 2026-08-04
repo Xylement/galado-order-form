@@ -187,10 +187,8 @@
       sv.textContent = CFG.i18n.you_saved + ' ' + rm(meta.was - meta.price);
       box.appendChild(sv);
     }
-    var a = document.createElement('a');
-    a.href = CFG.cart_url || '/cart/';
-    a.textContent = CFG.i18n.view_basket + ' \u2192';
-    box.appendChild(a);
+    // No basket link here (owner 2026-08-04 r6): the journey continues to the
+    // case via the sticky Buy Now, never around it.
     note.appendChild(box);
     // Anchor the confirmation mid-screen so "added to basket" is the focus
     // and the shelf stays visible above it.

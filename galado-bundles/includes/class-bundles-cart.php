@@ -37,9 +37,51 @@ class GALADO_Bundles_Cart {
         add_filter('woocommerce_widget_cart_item_quantity', [__CLASS__, 'set_widget_qty'], 20, 3);
         add_filter('woocommerce_cart_item_remove_link', [__CLASS__, 'set_remove_link'], 20, 2);
         add_filter('woocommerce_cart_contents_count', [__CLASS__, 'set_contents_count'], 20);
+        add_action('woocommerce_check_cart_items', [__CLASS__, 'caseless_notice']);
     }
 
     // ---- combo set grouping ------------------------------------------------
+
+    /**
+     * Is there a phone case line in the cart? The with-case economics (addon
+     * overrides, combo repricing, set grouping) all key off this, re-checked
+     * every totals pass: remove the case and the special prices revert on the
+     * spot; put it back and they return. Module-tagged lines can never stand
+     * in for the case itself, so a shelf item that happens to be a variable
+     * pa_model product cannot self-justify its own discount.
+     */
+    public static function cart_has_case($cart = null) {
+        static $memo_hash = null, $memo = null;
+        $cart = $cart ?: (function_exists('WC') ? WC()->cart : null);
+        if (!$cart) return false;
+        $hash = md5(implode('|', array_keys($cart->get_cart())));
+        if ($memo_hash === $hash && null !== $memo) return $memo;
+
+        $has = false;
+        foreach ($cart->get_cart() as $ci) {
+            if (!empty($ci['galado_bundle']) || !empty($ci['galado_addon_key']) || !empty($ci['galado_addon_price'])) continue;
+            $parent = wc_get_product((int) $ci['product_id']);
+            if ($parent && GALADO_Bundles_Combos::is_case_pdp($parent)) { $has = true; break; }
+        }
+        $memo_hash = $hash; $memo = $has;
+        return $has;
+    }
+
+    /** Cart/checkout notice when with-case priced items sit in a caseless
+     * basket: the prices have already reverted (the gates above), this just
+     * says why. Legacy save-based sets are not with-case and stay silent. */
+    public static function caseless_notice() {
+        if (!galado_bundles_can_transact()) return;
+        $cart = function_exists('WC') ? WC()->cart : null;
+        if (!$cart || self::cart_has_case($cart)) return;
+        $map = self::combo_instances($cart);
+        $tagged = false;
+        foreach ($cart->get_cart() as $ci) {
+            if (!empty($ci['galado_addon_price']) || isset($map[(string) ($ci['galado_bundle_uid'] ?? '')])) { $tagged = true; break; }
+        }
+        if (!$tagged) return;
+        wc_add_notice(__('With-case prices need a phone case in your basket. Add your case to unlock the special prices.', 'galado-bundles'), 'notice');
+    }
 
     /**
      * Per-request map of combo set instances in the cart, keyed by the add-time
@@ -90,9 +132,12 @@ class GALADO_Bundles_Cart {
         return $out;
     }
 
-    /** The COMPLETE instance a line belongs to, or null. */
+    /** The COMPLETE instance a line belongs to, or null. Caseless carts get
+     * null for everything: no case, no set deal, so the pieces ungroup into
+     * plain full-price lines that match the reverted totals. */
     private static function instance_for($cart_item) {
         if (empty($cart_item['galado_bundle_uid'])) return null;
+        if (!self::cart_has_case()) return null;
         $map = self::combo_instances();
         $e = $map[(string) $cart_item['galado_bundle_uid']] ?? null;
         return ($e && $e['complete']) ? $e : null;
@@ -184,7 +229,7 @@ class GALADO_Bundles_Cart {
     public static function set_contents_count($count) {
         if (!galado_bundles_can_transact()) return $count;
         $cart = function_exists('WC') ? WC()->cart : null;
-        if (!$cart) return $count;
+        if (!$cart || !self::cart_has_case($cart)) return $count;
         foreach (self::combo_instances($cart) as $e) {
             if (!$e['complete']) continue;
             $qty = 0;

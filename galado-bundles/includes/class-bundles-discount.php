@@ -51,6 +51,9 @@ class GALADO_Bundles_Discount {
         if (!galado_bundles_can_transact()) return;
 
         self::$applied_combos = [];
+        // Combo pricing is with-case pricing (owner 2026-08-04 r6): a caseless
+        // basket keeps every component at its natural price.
+        if (!GALADO_Bundles_Cart::cart_has_case($cart)) return;
         foreach (GALADO_Bundles_Cart::combo_instances($cart) as $e) {
             if (!$e['complete']) continue;
 
