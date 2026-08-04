@@ -44,7 +44,7 @@ class GALADO_Bundles_Storefront {
      * explicit ?bundles_preview=1 also gives a deterministic, cache-busting
      * preview link for any staff user. Never true for customers, so nothing
      * leaks even if the shortcode later sits on a public page while dark. */
-    private static function can_preview() {
+    public static function can_preview() {
         if (current_user_can('manage_woocommerce') || current_user_can('edit_pages')) return true;
         if (isset($_GET['bundles_preview']) && current_user_can('edit_posts')) return true;
         return false;

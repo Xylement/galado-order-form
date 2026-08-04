@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Bundles
  * Description: Self-service product bundles: staff build kits in wp-admin (simple + variable items), one flat margin-funded RM saving per bundle, rendered into home-v3 via [galado_bundles] and applied at cart as a complete-set-only negative fee. Generalises and retires Code Snippet #95. Writes no product data; reversible by deactivation. Spec: BUNDLES-SPEC.md.
- * Version: 0.1.8
+ * Version: 0.2.0
  * Author: GALADO
  * Text Domain: galado-bundles
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_BUNDLES_VERSION', '0.1.8');
+define('GALADO_BUNDLES_VERSION', '0.2.0');
 define('GALADO_BUNDLES_PATH', plugin_dir_path(__FILE__));
 define('GALADO_BUNDLES_URL', plugin_dir_url(__FILE__));
 
@@ -29,6 +29,31 @@ function galado_bundles_excluded_products() {
  * on the storefront and no cart fee applies until this is on. */
 function galado_bundles_storefront_enabled() {
     return '1' === get_option('galado_bundles_storefront_enabled', '0');
+}
+
+/** PDP protector-combo module (ADDON-COMBOS-SPEC). Needs the storefront ON to
+ * sell (the cart + fee engine lives behind that flag); while dark it renders
+ * for staff preview only. */
+function galado_bundles_combos_enabled() {
+    return '1' === get_option('galado_bundles_combos_enabled', '0');
+}
+
+/** Independent UX toggles (ADDON-COMBOS-SPEC sections 5 and 6). These do not
+ * depend on the bundles storefront; they can go live on their own. */
+function galado_bundles_wcpa_relabel_enabled() {
+    return '1' === get_option('galado_bundles_wcpa_relabel', '0');
+}
+function galado_bundles_sticky_cart_enabled() {
+    return '1' === get_option('galado_bundles_sticky_cart', '0');
+}
+
+/** WCPA field keys/labels (one per line, case-insensitive substring match)
+ * hidden on PDPs where the combo module renders, so the same protectors are
+ * not sold twice on one page. Admin-editable in Bundle settings. */
+function galado_bundles_wcpa_hide_keys() {
+    $raw = get_option('galado_bundles_wcpa_hide_keys', "tempered glass\nlens protector\ng-armor\ncamera plateau");
+    $keys = array_filter(array_map('trim', explode("\n", strtolower((string) $raw))));
+    return array_values($keys);
 }
 
 /** The full primitive capability set WP auto-generates for capability_type
@@ -53,6 +78,8 @@ require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-storefront.php';
 require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-cart.php';
 require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-discount.php';
 require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-analytics.php';
+require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-combos.php';
+require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-extras.php';
 
 add_action('plugins_loaded', function () {
     if (!class_exists('WooCommerce')) {
@@ -85,6 +112,14 @@ add_action('plugins_loaded', function () {
             define('GALADO_BUNDLES_OWNS_CART', true);
         }
     }
+
+    // PDP protector combos: the render hook registers always and gates itself
+    // (customers need storefront + combos ON; staff get a preview while dark).
+    GALADO_Bundles_Combos::init();
+
+    // Independent UX extras: WCPA price-summary relabel + mobile cart sticky
+    // CTA. Own toggles, no dependency on the bundles storefront.
+    GALADO_Bundles_Extras::init();
 });
 
 // HPOS compatibility (same declaration as the other GALADO plugins).
@@ -132,9 +167,18 @@ add_action('admin_menu', function () {
 function galado_bundles_render_settings() {
     if (!current_user_can('manage_woocommerce')) return;
     if (isset($_POST['galado_bundles_save']) && check_admin_referer('galado_bundles_settings')) {
-        $on = isset($_POST['storefront_enabled']) ? '1' : '0';
-        update_option('galado_bundles_storefront_enabled', $on);
-        echo '<div class="notice notice-success"><p>Saved. Purge caches after switching the storefront on or off.</p></div>';
+        update_option('galado_bundles_storefront_enabled', isset($_POST['storefront_enabled']) ? '1' : '0');
+        update_option('galado_bundles_combos_enabled', isset($_POST['combos_enabled']) ? '1' : '0');
+        update_option('galado_bundles_wcpa_relabel', isset($_POST['wcpa_relabel']) ? '1' : '0');
+        update_option('galado_bundles_sticky_cart', isset($_POST['sticky_cart']) ? '1' : '0');
+        update_option('galado_bundles_wcpa_hide_keys', sanitize_textarea_field(wp_unslash($_POST['wcpa_hide_keys'] ?? '')));
+        echo '<div class="notice notice-success"><p>Saved. Purge caches after switching customer-facing toggles.</p></div>';
+    }
+    if (isset($_POST['galado_bundles_seed']) && check_admin_referer('galado_bundles_settings')) {
+        $made = GALADO_Bundles_Combos::seed_launch_combos();
+        echo '<div class="notice notice-success"><p>' . esc_html($made > 0
+            ? $made . ' protector combo draft(s) created. Review the prices, then Publish each one.'
+            : 'The launch combos already exist; nothing was created.') . '</p></div>';
     }
     $on = galado_bundles_storefront_enabled();
     ?>
@@ -150,8 +194,39 @@ function galado_bundles_render_settings() {
               <p class="description">While off, staff can still create and edit bundles here; customers see nothing and no cart fee applies. Code Snippet #95 stays the live engine until this is on.</p>
             </td>
           </tr>
+          <tr>
+            <th>PDP protector combos</th>
+            <td>
+              <label><input type="checkbox" name="combos_enabled" value="1" <?php checked(galado_bundles_combos_enabled()); ?>> Show the "Protect your phone" combo module on phone-case product pages</label>
+              <p class="description">Needs the storefront ON to take orders (the cart saving engine lives behind it). While the storefront is dark, staff see a preview on case PDPs; customers see nothing.</p>
+            </td>
+          </tr>
+          <tr>
+            <th>WCPA relabel</th>
+            <td>
+              <label><input type="checkbox" name="wcpa_relabel" value="1" <?php checked(galado_bundles_wcpa_relabel_enabled()); ?>> Rename the add-on price summary on product pages (Case / Add-ons / Total) and hide the RM0.00 add-ons row</label>
+              <p class="description">Independent of the storefront switch; safe to enable on its own.</p>
+            </td>
+          </tr>
+          <tr>
+            <th>Mobile cart sticky checkout</th>
+            <td>
+              <label><input type="checkbox" name="sticky_cart" value="1" <?php checked(galado_bundles_sticky_cart_enabled()); ?>> Keep a Continue to Checkout bar fixed at the bottom of the cart on mobile</label>
+              <p class="description">Independent of the storefront switch; safe to enable on its own.</p>
+            </td>
+          </tr>
+          <tr>
+            <th>WCPA fields hidden next to combos</th>
+            <td>
+              <textarea name="wcpa_hide_keys" rows="4" class="large-text"><?php echo esc_textarea((string) get_option('galado_bundles_wcpa_hide_keys', "tempered glass\nlens protector\ng-armor\ncamera plateau")); ?></textarea>
+              <p class="description">One entry per line. On pages where the combo module shows, WCPA add-on rows whose name matches an entry are hidden so protectors are not sold twice. Charm/strap add-ons stay.</p>
+            </td>
+          </tr>
         </table>
-        <p><button type="submit" name="galado_bundles_save" value="1" class="button button-primary">Save</button></p>
+        <p>
+          <button type="submit" name="galado_bundles_save" value="1" class="button button-primary">Save</button>
+          <button type="submit" name="galado_bundles_seed" value="1" class="button" style="margin-left:8px">Seed the 3 launch combos (drafts)</button>
+        </p>
       </form>
     </div>
     <?php

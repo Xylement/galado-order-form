@@ -96,7 +96,9 @@ class GALADO_Bundles_Discount {
             $out[$slug] = [
                 'complete_instances' => $complete,
                 'saving'             => round($saving, 2),
-                'name'               => $desc['title'],
+                // Combos carry a fee label ("Protect Set") so the cart row reads
+                // "Bundle saving (Protect Set)"; legacy bundles keep their title.
+                'name'               => '' !== ($desc['fee_label'] ?? '') ? $desc['fee_label'] : $desc['title'],
                 'line_keys'          => $complete_line_keys,
             ];
         }

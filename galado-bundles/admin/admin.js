@@ -17,6 +17,7 @@
       return {
         slot: it.slot, product_id: it.product_id, line_type: it.line_type, qty: it.qty,
         variation_mode: it.variation_mode, default_variation_id: it.default_variation_id,
+        match_attrs: it.match_attrs || {},
         label: it.label || '', name_cache: it.name_cache || '', price_cache: it.price_cache || 0
       };
     })));
@@ -60,18 +61,25 @@
     if (it.line_type === 'variable') {
       var $mode = $('<div class="gb-mode" />');
       var name = 'mode_' + it.slot;
-      $mode.append('<label><input type="radio" name="' + name + '" value="pinned"' + (it.variation_mode !== 'shopper_choice' ? ' checked' : '') + '> Pin one</label>');
-      $mode.append('<label><input type="radio" name="' + name + '" value="shopper_choice"' + (it.variation_mode === 'shopper_choice' ? ' checked' : '') + '> Let shopper choose</label>');
+      var m = it.variation_mode;
+      $mode.append('<label><input type="radio" name="' + name + '" value="pinned"' + (m !== 'shopper_choice' && m !== 'model_match' ? ' checked' : '') + '> Pin one</label>');
+      $mode.append('<label><input type="radio" name="' + name + '" value="shopper_choice"' + (m === 'shopper_choice' ? ' checked' : '') + '> Let shopper choose</label>');
+      $mode.append('<label><input type="radio" name="' + name + '" value="model_match"' + (m === 'model_match' ? ' checked' : '') + '> Match PDP model</label>');
       $main.append($mode);
+      var $mm = $('<div class="gb-mm description" style="font-size:12px;color:#50575e">Resolved to the phone model chosen on the product page (protector combos).' +
+        (it.match_attrs && Object.keys(it.match_attrs).length ? ' Pinned: ' + Object.keys(it.match_attrs).map(function (k) { return k + '=' + it.match_attrs[k]; }).join(', ') : '') + '</div>');
+      $main.append($mm);
+      $mm.toggle(m === 'model_match');
       var $pin = $('<div class="gb-pin" />');
       var $sel = $('<select class="gb-variation" />');
       $pin.append($sel);
       $main.append($pin);
-      $pin.toggle(it.variation_mode !== 'shopper_choice');
+      $pin.toggle(m !== 'shopper_choice' && m !== 'model_match');
       fetchVariations(it, $sel);
       $mode.on('change', 'input', function () {
         it.variation_mode = $(this).val();
         $pin.toggle(it.variation_mode === 'pinned');
+        $mm.toggle(it.variation_mode === 'model_match');
         serialize();
       });
       $sel.on('change', function () { it.default_variation_id = parseInt(this.value, 10) || 0; serialize(); });

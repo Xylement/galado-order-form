@@ -118,6 +118,12 @@ class GALADO_Bundles_Cart {
             $v = $vid ? wc_get_product($vid) : null;
             if ($v && $v->get_parent_id() === $pid && $v->is_purchasable() && $v->is_in_stock()) return $vid;
         }
+
+        // model_match (PDP combos) never self-heals: "any purchasable variation"
+        // means shipping tempered glass for the WRONG phone. Fail the add
+        // cleanly instead; the caller shows "not available for your model".
+        if ('model_match' === ($item['variation_mode'] ?? '')) return 0;
+
         // fallback: first purchasable variation of the parent
         $parent = wc_get_product($pid);
         if ($parent && $parent->is_type('variable')) {

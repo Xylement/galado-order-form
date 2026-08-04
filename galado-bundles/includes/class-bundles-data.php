@@ -10,7 +10,9 @@ if (!defined('ABSPATH')) exit;
 class GALADO_Bundles_Data {
 
     /** Featured + active + buyable descriptors, ordered by menu_order,
-     * capped at GALADO_BUNDLES_FEATURED_MAX. */
+     * capped at GALADO_BUNDLES_FEATURED_MAX. PDP protector combos never appear
+     * here, whatever their Featured flag: the home band and the PDP module are
+     * separate surfaces. */
     public static function get_featured() {
         $ids = get_posts([
             'post_type'      => GALADO_BUNDLES_CPT,
@@ -24,8 +26,28 @@ class GALADO_Bundles_Data {
         $out = [];
         foreach ($ids as $id) {
             $b = self::get($id);
-            if ($b && $b['buyable']) $out[] = $b;
+            if ($b && $b['buyable'] && !$b['combo']) $out[] = $b;
             if (count($out) >= GALADO_BUNDLES_FEATURED_MAX) break;
+        }
+        return $out;
+    }
+
+    /** Active PDP protector combos, in menu order. Buyability is judged per
+     * model by the PDP module, so it is not filtered here. */
+    public static function get_combos() {
+        $ids = get_posts([
+            'post_type'      => GALADO_BUNDLES_CPT,
+            'post_status'    => 'publish',
+            'posts_per_page' => 6,
+            'orderby'        => ['menu_order' => 'ASC', 'date' => 'DESC'],
+            'meta_query'     => [['key' => GALADO_BUNDLES_META . 'combo', 'value' => '1']],
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+        ]);
+        $out = [];
+        foreach ($ids as $id) {
+            $b = self::get($id);
+            if ($b) $out[] = $b;
         }
         return $out;
     }
@@ -39,11 +61,14 @@ class GALADO_Bundles_Data {
         $items = self::items($id);
         if (!$items) return null;
 
-        $save  = max(0.0, (float) get_post_meta($id, GALADO_BUNDLES_META . 'save', true));
+        // Pricing first: for combos the saving is DERIVED (live sum minus the
+        // combo price), so mode and everything downstream must read the derived
+        // figure, not the stored flat one.
+        $price = self::pricing($id, []);
+        $save  = $price['save'];
         $mode  = (string) get_post_meta($id, GALADO_BUNDLES_META . 'mode', true);
         if ('' === $mode) $mode = self::derive_mode($items, $save);
         $img   = (int) get_post_meta($id, GALADO_BUNDLES_META . 'image', true);
-        $price = self::pricing($id, []);
 
         return [
             'id'           => $id,
@@ -51,6 +76,9 @@ class GALADO_Bundles_Data {
             'status'       => $post->post_status,
             'title'        => get_the_title($id),
             'featured'     => '1' === get_post_meta($id, GALADO_BUNDLES_META . 'featured', true),
+            'combo'        => '1' === get_post_meta($id, GALADO_BUNDLES_META . 'combo', true),
+            'combo_price'  => max(0.0, (float) get_post_meta($id, GALADO_BUNDLES_META . 'combo_price', true)),
+            'fee_label'    => (string) get_post_meta($id, GALADO_BUNDLES_META . 'fee_label', true),
             'mode'         => $mode,
             'has_variable' => ('build' === $mode),
             'save'         => $save,
@@ -66,16 +94,30 @@ class GALADO_Bundles_Data {
     }
 
     /** The shared pricing method both the card and the cart call. Live prices.
-     * $selections maps slot => variation_id for shopper_choice lines. */
+     * $selections maps slot => variation_id for shopper_choice/model_match lines.
+     *
+     * Two pricing models share this path:
+     *   flat save    'save' meta holds a fixed RM off the live sum.
+     *   combo price  'combo_price' meta holds the fixed price of the whole set;
+     *                the saving is DERIVED as live sum minus combo price, so
+     *                the shown percentage is computed from live prices and can
+     *                never drift from reality (ADDON-COMBOS-SPEC section 2). */
     public static function pricing($bundle_id, $selections = []) {
         $items = self::items($bundle_id);
-        $save  = max(0.0, (float) get_post_meta($bundle_id, GALADO_BUNDLES_META . 'save', true));
         $sum   = 0.0;
         foreach ($items as $it) {
             $qty   = max(1, (int) ($it['qty'] ?? 1));
             $chosen = isset($selections[$it['slot']]) ? (int) $selections[$it['slot']] : 0;
             $sum  += self::line_unit_price($it, $chosen) * $qty;
         }
+
+        $combo_price = max(0.0, (float) get_post_meta($bundle_id, GALADO_BUNDLES_META . 'combo_price', true));
+        if ($combo_price > 0) {
+            $save = ($combo_price < $sum) ? $sum - $combo_price : 0.0;
+        } else {
+            $save = max(0.0, (float) get_post_meta($bundle_id, GALADO_BUNDLES_META . 'save', true));
+        }
+
         $total = $sum - $save;
         if ($save >= $sum) $total = $sum; // misconfigured; render with no strike (caller logs)
         return ['sum' => round($sum, 2), 'save' => round($save, 2), 'total' => round(max(0, $total), 2)];
@@ -195,8 +237,20 @@ class GALADO_Bundles_Data {
             $line_type = (isset($r['line_type']) && 'variable' === $r['line_type']) ? 'variable' : 'simple';
             $mode = 'fixed';
             if ('variable' === $line_type) {
-                $mode = (isset($r['variation_mode']) && 'shopper_choice' === $r['variation_mode']) ? 'shopper_choice' : 'pinned';
+                $posted = (string) ($r['variation_mode'] ?? '');
+                $mode = in_array($posted, ['shopper_choice', 'model_match'], true) ? $posted : 'pinned';
             }
+
+            // model_match only: extra attribute constraints a matching variation
+            // must satisfy (e.g. the Camera Plateau "Option" pinned to one value).
+            $match = [];
+            if ('model_match' === $mode && !empty($r['match_attrs']) && is_array($r['match_attrs'])) {
+                foreach ($r['match_attrs'] as $k => $v) {
+                    if (!is_scalar($v)) continue;
+                    $match[sanitize_text_field((string) $k)] = sanitize_text_field((string) $v);
+                }
+            }
+
             $out[] = [
                 'slot'                 => (string) ($r['slot'] ?? ('slot' . count($out))),
                 'product_id'           => (int) $r['product_id'],
@@ -204,6 +258,7 @@ class GALADO_Bundles_Data {
                 'qty'                  => max(1, (int) ($r['qty'] ?? 1)),
                 'variation_mode'       => $mode,
                 'default_variation_id' => 'simple' === $line_type ? 0 : (int) ($r['default_variation_id'] ?? 0),
+                'match_attrs'          => $match,
                 'label'                => (string) ($r['label'] ?? ''),
                 'name_cache'           => (string) ($r['name_cache'] ?? ''),
                 'price_cache'          => (float) ($r['price_cache'] ?? 0),

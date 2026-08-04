@@ -1,0 +1,13 @@
+/* Bundles extras: mobile cart sticky CTA (ADDON-COMBOS-SPEC section 5).
+   Mobile only; fixed to the viewport bottom, clear of the iOS safe area.
+   Body padding stops it covering the gair recommendations or the footer. */
+@media (max-width:900px){
+  .gld-sticky-cta{position:fixed;left:0;right:0;bottom:0;z-index:9990;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #ECECEA;box-shadow:0 -6px 18px -12px rgba(17,17,17,.25)}
+  .gld-sticky-cta__total{font-family:'Archivo',sans-serif;font-weight:800;font-size:17px;color:#111111;white-space:nowrap}
+  .gld-sticky-cta__btn{flex:1 1 auto;min-height:46px;display:flex;align-items:center;justify-content:center;background:#111111;color:#fff !important;border-radius:999px;font-size:15px;font-weight:700;text-decoration:none;padding:12px 18px}
+  .gld-sticky-cta__btn:hover{background:#000}
+  body.gld-has-sticky-cta{padding-bottom:calc(74px + env(safe-area-inset-bottom))}
+}
+@media (min-width:901px){
+  .gld-sticky-cta{display:none}
+}

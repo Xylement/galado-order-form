@@ -33,10 +33,14 @@ class GALADO_Bundles_Admin {
     }
 
     public static function box_pricing($post) {
-        $save = get_post_meta($post->ID, GALADO_BUNDLES_META . 'save', true);
+        $save  = get_post_meta($post->ID, GALADO_BUNDLES_META . 'save', true);
+        $combo = get_post_meta($post->ID, GALADO_BUNDLES_META . 'combo_price', true);
         echo '<p><label><strong>Flat saving (RM)</strong><br>';
         echo '<input type="number" step="0.01" min="0" name="galado_bundle_save" id="galado-bundle-save" value="' . esc_attr($save) . '" class="regular-text" style="max-width:140px"></label>';
         echo ' <span class="description">Margin-funded. Leave 0 for a link-only set (no saving).</span></p>';
+        echo '<p><label><strong>Combo price (RM)</strong><br>';
+        echo '<input type="number" step="0.01" min="0" name="galado_bundle_combo_price" id="galado-bundle-combo-price" value="' . esc_attr($combo) . '" class="regular-text" style="max-width:140px"></label>';
+        echo ' <span class="description">For PDP protector combos: the fixed price of the whole set. When above 0 it OVERRIDES the flat saving; the saving becomes live component sum minus this, so the shown percentage can never lie.</span></p>';
         echo '<p id="galado-bundle-honesty" style="font-size:13px;color:#50575e"></p>';
         echo '<p><label><input type="checkbox" name="galado_bundle_stack_qty" value="1" ' . checked('1', get_post_meta($post->ID, GALADO_BUNDLES_META . 'stack_qty', true), false) . '> Multiply the saving when the same set is bought more than once</label> <span class="description">(off by default)</span></p>';
     }
@@ -47,7 +51,12 @@ class GALADO_Bundles_Admin {
         $cta  = get_post_meta($post->ID, GALADO_BUNDLES_META . 'cta', true);
         $feat = get_post_meta($post->ID, GALADO_BUNDLES_META . 'featured', true);
 
+        $is_combo  = get_post_meta($post->ID, GALADO_BUNDLES_META . 'combo', true);
+        $fee_label = get_post_meta($post->ID, GALADO_BUNDLES_META . 'fee_label', true);
         echo '<p><label><input type="checkbox" name="galado_bundle_featured" value="1" ' . checked('1', $feat, false) . '> <strong>Featured</strong> (shown in the home band)</label></p>';
+        echo '<p><label><input type="checkbox" name="galado_bundle_combo" value="1" ' . checked('1', $is_combo, false) . '> <strong>PDP protector combo</strong> (shown in the Protect-your-phone module on case pages, never in the home band)</label></p>';
+        echo '<p><label>Cart fee label<br><input type="text" name="galado_bundle_fee_label" value="' . esc_attr($fee_label) . '" class="widefat" placeholder="Protect Set"></label>';
+        echo '<span class="description">Cart shows "Bundle saving (label)". Empty = this bundle\'s title.</span></p>';
         echo '<p><label>Subtitle<br><input type="text" maxlength="140" name="galado_bundle_blurb" value="' . esc_attr($blurb) . '" class="widefat"></label></p>';
         echo '<p><label>CTA label<br><input type="text" name="galado_bundle_cta" value="' . esc_attr($cta) . '" class="widefat" placeholder="Add the set"></label></p>';
 
@@ -74,6 +83,9 @@ class GALADO_Bundles_Admin {
 
         // Scalars.
         update_post_meta($post_id, GALADO_BUNDLES_META . 'save', max(0, (float) ($_POST['galado_bundle_save'] ?? 0)));
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_price', max(0, (float) ($_POST['galado_bundle_combo_price'] ?? 0)));
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo', isset($_POST['galado_bundle_combo']) ? '1' : '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'fee_label', sanitize_text_field(wp_unslash($_POST['galado_bundle_fee_label'] ?? '')));
         update_post_meta($post_id, GALADO_BUNDLES_META . 'featured', isset($_POST['galado_bundle_featured']) ? '1' : '0');
         update_post_meta($post_id, GALADO_BUNDLES_META . 'stack_qty', isset($_POST['galado_bundle_stack_qty']) ? '1' : '0');
         update_post_meta($post_id, GALADO_BUNDLES_META . 'image', (int) ($_POST['galado_bundle_image'] ?? 0));
@@ -89,9 +101,19 @@ class GALADO_Bundles_Admin {
             $notices['error'][] = 'A bundle needs at least one valid item. Kept as a draft.';
         }
 
-        $save = (float) ($_POST['galado_bundle_save'] ?? 0);
+        // Effective saving: a combo price overrides the flat saving (derived as
+        // sum minus combo price), so the honesty checks and the stored mode see
+        // what the storefront and the fee engine will actually use.
+        $save        = (float) ($_POST['galado_bundle_save'] ?? 0);
+        $combo_price = (float) ($_POST['galado_bundle_combo_price'] ?? 0);
         $sum  = 0.0;
         foreach ($items as $it) $sum += $it['price_cache'] * $it['qty'];
+        if ($combo_price > 0) {
+            $save = max(0, $sum - $combo_price);
+            if ($sum > 0 && $combo_price >= $sum) {
+                $notices['error'][] = sprintf('The combo price (RM%s) is not below the buy-separately total (RM%s), so there is no saving. Kept as a draft.', number_format($combo_price, 2), number_format($sum, 2));
+            }
+        }
 
         if ($save > 0 && $sum > 0) {
             if ($save >= $sum) {
@@ -144,8 +166,15 @@ class GALADO_Bundles_Admin {
 
             $mode = 'fixed';
             $default_variation = 0;
+            $match_attrs = [];
             if ($is_variable) {
-                $mode = ('shopper_choice' === ($r['variation_mode'] ?? '')) ? 'shopper_choice' : 'pinned';
+                $posted = (string) ($r['variation_mode'] ?? '');
+                $mode = in_array($posted, ['shopper_choice', 'model_match'], true) ? $posted : 'pinned';
+                if ('model_match' === $mode && !empty($r['match_attrs']) && is_array($r['match_attrs'])) {
+                    foreach ($r['match_attrs'] as $mk => $mv) {
+                        if (is_scalar($mv)) $match_attrs[sanitize_text_field((string) $mk)] = sanitize_text_field((string) $mv);
+                    }
+                }
                 $default_variation = (int) ($r['default_variation_id'] ?? 0);
                 if ($default_variation) {
                     $v = wc_get_product($default_variation);
@@ -181,6 +210,7 @@ class GALADO_Bundles_Admin {
                 'qty'                  => $qty,
                 'variation_mode'       => $mode,
                 'default_variation_id' => $default_variation,
+                'match_attrs'          => $match_attrs,
                 'label'                => sanitize_text_field($r['label'] ?? ''),
                 'name_cache'           => $p->get_name(),
                 'price_cache'          => round($price, 2),
