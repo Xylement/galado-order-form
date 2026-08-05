@@ -773,7 +773,7 @@ class GALADO_Bundles_Addons {
      * price later. */
     public static function seed_lunaguard_grips_group() {
         $slug = 'addons-lunaguard-grips';
-        $pids = [390092, 390093, 390094, 390074]; // Pink, Lilac, Cream, Cloud Blue
+        $pids = [390092, 390093, 390094, 390074, 408210]; // Pink, Lilac, Cream, Cloud Blue, Green
         $items = [];
         foreach ($pids as $n => $pid) {
             $p = wc_get_product($pid);

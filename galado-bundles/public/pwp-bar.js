@@ -185,7 +185,7 @@
             if (!isNaN(p)) casePrice = p;
           }
           if (v.variation_id) caseVid = parseInt(v.variation_id, 10) || 0;
-          var m = v.attributes && (v.attributes.attribute_pa_model || '');
+          var m = v.attributes && (v.attributes.attribute_pa_model || v.attributes.attribute_model || '');
           if (m && m !== caseModel) {
             if (caseModel) dropStaleCombos(m);
             caseModel = m;
@@ -340,6 +340,20 @@
       });
     }
   }
+
+  // Coming BACK from the cart restores this page from the bfcache with the
+  // button still mid-flight, so it sat on "Adding..." until a manual reload
+  // (owner r24). Reset the UI and re-read the cart on every restore.
+  window.addEventListener('pageshow', function (e) {
+    busy = false;
+    setBusyUi(false);
+    if (e.persisted && CFG.state_url) {
+      fetch(CFG.state_url, { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (s) { state = s; render(); })
+        .catch(function () {});
+    }
+  });
 
   function boot() {
     bindCase();

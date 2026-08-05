@@ -234,6 +234,12 @@
         else add(section, item.product_id, open.chosen, go, meta);
       });
       optsHost.appendChild(go);
+      // Long option lists push the confirm button below the fold and shoppers
+      // did not realise they still had to press it (owner r24). Bring it into
+      // view as soon as the picker opens.
+      requestAnimationFrame(function () {
+        if (go.scrollIntoView) go.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
     }
 
     function closeOpts() {
