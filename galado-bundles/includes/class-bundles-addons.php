@@ -677,13 +677,21 @@ class GALADO_Bundles_Addons {
             [384065, 79.0, 'Crossbody Strap (7mm)'],
             [404021, 79.0, 'Crossbody Strap (7mm)'],
             [288133, 79.0, 'Crossbody Strap (7mm)'],
-            [277284, 55.0, 'MagSafe Grip'],
-            [316373, 55.0, 'MagSafe Grip'],
-            [316200, 55.0, 'MagSafe Grip'],
-            [316192, 55.0, 'MagSafe Grip'],
-            [315788, 55.0, 'MagSafe Grip'],
-            [315780, 55.0, 'MagSafe Grip'],
-            [314178, 55.0, 'MagSafe Grip'],
+            // MagSafe Grip circle, owner r22 line-up. Puffy Flower (Pink) is FIRST
+            // so it is the circle's thumbnail. PWP prices: RM69 items keep the
+            // established RM55; the two Puffy Flowers use the owner's RM69.
+            // Nova (Black) RM79 and Sparkle Gold RM75 have NO PWP price set -
+            // no discount was specified for them, so they sell at their own
+            // price until one is entered in the shelf editor.
+            [390092, 69.0, 'MagSafe Grip'], // Puffy Flower Grip - Pink   (RM79)
+            [286410, 55.0, 'MagSafe Grip'], // Ring Stand (Twilight)      (RM69)
+            [300306, 0.0,  'MagSafe Grip'], // Nova Ring Stand (Black)    (RM79)
+            [323974, 0.0,  'MagSafe Grip'], // Ring Stand (Sparkle Gold)  (RM75)
+            [390094, 69.0, 'MagSafe Grip'], // Puffy Flower Grip - Cream  (RM79)
+            [331698, 55.0, 'MagSafe Grip'], // Sweetheart Daisy           (RM69)
+            [303234, 55.0, 'MagSafe Grip'], // Silly Daisy                (RM69)
+            [389765, 55.0, 'MagSafe Grip'], // Pink Shell                 (RM69)
+            [389766, 55.0, 'MagSafe Grip'], // Silly Egg                  (RM69)
         ];
 
         $items = [];
@@ -768,7 +776,7 @@ class GALADO_Bundles_Addons {
                 'variation_mode'       => $p->is_type('variable') ? 'shopper_choice' : 'fixed',
                 'default_variation_id' => 0,
                 'match_attrs'          => [],
-                'addon_price'          => 0.0,
+                'addon_price'          => 69.0, // owner: RM69 with the case (own price RM79)
                 'label'                => 'Puffy Flower Grip',
                 'name_cache'           => $p->get_name(),
                 'price_cache'          => (float) wc_get_price_to_display($p),
