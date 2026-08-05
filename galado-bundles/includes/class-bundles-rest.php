@@ -83,6 +83,7 @@ class GALADO_Bundles_REST {
         $made  = GALADO_Bundles_Combos::seed_launch_combos();
         $made += GALADO_Bundles_Addons::seed_accessories_group();
         $made += GALADO_Bundles_Addons::seed_clipons_group();
+        $made += GALADO_Bundles_Addons::seed_lunaguard_grips_group();
         return rest_ensure_response(['created' => $made, 'combos' => self::combo_report()]);
     }
 
@@ -92,6 +93,7 @@ class GALADO_Bundles_REST {
             'combo-protect-complete', 'combo-protect-screen', 'combo-protect-camera', 'combo-protect-screen-lens',
             'addons-accessories',
             'addons-clipons',
+            'addons-lunaguard-grips',
         ]);
         $done = [];
         foreach ($slugs as $slug) {
