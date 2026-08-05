@@ -187,6 +187,47 @@ class GALADO_Bundles_Cart {
         }
     }
 
+    /**
+     * ONE tracking pass per Buy Now instead of one per item (owner 2026-08-05).
+     *
+     * Measured on this store: the cart insert itself is ~11ms and a totals
+     * recalculation ~4ms, but an add_to_cart with the `woocommerce_add_to_cart`
+     * chain attached costs ~1s - it carries Klaviyo, the TikTok pixel,
+     * PixelYourSite, a cart webhook and our own tracker. Doing that N times in
+     * one request is what made a 5-item Buy Now take ~9.7s.
+     *
+     * So the whole batch runs with that action detached, then it fires ONCE for
+     * the anchor product (the basket's hero) after everything is in. Pixels log
+     * one add-to-cart per basket, which the owner signed off. Session
+     * persistence and cookies ride the same action, so firing it once at the
+     * end still persists the FINAL cart correctly.
+     *
+     * Only the notification action is suspended - `add_to_cart_validation`
+     * filters (WCPA, protected products, Studio) keep running on every item, so
+     * nothing bypasses validation. Filterable in case it ever needs disabling
+     * without a deploy.
+     */
+    private static function suspend_add_to_cart_tracking() {
+        if (!apply_filters('galado_bundles_batch_tracking', true)) return null;
+        global $wp_filter;
+        $saved = isset($wp_filter['woocommerce_add_to_cart']) ? $wp_filter['woocommerce_add_to_cart'] : null;
+        if (null !== $saved) unset($wp_filter['woocommerce_add_to_cart']);
+        return $saved;
+    }
+
+    /** Restore the chain, settle totals, then fire exactly one add-to-cart event. */
+    private static function resume_add_to_cart_tracking($saved, $key, $pid, $qty, $vid, $variation) {
+        if (null === $saved) return;
+        global $wp_filter;
+        $wp_filter['woocommerce_add_to_cart'] = $saved;
+        if (function_exists('WC') && WC()->cart) {
+            WC()->cart->calculate_totals();
+            if ($key) {
+                do_action('woocommerce_add_to_cart', $key, $pid, $qty, $vid, $variation, []);
+            }
+        }
+    }
+
     private static function pwp_checkout_body() {
         // --- the anchor product (owner r14: ANY product page stages the same
         // way; a non-case anchor simply funds no PWP discounts - the case
@@ -199,19 +240,26 @@ class GALADO_Bundles_Cart {
             wp_send_json(['ok' => false, 'message' => __('Please select your product first.', 'galado-bundles')]);
         }
         $is_case_anchor = GALADO_Bundles_Combos::is_case_pdp($parent);
+        // Everything from here to the response is ONE batch: the per-item
+        // tracking chain is detached and fired once at the end (see above).
+        $tracking  = self::suspend_add_to_cart_tracking();
+        $variation = [];
         if ($parent->is_type('variable')) {
             $v = $vid ? wc_get_product($vid) : null;
             if (!$v || $v->get_parent_id() !== $pid || !$v->is_purchasable() || !$v->is_in_stock()) {
+                self::resume_add_to_cart_tracking($tracking, '', $pid, $qty, $vid, []);
                 wp_send_json(['ok' => false, 'message' => $is_case_anchor
                     ? __('Please select your case model and colour first.', 'galado-bundles')
                     : __('Please select your options first.', 'galado-bundles')]);
             }
-            $case_key = WC()->cart->add_to_cart($pid, $qty, $vid, $v->get_variation_attributes());
+            $variation = $v->get_variation_attributes();
+            $case_key  = WC()->cart->add_to_cart($pid, $qty, $vid, $variation);
         } else {
             $case_key = WC()->cart->add_to_cart($pid, $qty);
         }
         if (!$case_key) {
             // Woo queued the reason (stock, validation) as a notice; surface it.
+            self::resume_add_to_cart_tracking($tracking, '', $pid, $qty, $vid, $variation);
             wc_clear_notices();
             wp_send_json(['ok' => false, 'message' => __('Could not add it, please try again.', 'galado-bundles')]);
         }
@@ -241,6 +289,9 @@ class GALADO_Bundles_Cart {
                 }
             }
         }
+        // Whole basket is in: restore the chain, settle totals, fire one event.
+        self::resume_add_to_cart_tracking($tracking, $case_key, $pid, $qty, $vid, $variation);
+
         if ($skipped) {
             wc_add_notice(sprintf(
                 /* translators: %s: comma-separated item names */
