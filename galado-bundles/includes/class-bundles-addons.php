@@ -41,6 +41,7 @@ class GALADO_Bundles_Addons {
         // The with-case price is one piece per circle: block cart quantity
         // bumps on override lines (a second piece is welcome at normal price).
         add_filter('woocommerce_update_cart_validation', [__CLASS__, 'limit_qty'], 10, 4);
+        add_filter('woocommerce_cart_item_quantity', [__CLASS__, 'show_addon_qty'], 25, 3);
         // With-case add-on pricing: shelf items can sell below their standalone
         // price (the old WCPA rows were priced this way). The override is set
         // server-side at add time and applied on every totals pass.
@@ -58,7 +59,26 @@ class GALADO_Bundles_Addons {
         return $item;
     }
 
-    /** One piece per circle at the PWP price (owner 2026-08-04). */
+    /**
+     * The cart quantity control for an add-on line bought at the PWP price.
+     *
+     * limit_qty below already refuses more than one server-side, but Flatsome updates the
+     * basket over AJAX and that path never renders the notice, so the shopper saw the number
+     * spring back with nothing said (owner, 2026-08-05). Stating the rule where the control
+     * used to be beats explaining it after a silent failure.
+     *
+     * A second piece is still perfectly buyable from the product page at the normal price;
+     * only the discounted piece is capped.
+     */
+    public static function show_addon_qty($html, $cart_item_key, $cart_item = null) {
+        if (!galado_bundles_can_transact() || null === $cart_item) return $html;
+        if (empty($cart_item['galado_addon_price'])) return $html;
+        return '<span class="gld-qty1">1</span>'
+            . '<small class="gld-qty1__why">' . esc_html__('Add-on price is for one piece', 'galado-bundles') . '</small>';
+    }
+
+    /** One piece per circle at the PWP price (owner 2026-08-04). Server-side backstop for
+     *  any path that reaches the cart without the capped control above. */
     public static function limit_qty($passed, $cart_item_key, $values, $quantity) {
         if (!empty($values['galado_addon_price']) && $quantity > 1) {
             wc_add_notice(__('The PWP price is limited to 1 piece. You can add another at the normal price.', 'galado-bundles'), 'error');
