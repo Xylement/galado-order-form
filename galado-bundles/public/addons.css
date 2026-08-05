@@ -69,3 +69,7 @@
 .gld-tier__slot{width:40px;height:40px;border-radius:50%;overflow:hidden;border:1.5px solid #ECECEA;background:#F5F5F3;flex:0 0 auto}
 .gld-tier__slot img{width:100%;height:100%;object-fit:cover;display:block}
 .gld-tier__plus{width:40px;height:40px;border-radius:50%;border:2px dashed #C9C9C4;display:flex;align-items:center;justify-content:center;color:#9A9A94;font-size:18px;font-weight:600;background:#fff;flex:0 0 auto}
+
+/* PWP line quantity: the rule stated in place of a control that would only bounce back. */
+.gld-qty1{display:inline-block;min-width:2.2em;text-align:center;font-weight:600}
+.gld-qty1__why{display:block;margin-top:2px;font-size:11px;line-height:1.35;color:#8A8A92}
