@@ -87,7 +87,14 @@ class GALADO_Bundles_App {
      *     ['kind' => 'combo', 'slug' => s, 'model' => model_slug, 'axes' => [slot => [axis => value]]],
      *     ['kind' => 'addon', 'product_id' => N, 'variation_id' => N|0, 'qty' => N],
      *   ],
+     *   'claimed' => [circle_key, ...],   // circles already bought in this cart
      * ]
+     *
+     * `claimed` is how a stateless quote honours the web's once-per-circle
+     * rule: the cart engine can read WC()->cart for an existing claim, we
+     * cannot, so the caller declares what it already holds. The app sends its
+     * cart's circles, and the bridge accumulates them across quote blocks at
+     * order time, so a second purchase of the same circle pays full price.
      */
     public static function quote(array $body) {
         if (!galado_bundles_storefront_enabled()) {
@@ -130,7 +137,13 @@ class GALADO_Bundles_App {
 
         $picks = isset($body['picks']) && is_array($body['picks']) ? $body['picks'] : [];
         $combos_used = 0;
-        $claimed = [];          // circle key => true (once-per-circle, in-quote)
+        // Circles already claimed in the caller's cart plus the ones claimed
+        // inside this quote: a circle only ever earns its PWP price once.
+        $claimed = [];
+        foreach ((array) ($body['claimed'] ?? []) as $c) {
+            $c = sanitize_title((string) $c);
+            if ('' !== $c) $claimed[$c] = true;
+        }
         $shelf_lines = [];      // shelf slug => [line indexes] for tier pass
 
         foreach ($picks as $pick) {
