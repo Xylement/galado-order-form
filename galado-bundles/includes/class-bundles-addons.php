@@ -459,6 +459,10 @@ class GALADO_Bundles_Addons {
         // Drop the product-TYPE words first so a mixed circle reads evenly:
         // "Sweetheart Daisy MagSafe Phone Grip" -> "Sweetheart Daisy" rather
         // than the whole product name next to a bare "Pink" (owner r22).
+        // Product titles are written with a plain hyphen, but WordPress renders one as an
+        // en dash and staff sometimes paste an en or em dash straight into the title. Fold
+        // them all to " - " first so the split below cannot depend on which was used.
+        $name  = preg_replace('/\s*[\x{2013}\x{2014}]\s*/u', ' - ', (string) $name);
         $typed = preg_replace('/\s*(MagSafe\s+)?(Phone\s+)?(Grip|Ring\s+Stand)\b/i', '', $name);
         $typed = trim(preg_replace('/\s{2,}/', ' ', $typed));
         $stripped = ('' !== $typed && $typed !== trim($name));
