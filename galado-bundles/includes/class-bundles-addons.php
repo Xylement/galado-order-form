@@ -427,7 +427,7 @@ class GALADO_Bundles_Addons {
                 $gi = $group_index[$lbl];
                 $items[$gi]['options'][] = [
                     'id'    => $item['product_id'],
-                    'label' => self::short_label($item['name']),
+                    'label' => self::short_label($item['name'], $lbl),
                     'price' => $item['price'],
                     'thumb' => $item['thumb'],
                 ];
@@ -455,7 +455,7 @@ class GALADO_Bundles_Addons {
 
     /** Compact option label: colour part after " - " when present, otherwise
      * the name minus common charm suffixes. */
-    private static function short_label($name) {
+    private static function short_label($name, $circle = '') {
         // Drop the product-TYPE words first so a mixed circle reads evenly:
         // "Sweetheart Daisy MagSafe Phone Grip" -> "Sweetheart Daisy" rather
         // than the whole product name next to a bare "Pink" (owner r22).
@@ -471,7 +471,20 @@ class GALADO_Bundles_Addons {
             $parts = explode(' - ', $base);
             $last  = trim(end($parts));
             $bare  = trim(preg_replace('/\s*\([^)]*\)\s*$/', '', $last));
-            return '' !== $bare ? $bare : $last;
+            $short = '' !== $bare ? $bare : $last;
+            // Keep the range name when the circle mixes ranges: a bare "Pink" beside
+            // "Sweetheart Daisy" and "Nova Black" says nothing about what it is
+            // (owner 2026-08-05). Dropped again when the circle is already named for
+            // that range, so Luna's own Puffy Flower circle does not repeat itself.
+            array_pop($parts);
+            $range = trim(implode(' - ', $parts));
+            if ($stripped && '' !== $range && '' === $circle) {
+                return $range . ' (' . $short . ')';
+            }
+            if ($stripped && '' !== $range && false === stripos($circle, $range)) {
+                return $range . ' (' . $short . ')';
+            }
+            return $short;
         }
         // "Clip-On Charm (360 Starfish)" -> "360 Starfish". When a type word was
         // stripped, whatever survives in front is the range name and belongs in
