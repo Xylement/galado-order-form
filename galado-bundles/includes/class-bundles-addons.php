@@ -861,8 +861,8 @@ class GALADO_Bundles_Addons {
     }
 
     /** Idempotent: the Stylink Clip-On shelf (owner r12): one circle holding
-     * every clip-on charm at its own price, shown ONLY on the Stylink
-     * product page (id targeting - Stylink has no category of its own). */
+     * every clip-on charm at its own price, shown only on the Stylink product
+     * pages (id targeting - the Stylinks have no category of their own). */
     public static function seed_clipons_group() {
         $slug = 'addons-clipons';
         $pids = [
@@ -890,7 +890,10 @@ class GALADO_Bundles_Addons {
         }
         if (!$items) return 0;
 
-        $audience = ['show_on_cases' => '0', 'audience_cats' => '', 'audience_ids' => '389955'];
+        // Stylink Metal Chain + Stylink (Extended) Metal Chain. Targeted by id because the
+        // Stylinks share no category of their own. A new Stylink needs adding HERE and to
+        // is_pwp_anchor()'s id list, or it gets the shelf at full price (owner 2026-08-05).
+        $audience = ['show_on_cases' => '0', 'audience_cats' => '', 'audience_ids' => '389955,408224'];
         $existing = get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT);
         if ($existing) {
             update_post_meta($existing->ID, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
