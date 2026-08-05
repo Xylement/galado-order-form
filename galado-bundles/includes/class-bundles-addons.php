@@ -528,13 +528,13 @@ class GALADO_Bundles_Addons {
         static $done = false;
         if ($done) return;
         $done = true;
-        wp_enqueue_style('galado-addons', GALADO_BUNDLES_URL . 'public/addons.css', [], GALADO_BUNDLES_VERSION);
+        wp_enqueue_style('galado-addons', GALADO_BUNDLES_URL . 'public/addons.css', [], GALADO_Bundles_Extras::asset_ver('public/addons.css'));
         // ONE add method everywhere (owner r14): every shelf surface stages
         // picks and buys atomically through the bar; non-case anchors simply
         // carry no PWP savings. The per-item endpoint stays as the no-bar
         // fallback only.
         self::enqueue_bar();
-        wp_enqueue_script('galado-addons', GALADO_BUNDLES_URL . 'public/addons.js', ['galado-pwp-bar'], GALADO_BUNDLES_VERSION, true);
+        wp_enqueue_script('galado-addons', GALADO_BUNDLES_URL . 'public/addons.js', ['galado-pwp-bar'], GALADO_Bundles_Extras::asset_ver('public/addons.js'), true);
         wp_localize_script('galado-addons', 'GALADO_ADDONS', [
             'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_addon_add') : '',
             'state_url' => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_pwp_state') : '',
@@ -565,8 +565,8 @@ class GALADO_Bundles_Addons {
      * module renders, so while dark this never reaches customers. */
     public static function enqueue_bar() {
         if (wp_script_is('galado-pwp-bar', 'enqueued')) return;
-        wp_enqueue_style('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.css', [], GALADO_BUNDLES_VERSION);
-        wp_enqueue_script('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.js', [], GALADO_BUNDLES_VERSION, true);
+        wp_enqueue_style('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.css', [], GALADO_Bundles_Extras::asset_ver('public/pwp-bar.css'));
+        wp_enqueue_script('galado-pwp-bar', GALADO_BUNDLES_URL . 'public/pwp-bar.js', [], GALADO_Bundles_Extras::asset_ver('public/pwp-bar.js'), true);
         // The page's own product anchors the staged buy. Variable anchors are
         // tracked live off found_variation; simple anchors (charm pages) are
         // priced here so the bar can count them from load.

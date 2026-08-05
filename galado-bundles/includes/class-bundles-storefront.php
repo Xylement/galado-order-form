@@ -207,8 +207,8 @@ class GALADO_Bundles_Storefront {
     private static function enqueue() {
         if (self::$enqueued) return;
         self::$enqueued = true;
-        wp_enqueue_style('galado-bundles', GALADO_BUNDLES_URL . 'public/galado-bundles.css', [], GALADO_BUNDLES_VERSION);
-        wp_enqueue_script('galado-bundles', GALADO_BUNDLES_URL . 'public/galado-bundles.js', [], GALADO_BUNDLES_VERSION, true);
+        wp_enqueue_style('galado-bundles', GALADO_BUNDLES_URL . 'public/galado-bundles.css', [], GALADO_Bundles_Extras::asset_ver('public/galado-bundles.css'));
+        wp_enqueue_script('galado-bundles', GALADO_BUNDLES_URL . 'public/galado-bundles.js', [], GALADO_Bundles_Extras::asset_ver('public/galado-bundles.js'), true);
         wp_localize_script('galado-bundles', 'GALADO_BUNDLES', [
             'ajax'     => WC_AJAX::get_endpoint('galado_bundle_add'),
             'cart_url' => wc_get_cart_url(),
