@@ -76,6 +76,11 @@ class GALADO_Bundles_REST {
             'permission_callback' => [__CLASS__, 'can_manage'],
             'callback'            => [__CLASS__, 'ops_probe'],
         ]);
+        register_rest_route('galado-bundles/v1', '/ops/hooks', [
+            'methods'             => 'GET',
+            'permission_callback' => [__CLASS__, 'can_manage'],
+            'callback'            => [__CLASS__, 'ops_hooks'],
+        ]);
     }
 
     /** Run the launch seeders (combos + accessories shelf); report state. */
@@ -133,6 +138,72 @@ class GALADO_Bundles_REST {
 
     /** The combo module AND the add-on shelves exactly as they would render on
      * one product, visibility toggles bypassed, for dark verification. */
+    /**
+     * Read-only inventory of who is listening on a hook, and where they live.
+     *
+     * Exists because add-to-cart is slow store-wide (~1-2s per item) and the cost is in the
+     * listener chain, not in Woo's cart insert (11ms). Nothing here EXECUTES a callback - it
+     * only reflects over the registry - so calling it fires no pixels and sends no events.
+     */
+    public static function ops_hooks(WP_REST_Request $req) {
+        global $wp_filter;
+        $asked = (string) $req->get_param('hooks');
+        $hooks = $asked ? array_map('trim', explode(',', $asked)) : ['woocommerce_add_to_cart'];
+        $out   = [];
+        foreach ($hooks as $hook) {
+            if ('' === $hook || !isset($wp_filter[$hook])) {
+                $out[$hook] = ['count' => 0, 'listeners' => []];
+                continue;
+            }
+            $rows = [];
+            foreach ($wp_filter[$hook]->callbacks as $priority => $callbacks) {
+                foreach ($callbacks as $cb) {
+                    $rows[] = ['priority' => (int) $priority] + self::describe_callback($cb['function']);
+                }
+            }
+            $out[$hook] = ['count' => count($rows), 'listeners' => $rows];
+        }
+        return rest_ensure_response($out);
+    }
+
+    /** Name + owning plugin + source location for one hook callback. Reflection only, no calls. */
+    private static function describe_callback($fn) {
+        $name = '(closure)';
+        $file = '';
+        $line = 0;
+        try {
+            if (is_string($fn)) {
+                $name = $fn;
+                $ref  = new ReflectionFunction($fn);
+            } elseif (is_array($fn) && count($fn) === 2) {
+                $class = is_object($fn[0]) ? get_class($fn[0]) : (string) $fn[0];
+                $name  = $class . '::' . $fn[1];
+                $ref   = new ReflectionMethod($class, $fn[1]);
+            } elseif ($fn instanceof Closure) {
+                $ref = new ReflectionFunction($fn);
+            } elseif (is_object($fn) && method_exists($fn, '__invoke')) {
+                $name = get_class($fn) . '::__invoke';
+                $ref  = new ReflectionMethod($fn, '__invoke');
+            } else {
+                return ['callback' => $name, 'owner' => '?', 'file' => ''];
+            }
+            $file = (string) $ref->getFileName();
+            $line = (int) $ref->getStartLine();
+        } catch (Throwable $e) {
+            return ['callback' => $name, 'owner' => '?', 'file' => ''];
+        }
+        // Attribute to the owning plugin/theme folder rather than leaking absolute server paths.
+        $owner = 'core';
+        $rel   = $file;
+        if ($file && preg_match('#/(?:plugins|mu-plugins|themes)/([^/]+)/(.*)$#', $file, $m)) {
+            $owner = $m[1];
+            $rel   = $m[2];
+        } elseif ($file) {
+            $rel = basename($file);
+        }
+        return ['callback' => $name, 'owner' => $owner, 'file' => $rel . ':' . $line];
+    }
+
     public static function ops_probe(WP_REST_Request $req) {
         $pid = (int) $req->get_param('product_id');
         $product = $pid ? wc_get_product($pid) : null;
