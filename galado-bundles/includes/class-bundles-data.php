@@ -108,6 +108,7 @@ class GALADO_Bundles_Data {
             'addon_group'    => '1' === get_post_meta($id, GALADO_BUNDLES_META . 'addon_group', true),
             // Shelf audiences (owner r12): case pages by default, plus any
             // extra category slugs / product ids. '0' turns the case default off.
+            'position'       => ('before' === get_post_meta($id, GALADO_BUNDLES_META . 'position', true) ? 'before' : 'after'),
             'show_on_cases'  => '0' !== get_post_meta($id, GALADO_BUNDLES_META . 'show_on_cases', true),
             'audience_cats'  => array_values(array_filter(array_map('sanitize_title', array_map('trim', explode(',', (string) get_post_meta($id, GALADO_BUNDLES_META . 'audience_cats', true)))))),
             'audience_ids'   => array_values(array_filter(array_map('intval', explode(',', (string) get_post_meta($id, GALADO_BUNDLES_META . 'audience_ids', true))))),

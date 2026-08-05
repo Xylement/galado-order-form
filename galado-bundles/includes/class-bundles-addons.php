@@ -16,13 +16,20 @@ if (!defined('ABSPATH')) exit;
 class GALADO_Bundles_Addons {
 
     private static $rendered = false;
+    private static $rendered_before = false;
 
     public static function init() {
-        // Same placements as the combos module, one priority later, so
-        // whichever hook the theme fires, combos render first, this below.
+        // Same placements as the combos module. Shelves render in TWO passes so
+        // a shelf can sit either side of the protector combos (owner r21): the
+        // 'before' pass runs one priority EARLIER than combos, the normal pass
+        // one later. Combos are at 20 / default 10 / 39 / 5 on these four hooks.
+        add_action('woocommerce_before_add_to_cart_button', [__CLASS__, 'render_before'], 19);
         add_action('woocommerce_before_add_to_cart_button', [__CLASS__, 'render'], 21);
+        add_action('woocommerce_after_add_to_cart_form', [__CLASS__, 'render_before'], 9);
         add_action('woocommerce_after_add_to_cart_form', [__CLASS__, 'render'], 12);
+        add_action('woocommerce_single_product_summary', [__CLASS__, 'render_before'], 38);
         add_action('woocommerce_single_product_summary', [__CLASS__, 'render'], 40);
+        add_action('woocommerce_after_single_product_summary', [__CLASS__, 'render_before'], 4);
         add_action('woocommerce_after_single_product_summary', [__CLASS__, 'render'], 6);
         add_action('wc_ajax_galado_addon_add', [__CLASS__, 'ajax_add']);
         add_action('wc_ajax_nopriv_galado_addon_add', [__CLASS__, 'ajax_add']);
@@ -298,8 +305,14 @@ class GALADO_Bundles_Addons {
         return galado_bundles_addons_enabled() && GALADO_Bundles_Storefront::can_preview();
     }
 
-    public static function render() {
-        if (self::$rendered) return;
+    /** Shelves flagged to sit ABOVE the protector combos. */
+    public static function render_before() { self::render_position('before'); }
+
+    /** Everything else: below the combos, the default. */
+    public static function render() { self::render_position('after'); }
+
+    private static function render_position($position) {
+        if ('before' === $position ? self::$rendered_before : self::$rendered) return;
         if (!self::visible()) return;
         if (!function_exists('is_product') || !is_product()) return;
 
@@ -307,9 +320,15 @@ class GALADO_Bundles_Addons {
         $groups = self::page_groups($product);
         if (!$groups) return;
 
-        self::$rendered = true;
+        // Assets and the JS payload always carry EVERY shelf on the page, not
+        // just this pass's, so the other pass's sections hydrate too.
         self::enqueue($groups, GALADO_Bundles_Combos::is_case_pdp($product));
-        foreach ($groups as $g) echo self::markup($g);
+
+        if ('before' === $position) self::$rendered_before = true; else self::$rendered = true;
+        foreach ($groups as $g) {
+            if (($g['position'] ?? 'after') !== $position) continue;
+            echo self::markup($g);
+        }
     }
 
     /** Shelves for this PDP, or null. Same case gate as the combos module.
@@ -405,7 +424,7 @@ class GALADO_Bundles_Addons {
                 $items[$i]['varies'] = count($prices) > 1 && (max($prices) - min($prices)) > 0.004;
             }
             if ($items) {
-                $entry = ['slug' => $group['slug'], 'title' => $group['title'], 'items' => $items];
+                $entry = ['slug' => $group['slug'], 'title' => $group['title'], 'items' => $items, 'position' => ($group['position'] ?? 'after')];
                 $tiers_map = self::shelf_tiers();
                 if (isset($tiers_map[$group['slug']])) $entry['tiers'] = $tiers_map[$group['slug']];
                 $out[] = $entry;
@@ -494,6 +513,9 @@ class GALADO_Bundles_Addons {
     }
 
     private static function enqueue($groups, $is_case = true) {
+        static $done = false;
+        if ($done) return;
+        $done = true;
         wp_enqueue_style('galado-addons', GALADO_BUNDLES_URL . 'public/addons.css', [], GALADO_BUNDLES_VERSION);
         // ONE add method everywhere (owner r14): every shelf surface stages
         // picks and buys atomically through the bar; non-case anchors simply
@@ -710,6 +732,63 @@ class GALADO_Bundles_Addons {
             'post_type'   => GALADO_BUNDLES_CPT,
             'post_status' => 'draft',
             'post_title'  => 'Complete your setup',
+            'post_name'   => $slug,
+            'menu_order'  => 0,
+        ]);
+        if (!$post_id || is_wp_error($post_id)) return 0;
+
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'addon_group', '1');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo', '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'featured', '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'save', 0);
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_price', 0);
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'mode', 'link');
+        foreach ($audience as $k => $v) update_post_meta($post_id, GALADO_BUNDLES_META . $k, $v);
+        return 1;
+    }
+
+    /** Idempotent: the Luna Guard "Complete The Set" shelf (owner r21) - the four
+     * Puffy Flower Grip colours as ONE circle, shown ABOVE the protection combos
+     * and ONLY on the Luna Guard PDP (id-targeted). Grips sell at their own
+     * RM79; set an "Add-on RM" per row in the shelf editor to give them a PWP
+     * price later. */
+    public static function seed_lunaguard_grips_group() {
+        $slug = 'addons-lunaguard-grips';
+        $pids = [390092, 390093, 390094, 390074]; // Pink, Lilac, Cream, Cloud Blue
+        $items = [];
+        foreach ($pids as $n => $pid) {
+            $p = wc_get_product($pid);
+            if (!$p || 'publish' !== $p->get_status()) continue;
+            $items[] = [
+                'slot'                 => 'luna' . $n,
+                'product_id'           => (int) $pid,
+                'line_type'            => $p->is_type('variable') ? 'variable' : 'simple',
+                'qty'                  => 1,
+                'variation_mode'       => $p->is_type('variable') ? 'shopper_choice' : 'fixed',
+                'default_variation_id' => 0,
+                'match_attrs'          => [],
+                'addon_price'          => 0.0,
+                'label'                => 'Puffy Flower Grip',
+                'name_cache'           => $p->get_name(),
+                'price_cache'          => (float) wc_get_price_to_display($p),
+            ];
+        }
+        if (!$items) return 0;
+
+        $audience = ['show_on_cases' => '0', 'audience_cats' => '', 'audience_ids' => '389852', 'position' => 'before'];
+        $existing = get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT);
+        if ($existing) {
+            update_post_meta($existing->ID, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
+            foreach ($audience as $k => $v) update_post_meta($existing->ID, GALADO_BUNDLES_META . $k, $v);
+            do_action('galado_bundles_changed', [$existing->ID]);
+            return 0;
+        }
+
+        $post_id = wp_insert_post([
+            'post_type'   => GALADO_BUNDLES_CPT,
+            'post_status' => 'draft',
+            'post_title'  => 'Complete The Set',
             'post_name'   => $slug,
             'menu_order'  => 0,
         ]);

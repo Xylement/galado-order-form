@@ -63,6 +63,11 @@ class GALADO_Bundles_Admin {
         echo '<p style="margin-left:16px"><label><input type="checkbox" name="galado_bundle_show_on_cases" value="1" ' . checked(true, '0' !== $soc, false) . '> Show on all case pages</label><br>';
         echo '<label>Also on categories (slugs, comma separated)<br><input type="text" name="galado_bundle_audience_cats" value="' . esc_attr(get_post_meta($post->ID, GALADO_BUNDLES_META . 'audience_cats', true)) . '" class="widefat" placeholder="phone-charm, bag-charm"></label>';
         echo '<label>Also on product IDs (comma separated)<br><input type="text" name="galado_bundle_audience_ids" value="' . esc_attr(get_post_meta($post->ID, GALADO_BUNDLES_META . 'audience_ids', true)) . '" class="widefat" placeholder="389955"></label>';
+        $pos = get_post_meta($post->ID, GALADO_BUNDLES_META . 'position', true);
+        echo '<p style="margin-left:16px"><label>Position on the page<br><select name="galado_bundle_position">'
+           . '<option value="after"' . selected('before' !== $pos, true, false) . '>Below the protection combos (default)</option>'
+           . '<option value="before"' . selected('before', $pos, false) . '>Above the protection combos</option>'
+           . '</select></label></p>';
         echo '<span class="description">PWP prices show on every surface; they apply once the basket holds any anchor product (the page\'s own product counts). MacBook pages never show add-on modules.</span></p>';
         echo '<p><label>Cart fee label<br><input type="text" name="galado_bundle_fee_label" value="' . esc_attr($fee_label) . '" class="widefat" placeholder="Protect Set"></label>';
         echo '<span class="description">Cart shows "Bundle saving (label)". Empty = this bundle\'s title.</span></p>';
@@ -97,6 +102,7 @@ class GALADO_Bundles_Admin {
         update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_fallback', isset($_POST['galado_bundle_combo_fallback']) ? '1' : '0');
         update_post_meta($post_id, GALADO_BUNDLES_META . 'addon_group', isset($_POST['galado_bundle_addon_group']) ? '1' : '0');
         update_post_meta($post_id, GALADO_BUNDLES_META . 'show_on_cases', isset($_POST['galado_bundle_show_on_cases']) ? '1' : '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'position', 'before' === ($_POST['galado_bundle_position'] ?? '') ? 'before' : 'after');
         update_post_meta($post_id, GALADO_BUNDLES_META . 'audience_cats', sanitize_text_field(wp_unslash($_POST['galado_bundle_audience_cats'] ?? '')));
         update_post_meta($post_id, GALADO_BUNDLES_META . 'audience_ids', sanitize_text_field(wp_unslash($_POST['galado_bundle_audience_ids'] ?? '')));
         update_post_meta($post_id, GALADO_BUNDLES_META . 'fee_label', sanitize_text_field(wp_unslash($_POST['galado_bundle_fee_label'] ?? '')));
