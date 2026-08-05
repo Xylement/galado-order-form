@@ -499,11 +499,11 @@ class GALADO_Bundles_Combos {
     }
 
     private static function enqueue($models, $cards) {
-        wp_enqueue_style('galado-combos', GALADO_BUNDLES_URL . 'public/combos.css', [], GALADO_BUNDLES_VERSION);
+        wp_enqueue_style('galado-combos', GALADO_BUNDLES_URL . 'public/combos.css', [], GALADO_Bundles_Extras::asset_ver('public/combos.css'));
         GALADO_Bundles_Addons::enqueue_bar();
         // Depends on the bar script: it defines the shared stage (GALADO_PWP)
         // this module pushes picks into, so it must execute first.
-        wp_enqueue_script('galado-combos', GALADO_BUNDLES_URL . 'public/combos.js', ['galado-pwp-bar'], GALADO_BUNDLES_VERSION, true);
+        wp_enqueue_script('galado-combos', GALADO_BUNDLES_URL . 'public/combos.js', ['galado-pwp-bar'], GALADO_Bundles_Extras::asset_ver('public/combos.js'), true);
         wp_localize_script('galado-combos', 'GALADO_COMBOS', [
             'ajax'     => class_exists('WC_AJAX') ? WC_AJAX::get_endpoint('galado_combo_add') : '',
             'models'  => $models,
