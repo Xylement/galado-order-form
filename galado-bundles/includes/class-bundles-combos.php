@@ -124,7 +124,7 @@ class GALADO_Bundles_Combos {
         }
 
         // Must vary by phone model.
-        if (!array_key_exists('pa_model', $product->get_variation_attributes())) return false;
+        if ('' === self::model_attr_key($product)) return false;
 
         // Category screen: protectors and other non-case surfaces are excluded
         // by slug; device/prints categories are allowed. Both lists filterable.
@@ -237,8 +237,8 @@ class GALADO_Bundles_Combos {
             foreach ($attrs as $ak => $av) {
                 $akey = strtolower(self::attr_key($ak));
                 $val  = strtolower((string) $av);
-                if ('pa_model' === $akey) {
-                    if ('' !== $val) $model = $val;
+                if (self::is_model_key($akey)) {
+                    if ('' !== $val) $model = self::norm_model($av);
                     continue;
                 }
                 if (isset($pins[$akey])) {
@@ -257,6 +257,37 @@ class GALADO_Bundles_Combos {
 
     private static function attr_key($k) {
         return 0 === strpos($k, 'attribute_') ? substr($k, strlen('attribute_')) : $k;
+    }
+
+    /**
+     * The variation-attribute key this product uses for the phone model.
+     * Most of the catalogue uses the GLOBAL taxonomy `pa_model`, but 47
+     * published cases (Cartoon Me, Embrace Us, the Azreenchan range...) use a
+     * LOCAL attribute literally named "Model" - those were invisible to the
+     * whole engine until now (owner r24). Returns '' when there is no model axis.
+     */
+    public static function model_attr_key($product) {
+        if (!$product || !is_callable([$product, 'get_variation_attributes'])) return '';
+        foreach (array_keys((array) $product->get_variation_attributes()) as $k) {
+            $key = strtolower(self::attr_key($k));
+            if ('pa_model' === $key || 'model' === $key) return self::attr_key($k);
+        }
+        return '';
+    }
+
+    private static function is_model_key($akey) {
+        $akey = strtolower($akey);
+        return 'pa_model' === $akey || 'model' === $akey;
+    }
+
+    /**
+     * One comparable form for a model value. A global attribute stores the term
+     * SLUG ("iphone-air"); a local attribute stores the display VALUE
+     * ("iPhone Air"). sanitize_title collapses both to the same thing, so
+     * matching never depends on which attribute type a product happens to use.
+     */
+    public static function norm_model($v) {
+        return sanitize_title((string) $v);
     }
 
     /**
@@ -379,10 +410,16 @@ class GALADO_Bundles_Combos {
 
         // The PDP's own model terms are the model universe for this page.
         $models = [];
-        $attrs = $product->get_variation_attributes();
-        foreach ((array) ($attrs['pa_model'] ?? []) as $slug) {
-            $term = get_term_by('slug', $slug, 'pa_model');
-            $models[$slug] = $term && !is_wp_error($term) ? $term->name : $slug;
+        $attrs   = $product->get_variation_attributes();
+        $mkey    = self::model_attr_key($product);
+        $is_taxo = ('pa_model' === strtolower($mkey));
+        foreach ((array) ($mkey !== '' ? ($attrs[$mkey] ?? []) : []) as $value) {
+            // Key by the normalised form so the client, the variation index and
+            // this map all agree regardless of attribute type; label from the
+            // taxonomy term when there is one, else the raw option text.
+            $norm = self::norm_model($value);
+            $term = $is_taxo ? get_term_by('slug', $value, 'pa_model') : null;
+            $models[$norm] = ($term && !is_wp_error($term)) ? $term->name : (string) $value;
         }
         if (!$models) return null;
 

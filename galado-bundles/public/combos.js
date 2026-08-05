@@ -247,8 +247,15 @@
     });
   }
 
+  /** The model dropdown: the global taxonomy on most cases, a local "Model"
+   * attribute on 47 others (Cartoon Me, Embrace Us, Azreenchan...). */
+  function modelSelect() {
+    return document.querySelector('form.variations_form select[name="attribute_pa_model"]')
+        || document.querySelector('form.variations_form select[name="attribute_model"]');
+  }
+
   function readModel() {
-    var sel = document.querySelector('form.variations_form select[name="attribute_pa_model"]');
+    var sel = modelSelect();
     model = sel && sel.value ? sel.value : '';
     update();
   }
@@ -265,7 +272,7 @@
 
     // Native listener works with and without jQuery; Woo also fires jQuery
     // events on the form, which we use when present for reset coverage.
-    var sel = document.querySelector('form.variations_form select[name="attribute_pa_model"]');
+    var sel = modelSelect();
     if (sel) sel.addEventListener('change', readModel);
     if (window.jQuery) {
       window.jQuery('form.variations_form')

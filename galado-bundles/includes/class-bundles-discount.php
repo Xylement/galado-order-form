@@ -96,9 +96,13 @@ class GALADO_Bundles_Discount {
     public static function display_pwp_row() {
         $saving = self::pwp_display_saving();
         if ($saving <= 0) return;
+        // wc_price() nests its own <span class="amount">, which the theme colours -
+        // so the wrapper alone only reddened the minus sign (owner r24). Colour
+        // the wrapper AND every descendant.
         echo '<tr class="gld-pwp-discount"><th>' . esc_html__('PWP Discount', 'galado-bundles') . '</th>'
            . '<td data-title="' . esc_attr__('PWP Discount', 'galado-bundles') . '">'
-           . '<span style="color:#E4002B;font-weight:700">-' . wp_kses_post(wc_price($saving)) . '</span>'
+           . '<style>.gld-pwp-discount td,.gld-pwp-discount td *{color:#E4002B !important;font-weight:700;}</style>'
+           . '<span class="gld-pwp-amount">-' . wp_kses_post(wc_price($saving)) . '</span>'
            . '</td></tr>';
     }
 
