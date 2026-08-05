@@ -690,20 +690,18 @@ class GALADO_Bundles_Addons {
             [404021, 79.0, 'Crossbody Strap (7mm)'],
             [288133, 79.0, 'Crossbody Strap (7mm)'],
             // MagSafe Grip circle, owner r22 line-up. Puffy Flower (Pink) is FIRST
-            // so it is the circle's thumbnail. PWP prices: RM69 items keep the
-            // established RM55; the two Puffy Flowers use the owner's RM69.
-            // Nova (Black) RM79 and Sparkle Gold RM75 have NO PWP price set -
-            // no discount was specified for them, so they sell at their own
-            // price until one is entered in the shelf editor.
-            [390092, 69.0, 'MagSafe Grip'], // Puffy Flower Grip - Pink   (RM79)
-            [286410, 55.0, 'MagSafe Grip'], // Ring Stand (Twilight)      (RM69)
-            [300306, 0.0,  'MagSafe Grip'], // Nova Ring Stand (Black)    (RM79)
-            [323974, 0.0,  'MagSafe Grip'], // Ring Stand (Sparkle Gold)  (RM75)
-            [390094, 69.0, 'MagSafe Grip'], // Puffy Flower Grip - Cream  (RM79)
-            [331698, 55.0, 'MagSafe Grip'], // Sweetheart Daisy           (RM69)
-            [303234, 55.0, 'MagSafe Grip'], // Silly Daisy                (RM69)
-            [389765, 55.0, 'MagSafe Grip'], // Pink Shell                 (RM69)
-            [389766, 55.0, 'MagSafe Grip'], // Silly Egg                  (RM69)
+            // so it is the circle's thumbnail. PWP pricing rule (owner r23):
+            // EVERY grip is exactly RM10 off its own price, so the circle reads
+            // "From RM59" and each chip carries its own strike.
+            [390092, 69.0, 'MagSafe Grip'], // Puffy Flower Grip - Pink   RM79 -> 69
+            [286410, 59.0, 'MagSafe Grip'], // Ring Stand (Twilight)      RM69 -> 59
+            [300306, 69.0, 'MagSafe Grip'], // Nova Ring Stand (Black)    RM79 -> 69
+            [323974, 65.0, 'MagSafe Grip'], // Ring Stand (Sparkle Gold)  RM75 -> 65
+            [390094, 69.0, 'MagSafe Grip'], // Puffy Flower Grip - Cream  RM79 -> 69
+            [331698, 59.0, 'MagSafe Grip'], // Sweetheart Daisy           RM69 -> 59
+            [303234, 59.0, 'MagSafe Grip'], // Silly Daisy                RM69 -> 59
+            [389765, 59.0, 'MagSafe Grip'], // Pink Shell                 RM69 -> 59
+            [389766, 59.0, 'MagSafe Grip'], // Silly Egg                  RM69 -> 59
         ];
 
         $items = [];
