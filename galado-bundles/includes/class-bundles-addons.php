@@ -436,20 +436,32 @@ class GALADO_Bundles_Addons {
     /** Compact option label: colour part after " - " when present, otherwise
      * the name minus common charm suffixes. */
     private static function short_label($name) {
+        // Drop the product-TYPE words first so a mixed circle reads evenly:
+        // "Sweetheart Daisy MagSafe Phone Grip" -> "Sweetheart Daisy" rather
+        // than the whole product name next to a bare "Pink" (owner r22).
+        $typed = preg_replace('/\s*(MagSafe\s+)?(Phone\s+)?(Grip|Ring\s+Stand)\b/i', '', $name);
+        $typed = trim(preg_replace('/\s{2,}/', ' ', $typed));
+        $stripped = ('' !== $typed && $typed !== trim($name));
+
         // The " - " colour part wins, minus any trailing size bracket (owner:
         // "Crossbody Phone Strap - Black (7mm)" -> just "Black" - the circle
         // itself already says 7mm).
-        if (false !== strpos($name, ' - ')) {
-            $parts = explode(' - ', $name);
+        $base = $stripped ? $typed : $name;
+        if (false !== strpos($base, ' - ')) {
+            $parts = explode(' - ', $base);
             $last  = trim(end($parts));
             $bare  = trim(preg_replace('/\s*\([^)]*\)\s*$/', '', $last));
             return '' !== $bare ? $bare : $last;
         }
-        // "Clip-On Charm (360 Starfish)" -> "360 Starfish"
-        if (preg_match('/\(([^)]+)\)\s*$/', $name, $m)) {
-            return trim($m[1]);
+        // "Clip-On Charm (360 Starfish)" -> "360 Starfish". When a type word was
+        // stripped, whatever survives in front is the range name and belongs in
+        // the label: "Nova MagSafe Ring Stand (Black)" -> "Nova Black".
+        if (preg_match('/\(([^)]+)\)\s*$/', $base, $m)) {
+            $inner  = trim($m[1]);
+            $prefix = $stripped ? trim(preg_replace('/\s*\([^)]*\)\s*$/', '', $base)) : '';
+            return '' !== $prefix ? $prefix . ' ' . $inner : $inner;
         }
-        return trim(preg_replace('/\s+(Phone|Pearl)?\s*Charm$/i', '', $name));
+        return trim(preg_replace('/\s+(Phone|Pearl)?\s*Charm$/i', '', $base));
     }
 
     /** One shelf item: display data plus, for variable products, the option
