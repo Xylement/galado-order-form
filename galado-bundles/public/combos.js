@@ -254,9 +254,37 @@
         || document.querySelector('form.variations_form select[name="attribute_model"]');
   }
 
+
+  /**
+   * Translate whatever the model <select> carries into the key the price map uses.
+   *
+   * The global pa_model attribute puts the term SLUG in the option value, but the 47 products
+   * on a LOCAL "Model" attribute put the raw display text there ("iPhone 16 Pro Max"), while
+   * the server keys everything by the slug ("iphone-16-pro-max"). Without this the lookup
+   * silently misses on those products and every card hides, which reads as "no module".
+   *
+   * CFG.models is the server's own slug -> label map, so reversing it is exact. The slugify
+   * fallback only covers a label the server never sent, and mirrors WordPress sanitize_title.
+   *
+   * KEEP IN SYNC with the identical helper in pwp-bar.js.
+   */
+  function modelKey(raw) {
+    if (!raw) return '';
+    var map = CFG.models || {};
+    if (map[raw] !== undefined) return raw;        // already a slug
+    for (var k in map) { if (map[k] === raw) return k; }
+    return String(raw).toLowerCase()
+      .replace(/&.+?;/g, '')
+      .replace(/\./g, '-')
+      .replace(/[^a-z0-9 _-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
   function readModel() {
     var sel = modelSelect();
-    model = sel && sel.value ? sel.value : '';
+    model = modelKey(sel && sel.value ? sel.value : '');
     update();
   }
 
