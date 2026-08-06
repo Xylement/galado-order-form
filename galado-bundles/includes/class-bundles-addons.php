@@ -890,10 +890,11 @@ class GALADO_Bundles_Addons {
         }
         if (!$items) return 0;
 
-        // Stylink Metal Chain + Stylink (Extended) Metal Chain. Targeted by id because the
-        // Stylinks share no category of their own. A new Stylink needs adding HERE and to
-        // is_pwp_anchor()'s id list, or it gets the shelf at full price (owner 2026-08-05).
-        $audience = ['show_on_cases' => '0', 'audience_cats' => '', 'audience_ids' => '389955,408224'];
+        // Targeted by id because the Stylinks share no category of their own. The id list
+        // lives in GALADO_Bundles_Combos::stylink_ids() so the shelf audience and the PWP
+        // anchor list can never drift apart again (owner 2026-08-05).
+        $audience = ['show_on_cases' => '0', 'audience_cats' => '',
+                     'audience_ids' => implode(',', GALADO_Bundles_Combos::stylink_ids())];
         $existing = get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT);
         if ($existing) {
             update_post_meta($existing->ID, GALADO_BUNDLES_META . 'items', wp_json_encode($items));

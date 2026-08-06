@@ -159,17 +159,29 @@ class GALADO_Bundles_Combos {
      * charm/strap categories (the word "card" excludes them); clip-ons carry
      * the charm categories too (their own category excludes them).
      */
+    /**
+     * The Stylink product ids. Single source for BOTH the PWP anchor list below and
+     * the clip-on shelf audience in GALADO_Bundles_Addons::seed_clipons_group().
+     *
+     * A new Stylink goes here and nowhere else. These used to be two hardcoded lists,
+     * and a Stylink present in only the shelf one still rendered the shelf with every
+     * add-on at full price - the difference between RM55 and RM69 on a Mini Phone
+     * Charm, with no error to notice (owner 2026-08-05).
+     */
+    public static function stylink_ids() {
+        return [
+            389955,  // Stylink Metal Chain
+            408224,  // Stylink (Extended) Metal Chain
+        ];
+    }
+
     public static function is_pwp_anchor($product) {
         static $memo = [];
         if (!$product instanceof WC_Product) return false;
         $pid = (int) $product->get_id();
         if (isset($memo[$pid])) return $memo[$pid];
 
-        // Stylink Metal Chain + Stylink (Extended) Metal Chain. Without an entry here the
-        // shelf still renders but every add-on sits at full price, which is the difference
-        // between RM55 and RM69 on a Mini Phone Charm. Keep in step with the clip-on
-        // shelf audience in GALADO_Bundles_Addons::seed_clipons_group().
-        $ids_yes = apply_filters('galado_bundles_pwp_anchor_ids', [389955, 408224]);
+        $ids_yes = apply_filters('galado_bundles_pwp_anchor_ids', self::stylink_ids());
         if (in_array($pid, array_map('intval', (array) $ids_yes), true)) return $memo[$pid] = true;
         if (self::is_case_pdp($product)) return $memo[$pid] = true;
 
