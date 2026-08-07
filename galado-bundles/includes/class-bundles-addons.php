@@ -453,6 +453,46 @@ class GALADO_Bundles_Addons {
         return $out ?: null;
     }
 
+    /**
+     * variation_id + price per model slug for a "Match PDP model" shelf item.
+     *
+     * A model that does not resolve to exactly ONE purchasable variation is
+     * dropped rather than guessed, and a variation carrying axes beyond the
+     * model (a colour the shelf never asks for) is skipped - the same
+     * one-match-or-refuse discipline GALADO_Bundles_Combos::pick_variation()
+     * uses, so the two surfaces cannot resolve a model differently.
+     *
+     * Keys are norm_model() slugs, which is what the front end derives from
+     * the PDP's model <select>.
+     */
+    private static function by_model_options($p, $mkey, $addon_price) {
+        $hits = [];
+        foreach ($p->get_children() as $cid) {
+            $v = wc_get_product($cid);
+            if (!$v || !$v->is_purchasable() || !$v->is_in_stock()) continue;
+            $model = '';
+            $extra = 0;
+            foreach ($v->get_variation_attributes() as $ak => $av) {
+                if ('' === $av) continue; // the "any" wildcard pins nothing
+                $key = 0 === strpos($ak, 'attribute_') ? substr($ak, strlen('attribute_')) : $ak;
+                if (0 === strcasecmp($key, $mkey)) {
+                    $model = GALADO_Bundles_Combos::norm_model($av);
+                } else {
+                    $extra++;
+                }
+            }
+            if ('' === $model || $extra) continue;
+            $own = (float) wc_get_price_to_display($v);
+            $hits[$model][] = ['id' => (int) $cid, 'price' => $addon_price > 0 ? $addon_price : $own];
+        }
+
+        $out = [];
+        foreach ($hits as $model => $rows) {
+            if (1 === count($rows)) $out[$model] = $rows[0];
+        }
+        return $out;
+    }
+
     /** Compact option label: colour part after " - " when present, otherwise
      * the name minus common charm suffixes. */
     private static function short_label($name, $circle = '') {
@@ -527,6 +567,24 @@ class GALADO_Bundles_Addons {
         ];
 
         if ('variable' === $base['type']) {
+            // "Match PDP model" on a shelf item (the watch cover on a band page):
+            // the size is resolved from the model chosen on the page itself, so no
+            // picker is offered and the two can never disagree. Combos have had
+            // this mode since launch; this is the first shelf to use it. An item
+            // whose product has no model axis falls through to the normal picker,
+            // so a mis-set mode degrades instead of rendering an empty circle.
+            if ('model_match' === (string) ($it['variation_mode'] ?? '')) {
+                $mkey = GALADO_Bundles_Combos::model_attr_key($p);
+                if ('' !== $mkey) {
+                    $by_model = self::by_model_options($p, $mkey, $addon_price);
+                    if (!$by_model) return null;
+                    $base['mode']     = 'model_match';
+                    $base['by_model'] = $by_model;
+                    $base['price']    = min(wp_list_pluck($by_model, 'price'));
+                    return $base;
+                }
+            }
+
             $opts = [];
             foreach ($p->get_children() as $cid) {
                 $v = wc_get_product($cid);
@@ -583,6 +641,8 @@ class GALADO_Bundles_Addons {
                 'added'   => __('Added', 'galado-bundles'),
                 'adding'  => __('Adding...', 'galado-bundles'),
                 'pick'    => __('Choose an option first', 'galado-bundles'),
+                'pick_model' => __('Choose your size above first', 'galado-bundles'),
+                'no_model'   => __('Not available for the size you picked.', 'galado-bundles'),
                 'preview' => __('Preview mode. Turn the storefront on to enable adds.', 'galado-bundles'),
                 'failed'  => __('Could not add it, please try again.', 'galado-bundles'),
                 'added_lbl'   => __('added', 'galado-bundles'),
@@ -630,6 +690,7 @@ class GALADO_Bundles_Addons {
                 'adding'        => __('Adding...', 'galado-bundles'),
                 'failed'        => __('Could not add to basket, please try again.', 'galado-bundles'),
                 'combo_dropped' => __('Protection set removed because the model changed. Pick it again below.', 'galado-bundles'),
+                'addon_dropped' => __('Add-on removed because the size changed. Pick it again below.', 'galado-bundles'),
             ],
         ]);
     }
@@ -879,7 +940,10 @@ class GALADO_Bundles_Addons {
                 'product_id'           => (int) $pid,
                 'line_type'            => $p->is_type('variable') ? 'variable' : 'simple',
                 'qty'                  => 1,
-                'variation_mode'       => $p->is_type('variable') ? 'shopper_choice' : 'fixed',
+                // The cover's size follows the band's: both carry the same 7-value
+                // "Model" axis, so the shopper never picks a watch size twice and
+                // a 41mm cover can never ride along with a 45mm band.
+                'variation_mode'       => $p->is_type('variable') ? 'model_match' : 'fixed',
                 'default_variation_id' => 0,
                 'match_attrs'          => [],
                 'addon_price'          => 45.0, // owner: RM10 off (own price RM55)

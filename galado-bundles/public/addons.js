@@ -12,6 +12,35 @@
 
   function rm(n) { n = Math.round((+n || 0) * 100) / 100; return 'RM' + (n % 1 === 0 ? String(n) : n.toFixed(2)); }
 
+  /** The PDP's model <select>: the global pa_model taxonomy on most products,
+   * a local "Model" attribute on the rest. Same pair combos.js reads. */
+  function modelSelect() {
+    return document.querySelector('form.variations_form select[name="attribute_pa_model"]')
+        || document.querySelector('form.variations_form select[name="attribute_model"]');
+  }
+
+  /**
+   * The select's value as the slug the server keyed by_model with.
+   *
+   * A global attribute already puts the term SLUG in the value and slugifying a
+   * slug returns it unchanged; a local attribute puts the display TEXT there
+   * ("Apple Watch 45mm") and this mirrors WordPress sanitize_title, which is what
+   * norm_model() applied server-side. So one pass is exact for both kinds, and
+   * unlike combos.js this needs no slug -> label map to reverse.
+   */
+  function currentModel() {
+    var sel = modelSelect();
+    var raw = sel && sel.value ? sel.value : '';
+    if (!raw) return '';
+    return String(raw).toLowerCase()
+      .replace(/&.+?;/g, '')
+      .replace(/\./g, '-')
+      .replace(/[^a-z0-9 _-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
   function groupData(slug) {
     for (var i = 0; i < CFG.groups.length; i++) {
       if (CFG.groups[i].slug === slug) return CFG.groups[i];
@@ -41,6 +70,25 @@
       btn.disabled = false; // server ships disabled for no-JS; JS takes over
 
       var activate = function () {
+        // "Match PDP model": no picker, the size comes from the page's own
+        // model select. Resolved at tap so a model changed after the shelf
+        // rendered is still honoured.
+        if (item.mode === 'model_match') {
+          var model = currentModel();
+          if (!model) { if (note) note.textContent = CFG.i18n.pick_model; return; }
+          var hit = item.by_model && item.by_model[model];
+          if (!hit) { if (note) note.textContent = CFG.i18n.no_model; return; }
+          if (note) note.textContent = '';
+          add(section, item.product_id, hit.id, btn, {
+            name: item.name, price: hit.price, was: item.was,
+            circle: String(item.key), addon_price: item.addon_price,
+            own: item.was > 0 ? item.was : hit.price,
+            // Binds the staged pick to this model so the bar can drop it if
+            // the shopper changes size afterwards.
+            model: model
+          });
+          return;
+        }
         if (item.type === 'simple') {
           add(section, item.product_id, 0, btn, {
             name: item.name, price: item.price, was: item.was,
@@ -309,7 +357,8 @@
         name: meta.name,
         own: meta.own,
         addon_price: meta.addon_price,
-        circle: meta.circle
+        circle: meta.circle,
+        model: meta.model || ''
       });
       meta.price = staged.price;
       if (staged.reused) meta.was = 0;
