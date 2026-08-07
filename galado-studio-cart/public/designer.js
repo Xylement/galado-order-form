@@ -317,11 +317,30 @@
       // long design sessions 404'd at Looks Good).
       if (S.token) return;
       api('/v1/session', { method: 'POST', json: { turnstile_token: t, wp_claim: cfg.wp_claim || '' } })
-        .then(function (b) { if (b.__status === 200) { S.token = b.token; holder.style.display = 'none'; } })
-        .catch(function () { /* retried via waitForToken when the customer acts */ });
+        .then(function (b) {
+          if (b.__status === 200) { S.token = b.token; S.sessionRetries = 0; holder.style.display = 'none'; return; }
+          retrySession(); // 4xx/5xx: usually a spent or expired token (they are single-use)
+        })
+        .catch(function () { retrySession(); }); // network blip on the first call
     };
+    // Live bug 7 Aug: the opening /v1/session call failed once (mobile blip /
+    // stale token) and NOTHING ever retried it. waitForToken only polled for a
+    // token that could no longer arrive, so every later action surfaced
+    // TURNSTILE_FAILED until a full page reload. A reset() mints a fresh
+    // token, which re-fires the callback above and reopens the session.
+    S.retrySession = retrySession;
+    function retrySession() {
+      if (S.token) return;
+      S.sessionRetries = (S.sessionRetries || 0) + 1;
+      if (S.sessionRetries > 4) return; // page reload is the last resort
+      setTimeout(function () {
+        if (S.token) return;
+        if (S.tsWidget !== undefined && window.turnstile) window.turnstile.reset(S.tsWidget);
+        else open(S.turnstileToken || '');
+      }, 1200 * S.sessionRetries);
+    }
     if (cfg.sitekey && window.turnstile) {
-      window.turnstile.render(holder, {
+      S.tsWidget = window.turnstile.render(holder, {
         sitekey: cfg.sitekey,
         callback: function (t) { S.turnstileToken = t; if (!S.token) open(t); },
       });
@@ -990,6 +1009,7 @@
   function waitForToken(cb, status) {
     if (S.token) return cb();
     status.textContent = COPY.gettingReady;
+    if (S.retrySession) S.retrySession(); // the customer acted: actually retry, not just poll
     var tries = 0;
     var t = setInterval(function () {
       tries += 1;
