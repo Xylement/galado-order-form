@@ -860,6 +860,67 @@ class GALADO_Bundles_Addons {
         return 1;
     }
 
+    /** Idempotent: the Watch Cover shelf (owner 2026-08-06): one circle holding
+     * the CrystalGuard Watch Cover at RM10 off, shown only on the Apple Watch
+     * band pages. Id targeting, not the Apple Watch categories - the cover
+     * carries those same categories and would otherwise be offered on its own
+     * page. The band ids live in GALADO_Bundles_Combos::watch_band_ids(), which
+     * also puts them in the PWP anchor list; without that the shelf would render
+     * at the cover's full RM55. */
+    public static function seed_watch_cover_group() {
+        $slug = 'addons-watch-cover';
+        $pids = [331319]; // CrystalGuard Watch Cover
+        $items = [];
+        foreach ($pids as $n => $pid) {
+            $p = wc_get_product($pid);
+            if (!$p || 'publish' !== $p->get_status()) continue;
+            $items[] = [
+                'slot'                 => 'watchcover' . $n,
+                'product_id'           => (int) $pid,
+                'line_type'            => $p->is_type('variable') ? 'variable' : 'simple',
+                'qty'                  => 1,
+                'variation_mode'       => $p->is_type('variable') ? 'shopper_choice' : 'fixed',
+                'default_variation_id' => 0,
+                'match_attrs'          => [],
+                'addon_price'          => 45.0, // owner: RM10 off (own price RM55)
+                'label'                => 'Watch Cover',
+                'name_cache'           => $p->get_name(),
+                'price_cache'          => (float) wc_get_price_to_display($p),
+            ];
+        }
+        if (!$items) return 0;
+
+        $audience = ['show_on_cases' => '0', 'audience_cats' => '',
+                     'audience_ids' => implode(',', GALADO_Bundles_Combos::watch_band_ids()),
+                     'position' => 'before'];
+        $existing = get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT);
+        if ($existing) {
+            update_post_meta($existing->ID, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
+            foreach ($audience as $k => $v) update_post_meta($existing->ID, GALADO_BUNDLES_META . $k, $v);
+            do_action('galado_bundles_changed', [$existing->ID]);
+            return 0;
+        }
+
+        $post_id = wp_insert_post([
+            'post_type'   => GALADO_BUNDLES_CPT,
+            'post_status' => 'draft',
+            'post_title'  => 'Complete The Set',
+            'post_name'   => $slug,
+            'menu_order'  => 0,
+        ]);
+        if (!$post_id || is_wp_error($post_id)) return 0;
+
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'addon_group', '1');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo', '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'featured', '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'save', 0);
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_price', 0);
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'mode', 'link');
+        foreach ($audience as $k => $v) update_post_meta($post_id, GALADO_BUNDLES_META . $k, $v);
+        return 1;
+    }
+
     /** Idempotent: the Stylink Clip-On shelf (owner r12): one circle holding
      * every clip-on charm at its own price, shown only on the Stylink product
      * pages (id targeting - the Stylinks have no category of their own). */

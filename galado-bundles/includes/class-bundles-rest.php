@@ -89,6 +89,7 @@ class GALADO_Bundles_REST {
         $made += GALADO_Bundles_Addons::seed_accessories_group();
         $made += GALADO_Bundles_Addons::seed_clipons_group();
         $made += GALADO_Bundles_Addons::seed_lunaguard_grips_group();
+        $made += GALADO_Bundles_Addons::seed_watch_cover_group();
         return rest_ensure_response(['created' => $made, 'combos' => self::combo_report()]);
     }
 
@@ -99,6 +100,7 @@ class GALADO_Bundles_REST {
             'addons-accessories',
             'addons-clipons',
             'addons-lunaguard-grips',
+            'addons-watch-cover',
         ]);
         $done = [];
         foreach ($slugs as $slug) {
