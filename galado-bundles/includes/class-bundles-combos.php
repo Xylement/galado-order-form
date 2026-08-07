@@ -149,17 +149,6 @@ class GALADO_Bundles_Combos {
     }
 
     /**
-     * Does buying THIS product qualify the shopper for accessory PWP prices?
-     * Owner's list (2026-08-04 r16):
-     *   YES - all phone cases, charms, the Stylink chain, grips, straps
-     *   NO  - clip-ons (except Stylink), tempered glass / screen protectors,
-     *         magnet rings, Instax-photo-only, strap cards of any kind
-     * Catalogue notes: grips share the magnetic-ring-stand category with
-     * rings (the name decides); the 360/Ultra Slim cards live inside the
-     * charm/strap categories (the word "card" excludes them); clip-ons carry
-     * the charm categories too (their own category excludes them).
-     */
-    /**
      * The Stylink product ids. Single source for BOTH the PWP anchor list below and
      * the clip-on shelf audience in GALADO_Bundles_Addons::seed_clipons_group().
      *
@@ -175,13 +164,45 @@ class GALADO_Bundles_Combos {
         ];
     }
 
+    /**
+     * The Apple Watch band ids. Single source for BOTH the PWP anchor list below and
+     * the watch-cover shelf audience in
+     * GALADO_Bundles_Addons::seed_watch_cover_group(), for the same reason the
+     * Stylink ids are pooled above: a band listed only as the shelf audience still
+     * renders the shelf, but at the cover's full RM55 instead of RM45.
+     *
+     * Bands are targeted by id, not by the Apple Watch categories, because the
+     * CrystalGuard cover carries those same categories - a category audience would
+     * offer the cover on the cover's own page.
+     */
+    public static function watch_band_ids() {
+        return [
+            407519,  // Valtor Watch Band
+        ];
+    }
+
+    /**
+     * Does buying THIS product qualify the shopper for accessory PWP prices?
+     * Owner's list (2026-08-04 r16, watch bands added 2026-08-06):
+     *   YES - all phone cases, charms, the Stylink chain, grips, straps,
+     *         Apple Watch bands
+     *   NO  - clip-ons (except Stylink), tempered glass / screen protectors,
+     *         magnet rings, Instax-photo-only, strap cards of any kind
+     * Catalogue notes: grips share the magnetic-ring-stand category with
+     * rings (the name decides); the 360/Ultra Slim cards live inside the
+     * charm/strap categories (the word "card" excludes them); clip-ons carry
+     * the charm categories too (their own category excludes them). Watch bands
+     * cannot qualify via is_case_pdp() - 'apple-watch-apple' is a blocked
+     * category - so they qualify through the id list below.
+     */
     public static function is_pwp_anchor($product) {
         static $memo = [];
         if (!$product instanceof WC_Product) return false;
         $pid = (int) $product->get_id();
         if (isset($memo[$pid])) return $memo[$pid];
 
-        $ids_yes = apply_filters('galado_bundles_pwp_anchor_ids', self::stylink_ids());
+        $ids_yes = apply_filters('galado_bundles_pwp_anchor_ids',
+                                 array_merge(self::stylink_ids(), self::watch_band_ids()));
         if (in_array($pid, array_map('intval', (array) $ids_yes), true)) return $memo[$pid] = true;
         if (self::is_case_pdp($product)) return $memo[$pid] = true;
 

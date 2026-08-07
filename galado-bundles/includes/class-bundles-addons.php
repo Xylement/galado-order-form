@@ -453,6 +453,46 @@ class GALADO_Bundles_Addons {
         return $out ?: null;
     }
 
+    /**
+     * variation_id + price per model slug for a "Match PDP model" shelf item.
+     *
+     * A model that does not resolve to exactly ONE purchasable variation is
+     * dropped rather than guessed, and a variation carrying axes beyond the
+     * model (a colour the shelf never asks for) is skipped - the same
+     * one-match-or-refuse discipline GALADO_Bundles_Combos::pick_variation()
+     * uses, so the two surfaces cannot resolve a model differently.
+     *
+     * Keys are norm_model() slugs, which is what the front end derives from
+     * the PDP's model <select>.
+     */
+    private static function by_model_options($p, $mkey, $addon_price) {
+        $hits = [];
+        foreach ($p->get_children() as $cid) {
+            $v = wc_get_product($cid);
+            if (!$v || !$v->is_purchasable() || !$v->is_in_stock()) continue;
+            $model = '';
+            $extra = 0;
+            foreach ($v->get_variation_attributes() as $ak => $av) {
+                if ('' === $av) continue; // the "any" wildcard pins nothing
+                $key = 0 === strpos($ak, 'attribute_') ? substr($ak, strlen('attribute_')) : $ak;
+                if (0 === strcasecmp($key, $mkey)) {
+                    $model = GALADO_Bundles_Combos::norm_model($av);
+                } else {
+                    $extra++;
+                }
+            }
+            if ('' === $model || $extra) continue;
+            $own = (float) wc_get_price_to_display($v);
+            $hits[$model][] = ['id' => (int) $cid, 'price' => $addon_price > 0 ? $addon_price : $own];
+        }
+
+        $out = [];
+        foreach ($hits as $model => $rows) {
+            if (1 === count($rows)) $out[$model] = $rows[0];
+        }
+        return $out;
+    }
+
     /** Compact option label: colour part after " - " when present, otherwise
      * the name minus common charm suffixes. */
     private static function short_label($name, $circle = '') {
@@ -527,6 +567,24 @@ class GALADO_Bundles_Addons {
         ];
 
         if ('variable' === $base['type']) {
+            // "Match PDP model" on a shelf item (the watch cover on a band page):
+            // the size is resolved from the model chosen on the page itself, so no
+            // picker is offered and the two can never disagree. Combos have had
+            // this mode since launch; this is the first shelf to use it. An item
+            // whose product has no model axis falls through to the normal picker,
+            // so a mis-set mode degrades instead of rendering an empty circle.
+            if ('model_match' === (string) ($it['variation_mode'] ?? '')) {
+                $mkey = GALADO_Bundles_Combos::model_attr_key($p);
+                if ('' !== $mkey) {
+                    $by_model = self::by_model_options($p, $mkey, $addon_price);
+                    if (!$by_model) return null;
+                    $base['mode']     = 'model_match';
+                    $base['by_model'] = $by_model;
+                    $base['price']    = min(wp_list_pluck($by_model, 'price'));
+                    return $base;
+                }
+            }
+
             $opts = [];
             foreach ($p->get_children() as $cid) {
                 $v = wc_get_product($cid);
@@ -583,6 +641,8 @@ class GALADO_Bundles_Addons {
                 'added'   => __('Added', 'galado-bundles'),
                 'adding'  => __('Adding...', 'galado-bundles'),
                 'pick'    => __('Choose an option first', 'galado-bundles'),
+                'pick_model' => __('Choose your size above first', 'galado-bundles'),
+                'no_model'   => __('Not available for the size you picked.', 'galado-bundles'),
                 'preview' => __('Preview mode. Turn the storefront on to enable adds.', 'galado-bundles'),
                 'failed'  => __('Could not add it, please try again.', 'galado-bundles'),
                 'added_lbl'   => __('added', 'galado-bundles'),
@@ -630,6 +690,7 @@ class GALADO_Bundles_Addons {
                 'adding'        => __('Adding...', 'galado-bundles'),
                 'failed'        => __('Could not add to basket, please try again.', 'galado-bundles'),
                 'combo_dropped' => __('Protection set removed because the model changed. Pick it again below.', 'galado-bundles'),
+                'addon_dropped' => __('Add-on removed because the size changed. Pick it again below.', 'galado-bundles'),
             ],
         ]);
     }
@@ -832,6 +893,70 @@ class GALADO_Bundles_Addons {
         if (!$items) return 0;
 
         $audience = ['show_on_cases' => '0', 'audience_cats' => '', 'audience_ids' => '389852', 'position' => 'before'];
+        $existing = get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT);
+        if ($existing) {
+            update_post_meta($existing->ID, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
+            foreach ($audience as $k => $v) update_post_meta($existing->ID, GALADO_BUNDLES_META . $k, $v);
+            do_action('galado_bundles_changed', [$existing->ID]);
+            return 0;
+        }
+
+        $post_id = wp_insert_post([
+            'post_type'   => GALADO_BUNDLES_CPT,
+            'post_status' => 'draft',
+            'post_title'  => 'Complete The Set',
+            'post_name'   => $slug,
+            'menu_order'  => 0,
+        ]);
+        if (!$post_id || is_wp_error($post_id)) return 0;
+
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'items', wp_json_encode($items));
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'addon_group', '1');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo', '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'featured', '0');
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'save', 0);
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'combo_price', 0);
+        update_post_meta($post_id, GALADO_BUNDLES_META . 'mode', 'link');
+        foreach ($audience as $k => $v) update_post_meta($post_id, GALADO_BUNDLES_META . $k, $v);
+        return 1;
+    }
+
+    /** Idempotent: the Watch Cover shelf (owner 2026-08-06): one circle holding
+     * the CrystalGuard Watch Cover at RM10 off, shown only on the Apple Watch
+     * band pages. Id targeting, not the Apple Watch categories - the cover
+     * carries those same categories and would otherwise be offered on its own
+     * page. The band ids live in GALADO_Bundles_Combos::watch_band_ids(), which
+     * also puts them in the PWP anchor list; without that the shelf would render
+     * at the cover's full RM55. */
+    public static function seed_watch_cover_group() {
+        $slug = 'addons-watch-cover';
+        $pids = [331319]; // CrystalGuard Watch Cover
+        $items = [];
+        foreach ($pids as $n => $pid) {
+            $p = wc_get_product($pid);
+            if (!$p || 'publish' !== $p->get_status()) continue;
+            $items[] = [
+                'slot'                 => 'watchcover' . $n,
+                'product_id'           => (int) $pid,
+                'line_type'            => $p->is_type('variable') ? 'variable' : 'simple',
+                'qty'                  => 1,
+                // The cover's size follows the band's: both carry the same 7-value
+                // "Model" axis, so the shopper never picks a watch size twice and
+                // a 41mm cover can never ride along with a 45mm band.
+                'variation_mode'       => $p->is_type('variable') ? 'model_match' : 'fixed',
+                'default_variation_id' => 0,
+                'match_attrs'          => [],
+                'addon_price'          => 45.0, // owner: RM10 off (own price RM55)
+                'label'                => 'Watch Cover',
+                'name_cache'           => $p->get_name(),
+                'price_cache'          => (float) wc_get_price_to_display($p),
+            ];
+        }
+        if (!$items) return 0;
+
+        $audience = ['show_on_cases' => '0', 'audience_cats' => '',
+                     'audience_ids' => implode(',', GALADO_Bundles_Combos::watch_band_ids()),
+                     'position' => 'before'];
         $existing = get_page_by_path($slug, OBJECT, GALADO_BUNDLES_CPT);
         if ($existing) {
             update_post_meta($existing->ID, GALADO_BUNDLES_META . 'items', wp_json_encode($items));

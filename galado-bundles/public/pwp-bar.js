@@ -57,6 +57,10 @@
         variation_id: +item.variation_id || 0,
         name: String(item.name || ''),
         circle: String(item.circle || item.product_id || ''),
+        // Set only by a "Match PDP model" shelf item (the watch cover): binds
+        // the pick to the model it was resolved for. Empty on every other
+        // add-on, which is model-agnostic and must never be dropped.
+        model: String(item.model || ''),
         own: own > 0 ? own : ap,
         promised: pwp ? ap : (own > 0 ? own : ap),
         pwp: pwp,
@@ -228,8 +232,17 @@
 
   function dropStaleCombos(newModel) {
     var before = stage.length;
-    stage = stage.filter(function (s) { return s.type !== 'combo' || s.model === newModel; });
-    if (stage.length !== before) toast(CFG.i18n.combo_dropped);
+    // Model-bound add-ons go the same way as stale sets: a watch cover staged
+    // for 45mm must not ride along with a 41mm band. Add-ons with no model are
+    // model-agnostic and always survive.
+    var lostCombo = false;
+    stage = stage.filter(function (s) {
+      var keep = 'combo' === s.type ? s.model === newModel : (!s.model || s.model === newModel);
+      if (!keep && 'combo' === s.type) lostCombo = true;
+      return keep;
+    });
+    if (stage.length === before) return;
+    toast(lostCombo ? CFG.i18n.combo_dropped : CFG.i18n.addon_dropped);
   }
 
   // ---- Buy Now takeover ---------------------------------------------------
