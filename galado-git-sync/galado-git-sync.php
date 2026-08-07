@@ -2,7 +2,7 @@
 /**
  * Plugin Name: GALADO Git Sync
  * Description: Auto-sync WordPress plugins from public GitHub repos. Push to GitHub → your site updates automatically via webhook.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: GALADO
  * Text Domain: galado-git-sync
  */
@@ -341,15 +341,17 @@ class Galado_Git_Sync {
     public function handle_webhook( $request ) {
         $body = $request->get_json_params();
 
-        // Optional: verify secret
+        // Verify secret. When a secret is configured, unsigned requests are
+        // rejected — manual re-syncs go through the admin "Sync Now" button.
         $secret = get_option( 'galado_git_sync_secret', '' );
         if ( ! empty( $secret ) ) {
             $signature = $request->get_header( 'X-Hub-Signature-256' );
-            if ( $signature ) {
-                $expected = 'sha256=' . hash_hmac( 'sha256', $request->get_body(), $secret );
-                if ( ! hash_equals( $expected, $signature ) ) {
-                    return new WP_REST_Response( array( 'error' => 'Invalid signature' ), 403 );
-                }
+            if ( empty( $signature ) ) {
+                return new WP_REST_Response( array( 'error' => 'Missing signature' ), 401 );
+            }
+            $expected = 'sha256=' . hash_hmac( 'sha256', $request->get_body(), $secret );
+            if ( ! hash_equals( $expected, $signature ) ) {
+                return new WP_REST_Response( array( 'error' => 'Invalid signature' ), 403 );
             }
         }
 
