@@ -167,7 +167,7 @@ function gwarr_render_register_form($atts = []) {
 
             <label class="gwarr-consent">
                 <input type="checkbox" name="marketing_consent" value="1" checked>
-                <span>Yes, send me GALADO promotions, new arrivals, and exclusive perks by email. You can unsubscribe any time.</span>
+                <span><?php echo esc_html(gwarr_consent_text()); ?></span>
             </label>
 
             <p class="gwarr-actions">

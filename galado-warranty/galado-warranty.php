@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.9.4
+ * Version: 1.10.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.9.4');
+define('GWARR_VERSION', '1.10.0');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -28,6 +28,7 @@ function gwarr_default_settings() {
         'klaviyo_api_key'      => '',
         'klaviyo_list_id'      => '',
         'klaviyo_event_name'   => 'Warranty Approved',
+        'subscribe_channel'    => 'klaviyo',    // klaviyo|gsend: where the marketing opt-in goes
         'coupon_amount'        => 10,           // percent
         'coupon_min_spend'     => 0,
         'coupon_expiry_days'   => 90,
@@ -59,6 +60,21 @@ function gwarr_perk_description() {
     if ($free_shipping) $parts[] = 'free shipping';
 
     return $parts ? implode(' + ', $parts) : 'a discount';
+}
+
+/**
+ * The exact marketing consent wording shown next to the checkbox.
+ *
+ * One place for it, so the form and the consent record we send can never drift
+ * apart. If this changes, everyone who consents after the change is recorded
+ * against the new wording and everyone before it keeps the old one.
+ *
+ * MARKETING OWNS THIS STRING. The box is ticked by default, so this sentence is
+ * the entire consent record, and the only answer we have to "what did this
+ * person agree to". Do not edit it as a dev change; it changes with Marketing.
+ */
+function gwarr_consent_text() {
+    return 'Yes, send me GALADO promotions, new arrivals, and exclusive perks by email. You can unsubscribe any time.';
 }
 
 function gwarr_coverage_url() {
@@ -388,6 +404,7 @@ add_action('plugins_loaded', function () {
         require_once GWARR_PATH . 'includes/class-warranty-coupon.php';
         require_once GWARR_PATH . 'includes/class-warranty-email.php';
         require_once GWARR_PATH . 'includes/class-warranty-klaviyo.php';
+        require_once GWARR_PATH . 'includes/class-warranty-gsend.php';
         require_once GWARR_PATH . 'includes/class-warranty-approval.php';
         require_once GWARR_PATH . 'includes/class-warranty-sheet-api.php';
         require_once GWARR_PATH . 'includes/class-warranty-sheet-sync.php';
