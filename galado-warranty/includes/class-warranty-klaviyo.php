@@ -39,9 +39,11 @@ class GWARR_Klaviyo {
             return;
         }
 
-        // Marketing list — only with explicit consent.
+        // Marketing list: only with explicit consent, and only while Klaviyo is
+        // still the configured channel. When it is 'gsend', GWARR_GSend has already
+        // taken the opt-in and adding it here too would double-subscribe.
         $list_id = $settings['klaviyo_list_id'] ?? '';
-        if ($list_id !== '' && !empty($row->marketing_consent)) {
+        if ($list_id !== '' && !empty($row->marketing_consent) && GWARR_GSend::channel() === 'klaviyo') {
             self::subscribe_to_list($api_key, $list_id, $user->user_email);
         }
 

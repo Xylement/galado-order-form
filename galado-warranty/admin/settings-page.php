@@ -28,6 +28,7 @@ function gwarr_render_settings_page() {
             'klaviyo_api_key'      => sanitize_text_field($_POST['klaviyo_api_key'] ?? ''),
             'klaviyo_list_id'      => sanitize_text_field($_POST['klaviyo_list_id'] ?? ''),
             'klaviyo_event_name'   => sanitize_text_field($_POST['klaviyo_event_name'] ?? 'Warranty Approved'),
+            'subscribe_channel'    => (($_POST['subscribe_channel'] ?? '') === 'gsend') ? 'gsend' : 'klaviyo',
             'coupon_amount'        => max(0, min(100, (int) ($_POST['coupon_amount'] ?? 10))),
             'coupon_min_spend'     => max(0, (float) ($_POST['coupon_min_spend'] ?? 0)),
             'coupon_expiry_days'   => max(1, min(365, (int) ($_POST['coupon_expiry_days'] ?? 90))),
@@ -43,6 +44,16 @@ function gwarr_render_settings_page() {
             'auto_approve'         => isset($_POST['auto_approve']) ? 1 : 0,
         ];
         update_option('gwarr_settings', $settings);
+
+        // Kept in its own option rather than gwarr_settings: it is the same
+        // EVENTS_SECRET the store-wide signup capture signs with, so one row holds
+        // it once. Blank means "no change", same rule as the service-account JSON.
+        $posted_secret = isset($_POST['gsend_events_secret'])
+            ? trim((string) wp_unslash($_POST['gsend_events_secret']))
+            : '';
+        if ($posted_secret !== '') {
+            update_option('galado_gsend_events_secret', $posted_secret, false);
+        }
         delete_transient('gwarr_register_page_url'); // bust cache so override takes effect
         echo '<div class="notice notice-success"><p>Settings saved.</p></div>';
 
@@ -190,6 +201,35 @@ function gwarr_render_settings_page() {
                             At checkout the flag is a no-op (shipping is already free). If your shipping config ever requires
                             <em>"A valid free shipping coupon"</em>, this same coupon would then also unlock shipping —
                             no extra work needed.
+                        </p>
+                    </td>
+                </tr>
+            </table>
+
+            <h2 class="title">Marketing opt-in</h2>
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row">Send opt-ins to</th>
+                    <td>
+                        <select name="subscribe_channel">
+                            <option value="klaviyo" <?php selected($settings['subscribe_channel'], 'klaviyo'); ?>>Klaviyo</option>
+                            <option value="gsend" <?php selected($settings['subscribe_channel'], 'gsend'); ?>>G-Send</option>
+                        </select>
+                        <p class="description">
+                            Where the ticked consent box goes. Klaviyo is being cancelled in September; switching to
+                            G-Send posts a <code>contact_subscribed</code> event to the Club instead. Only one channel
+                            receives it, never both. Everything else on this page is unaffected.
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">G-Send events secret</th>
+                    <td>
+                        <input type="password" name="gsend_events_secret" value="" class="regular-text" autocomplete="off"
+                               placeholder="<?php echo get_option('galado_gsend_events_secret') ? 'Saved, leave blank to keep it' : 'Not set'; ?>">
+                        <p class="description">
+                            <code>EVENTS_SECRET</code> from <code>/opt/galado-send/.env</code> on KVM4. Never shown back;
+                            leaving this blank keeps the saved value. Required before the G-Send channel will send anything.
                         </p>
                     </td>
                 </tr>

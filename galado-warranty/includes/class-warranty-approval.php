@@ -14,7 +14,8 @@ class GWARR_Approval {
      *   1. Generate a unique WooCommerce coupon for this customer
      *   2. Persist purchase_date + warranty_ends + coupon code (DB::approve)
      *   3. Send the approval email with coupon details
-     *   4. Push profile + list + event to Klaviyo (best-effort)
+     *   4. Mirror the marketing opt-in to whichever channel is configured, and
+     *      push profile + event to Klaviyo (all best-effort)
      *
      * @return object|WP_Error The updated row on success, WP_Error otherwise.
      */
@@ -45,6 +46,10 @@ class GWARR_Approval {
         // Defer them past the response flush so registration feels instant.
         self::dispatch(function () use ($updated) {
             GWARR_Email::send_approved($updated);
+            // Deliberately not inside GWARR_Klaviyo: that class returns early when the
+            // Klaviyo key is empty, and the whole point of this path is to survive the
+            // key going away in September.
+            GWARR_GSend::maybe_subscribe($updated);
             GWARR_Klaviyo::on_approval($updated);
         });
         if (function_exists('gwarr_mark')) gwarr_mark('approve: deferred queued');

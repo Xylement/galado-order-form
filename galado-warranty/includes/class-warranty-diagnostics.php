@@ -57,7 +57,13 @@ class GWARR_Diagnostics {
         $env['GALADO_CLUB_URL']           = defined('GALADO_CLUB_URL') ? 'defined' : 'NOT defined';
         $env['GALADO_CLUB_BRIDGE_SECRET'] = defined('GALADO_CLUB_BRIDGE_SECRET') ? 'defined' : 'NOT defined';
         $env['Klaviyo API key']           = !empty($settings['klaviyo_api_key']) ? 'set' : 'empty';
+        $env['Opt-in channel']            = GWARR_GSend::channel();
+        $env['G-Send events secret']      = GWARR_GSend::secret() !== '' ? 'set' : 'empty';
         $env['Auto-approve']              = !empty($settings['auto_approve']) ? 'on' : 'off';
+
+        if (GWARR_GSend::channel() === 'gsend' && GWARR_GSend::secret() === '') {
+            $notes[] = 'Opt-in channel is G-Send but no events secret is set, so every marketing opt-in is being dropped. Paste EVENTS_SECRET into Settings, or switch the channel back to Klaviyo.';
+        }
 
         // ---- Timed checks ----
         global $wpdb;
