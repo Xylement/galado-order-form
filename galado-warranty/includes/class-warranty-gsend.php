@@ -117,6 +117,12 @@ class GWARR_GSend {
      * When the customer consented, which is when they registered, not now.
      * Approval can be days later, and the ledger has to record the moment they
      * actually ticked the box.
+     *
+     * created_at is written by PHP in site time (GWARR_DB::insert), so treating it
+     * as site-local here is correct by construction rather than by assumption.
+     * Rows written before v1.10.1 came from the column's CURRENT_TIMESTAMP default
+     * and are only right if the MySQL server runs on site time; Diagnostics reports
+     * whether it does.
      */
     private static function consent_ts($row) {
         $created = isset($row->created_at) ? (string) $row->created_at : '';

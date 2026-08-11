@@ -89,8 +89,14 @@ class GWARR_DB {
                 'notes'             => (string) $row['notes'],
                 'marketing_consent' => $row['marketing_consent'] ? 1 : 0,
                 'status'            => (string) $row['status'],
+                // Written by PHP rather than left to the column's CURRENT_TIMESTAMP
+                // default, so it is site-local for certain and matches approved_at,
+                // which is already written this way. created_at is the consent
+                // timestamp sent to G-Send, and it cannot depend on how the MySQL
+                // server happens to be configured.
+                'created_at'        => current_time('mysql'),
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%d', '%s']
+            ['%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s']
         );
 
         if ($ok === false) {
@@ -185,6 +191,7 @@ class GWARR_DB {
                 'purchase_date'     => $row['purchase_date'] ?: null,
                 'warranty_ends'     => $row['warranty_ends'] ?: null,
                 'approved_at'       => current_time('mysql'),
+                'created_at'        => current_time('mysql'), // same reason as the form path above
             ],
             ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s']
         );

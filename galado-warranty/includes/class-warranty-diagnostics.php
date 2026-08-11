@@ -68,6 +68,17 @@ class GWARR_Diagnostics {
         // ---- Timed checks ----
         global $wpdb;
 
+        // Registration rows now write created_at from PHP, so nothing depends on
+        // how MySQL is configured. Reported anyway because it is the sort of thing
+        // that is impossible to check when you actually need it, and rows written
+        // before v1.10.1 did come from the column default.
+        $db_now  = (string) $wpdb->get_var('SELECT NOW()');
+        $php_now = current_time('mysql');
+        $drift   = ($db_now !== '') ? round((strtotime($db_now) - strtotime($php_now)) / 3600) : null;
+        $env['MySQL vs site time'] = ($drift === null)
+            ? 'could not read'
+            : ($drift === 0 ? 'same' : sprintf('%+d h (MySQL %s, site %s)', $drift, $db_now, $php_now));
+
         $timings[] = self::time('DB read (warranties table)', function () use ($wpdb) {
             $wpdb->get_var('SELECT COUNT(*) FROM ' . GWARR_DB::table());
             return 'ok';
