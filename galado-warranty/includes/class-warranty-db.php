@@ -38,7 +38,12 @@ class GWARR_DB {
             'order_number'      => '',
             'product_text'      => '',
             'notes'             => '',
-            'marketing_consent' => 1,
+            // Consent defaults to NO. A caller that forgets to pass this must not have
+            // silently agreed on the customer's behalf: a default of yes is consent nobody
+            // gave, and there is no wording to point at if we are ever asked to evidence it.
+            // Both live callers pass it explicitly today, so this changes no behaviour; it
+            // closes the trap for the next one.
+            'marketing_consent' => 0,
             'status'            => 'pending',
         ]);
 
