@@ -233,6 +233,7 @@
     border-color: #ececec;
 }
 .gwarr-warranty-card--inactive .gwarr-product,
+.gwarr-warranty-card--inactive .gwarr-product-thumb,
 .gwarr-warranty-card--inactive .gwarr-meta,
 .gwarr-warranty-card--inactive .gwarr-marketplace,
 .gwarr-warranty-card--inactive .gwarr-order {
@@ -330,6 +331,23 @@
 .gwarr-claim-status--declined { background: var(--gw-red-tint); color: var(--gw-red-dark); }
 
 .gwarr-product { margin: 6px 0 14px; font-size: 17px; font-weight: 800; color: var(--gw-ink); }
+
+/* Website warranties lead with the product image: customers recognise the item
+   far quicker than our product names (owner 2026-08-11). */
+.gwarr-product-row { display: flex; align-items: flex-start; gap: 14px; }
+/* min-width:0 lets a long title wrap instead of forcing the row wider. */
+.gwarr-product-row .gwarr-product { flex: 1; min-width: 0; }
+
+.gwarr-product-thumb {
+    flex: 0 0 auto;
+    width: 64px;
+    height: 64px;
+    margin-top: 6px;
+    border-radius: 10px;
+    border: 1px solid var(--gw-border);
+    background: var(--gw-fill);
+    object-fit: cover;
+}
 .gwarr-product-list {
     margin: 4px 0 0;
     padding: 0 0 0 22px;

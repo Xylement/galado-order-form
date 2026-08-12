@@ -150,7 +150,19 @@ function gwarr_render_my_warranty_card($row, $claim = null) {
         </header>
 
         <div class="gwarr-warranty-body">
-            <?php if (!empty($row->product_text)): ?>
+            <?php
+            // The flex wrapper only appears when there IS a thumbnail, so rows
+            // without one (marketplace, add-ons) render exactly as before.
+            $thumb = function_exists('gwarr_product_thumb_html') ? gwarr_product_thumb_html($row) : '';
+            ?>
+            <?php if ($thumb !== ''): ?>
+                <div class="gwarr-product-row">
+                    <?php echo $thumb; // built and escaped in gwarr_product_thumb_html() ?>
+                    <?php if (!empty($row->product_text)): ?>
+                        <div class="gwarr-product"><?php echo gwarr_format_product_html($row->product_text); ?></div>
+                    <?php endif; ?>
+                </div>
+            <?php elseif (!empty($row->product_text)): ?>
                 <div class="gwarr-product"><?php echo gwarr_format_product_html($row->product_text); ?></div>
             <?php endif; ?>
 

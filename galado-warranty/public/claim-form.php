@@ -349,7 +349,7 @@ function gwarr_render_claim_form($warranty) {
     $items = gwarr_parse_product_items($warranty->product_text);
     ?>
     <details class="gwarr-claim">
-        <summary class="gwarr-claim-toggle">Submit a warranty claim</summary>
+        <summary class="gwarr-claim-toggle">Submit a warranty for this item</summary>
         <form method="post" enctype="multipart/form-data" class="gwarr-claim-form">
             <?php wp_nonce_field('gwarr_claim', 'gwarr_claim_nonce'); ?>
             <input type="hidden" name="warranty_id" value="<?php echo (int) $warranty->id; ?>">

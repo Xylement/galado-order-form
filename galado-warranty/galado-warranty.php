@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.10.0
+ * Version: 1.11.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.10.0');
+define('GWARR_VERSION', '1.11.0');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -338,6 +338,53 @@ function gwarr_format_product_html($text) {
     }
     $html .= '</ul>';
     return $html;
+}
+
+/**
+ * The product thumbnail for one warranty row as an <img>, or '' when there is
+ * no dependable image for it. Owner 2026-08-11: customers do not recognise our
+ * product names, so the picture is what tells them which item a warranty is for.
+ *
+ * Only website rows carry a wc_item_id, and only that id pins the exact line
+ * item — so a variable product shows the variation actually bought rather than
+ * the parent's default. Marketplace rows have no link back to a catalogue
+ * product and get nothing.
+ *
+ * Paid add-on rows are deliberately skipped. They reuse their base row's
+ * wc_item_id (an 'a{n}' order_number suffix is what tells them apart), so the
+ * only image reachable from one is the BASE product's. Showing a phone case
+ * beside a charm's warranty would mislead precisely the customer this exists to
+ * help, and a wrong picture is worse than none.
+ */
+function gwarr_product_thumb_html($row) {
+    if (!isset($row->source) || $row->source !== 'website') return '';
+    if (empty($row->wc_item_id) || !class_exists('WC_Order_Item_Product')) return '';
+
+    // "{orderId}#{itemId}" is a base row; a third segment marks a paid add-on.
+    if (substr_count((string) ($row->order_number ?? ''), '#') > 1) return '';
+
+    // The row can outlive the order it points at (deleted, or trashed by staff),
+    // so treat the lookup as untrusted rather than let it fatal the account page.
+    try {
+        $item = new WC_Order_Item_Product((int) $row->wc_item_id);
+        if (!$item->get_id()) return '';
+        $product = $item->get_product();
+    } catch (Exception $e) {
+        return '';
+    }
+    if (!$product) return '';
+
+    // A variation with no image of its own falls back to its parent's in WC.
+    $image_id = $product->get_image_id();
+    if (!$image_id) return '';
+
+    $src = wp_get_attachment_image_url($image_id, 'woocommerce_thumbnail');
+    if (!$src) return '';
+
+    // alt is empty on purpose: the product name sits right beside it, so a
+    // duplicate label would only add noise for a screen reader.
+    return '<img class="gwarr-product-thumb" src="' . esc_url($src)
+        . '" alt="" loading="lazy" width="64" height="64">';
 }
 
 /**
