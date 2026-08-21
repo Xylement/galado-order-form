@@ -378,3 +378,15 @@
 /* Short selection steps (brand / model / colour) sit centred in the space. */
 .gd-screen { min-height: 74vh; display: flex; flex-direction: column; justify-content: center; }
 .gd-screen .gstudio-models { max-height: none; }
+
+/* Element-cap affordances (2026-08-21). The editor mirrors the server's cap so
+   nobody composes a design Looks Good would only refuse at the last step. */
+.gd-count {
+  align-self: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gs-text2, #6b6b6b);
+  white-space: nowrap;
+}
+.gd-count.is-full { color: #E4002B; }
+.gd-add.is-capped { opacity: .45; }
