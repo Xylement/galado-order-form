@@ -102,6 +102,8 @@
     appFallbackNote: 'If your design did not land in your app cart, you can add it here instead.',
     appFallbackCta: 'Add it here instead',
     emptyNote: 'Add a photo or some words to start.',
+    capReached: 'A case fits {max} items and yours is full. Remove one to add another.',
+    capCount: '{n} / {max} items',
     doneH: 'Your design is saved',
     doneB: 'Checkout wiring arrives in the next build. This design serialised cleanly:',
     backCta: 'Keep editing',
@@ -318,7 +320,17 @@
       if (S.token) return;
       api('/v1/session', { method: 'POST', json: { turnstile_token: t, wp_claim: cfg.wp_claim || '' } })
         .then(function (b) {
-          if (b.__status === 200) { S.token = b.token; S.sessionRetries = 0; holder.style.display = 'none'; return; }
+          if (b.__status === 200) {
+            S.token = b.token; S.sessionRetries = 0;
+            // The server owns the element cap; mirroring it here is what stops a
+            // customer composing something Looks Good would only refuse at the very
+            // end (live 2026-08-21). No limits in the reply (older API) means no
+            // client cap, and the server keeps the final say either way.
+            if (b.limits && b.limits.max_elements) S.maxElements = +b.limits.max_elements || 0;
+            updateCapUi();
+            holder.style.display = 'none';
+            return;
+          }
           retrySession(); // 4xx/5xx: usually a spent or expired token (they are single-use)
         })
         .catch(function () { retrySession(); }); // network blip on the first call
@@ -517,10 +529,11 @@
       },
     });
     var toolbar = el('div', { class: 'gd-toolbar' }, [
-      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addPhoto, onclick: photoSheet }),
-      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addSticker, onclick: function () { stickerSheet('sticker'); } }),
-      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addFrame, onclick: function () { stickerSheet('frame'); } }),
-      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addText, onclick: function () { textSheet(null); } }),
+      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addPhoto, onclick: function () { if (capBlocks()) return; photoSheet(); } }),
+      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addSticker, onclick: function () { if (capBlocks()) return; stickerSheet('sticker'); } }),
+      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addFrame, onclick: function () { if (capBlocks()) return; stickerSheet('frame'); } }),
+      el('button', { class: 'gstudio-btn gstudio-btn--ghost gd-add', type: 'button', text: COPY.addText, onclick: function () { if (capBlocks()) return; textSheet(null); } }),
+      el('span', { class: 'gd-count' }),
     ]);
 
     mount(
@@ -681,6 +694,8 @@
     C.on('object:moving', function () {
       if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
     });
+    C.on('object:added', updateCapUi);
+    C.on('object:removed', updateCapUi);
     C.on('selection:created', updateSelUi);
     C.on('selection:updated', updateSelUi);
     C.on('selection:cleared', updateSelUi);
@@ -947,6 +962,44 @@
     return C.getObjects().filter(function (o) { return !o.gdOverlay; });
   }
 
+  /**
+   * The element cap, mirrored from /v1/session. True once the canvas is full,
+   * and it says so where the customer is already looking.
+   *
+   * Every add path checks this. Before 2026-08-21 none did: the editor let you
+   * keep placing items and the server refused the whole design at Looks Good,
+   * which read as "Something hiccuped on our side" and lost the order. A cap you
+   * meet while composing is a nudge; one you meet at the end is a wall.
+   */
+  function atCap() {
+    return !!S.maxElements && contentObjects().length >= S.maxElements;
+  }
+
+  function capBlocks() {
+    if (!atCap()) return false;
+    if (stageMeta && stageMeta.warn) {
+      stageMeta.warn.textContent = COPY.capReached.replace('{max}', S.maxElements);
+      stageMeta.warn.className = 'gd-warn gd-warn--hard';
+    }
+    updateCapUi();
+    return true;
+  }
+
+  /** Live "n / max items" counter, and the add buttons dimmed once full. */
+  function updateCapUi() {
+    if (!C || !S.maxElements) return;
+    var n = contentObjects().length;
+    var box = document.querySelector('.gd-count');
+    if (box) {
+      box.textContent = COPY.capCount.replace('{n}', n).replace('{max}', S.maxElements);
+      box.classList.toggle('is-full', n >= S.maxElements);
+    }
+    var full = n >= S.maxElements;
+    Array.prototype.forEach.call(document.querySelectorAll('.gd-add'), function (b) {
+      b.classList.toggle('is-capped', full);
+    });
+  }
+
   function checkPlacement() {
     var mock = stageMeta.mock;
     var msg = '';
@@ -976,6 +1029,9 @@
 
   function duplicateActive() {
     var targets = activeContent();
+    // Duplicating a multi-selection adds several at once, so budget the batch,
+    // not one item, or a copy of six could step straight past the cap.
+    if (S.maxElements && contentObjects().length + targets.length > S.maxElements) { capBlocks(); return; }
     C.discardActiveObject();
     targets.forEach(function (o) {
       o.clone(function (copy) {
