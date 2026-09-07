@@ -1,0 +1,6 @@
+# Graphify generated output.
+# Large (~10 MB) and rewritten on every graph rebuild — keeping it out of the
+# context window prevents prompt-cache invalidation and full re-upload each turn.
+# Query it deliberately with `graphify query` instead of reading it.
+graphify-out/
+graph.json
