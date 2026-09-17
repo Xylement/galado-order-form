@@ -34,6 +34,8 @@ class GALADO_Bundles_App {
         $on = galado_bundles_storefront_enabled();
         $out = [
             'enabled'   => (bool) $on,
+            'currency'  => GALADO_Bundles_Currency::code(),
+            'rate'      => GALADO_Bundles_Currency::rate(),
             'is_case'   => false,
             'is_anchor' => false,
             'models'    => (object) [],
@@ -131,8 +133,8 @@ class GALADO_Bundles_App {
             'variation_id' => $parent->is_type('variable') ? (int) $anchor_obj->get_id() : 0,
             'qty'          => $aqty,
             'name'         => $parent->get_name(),
-            'unit'         => round((float) wc_get_price_to_display($anchor_obj), 2),
-            'regular'      => round((float) wc_get_price_to_display($anchor_obj), 2),
+            'unit'         => round(GALADO_Bundles_Currency::base_price($anchor_obj), 2),
+            'regular'      => round(GALADO_Bundles_Currency::base_price($anchor_obj), 2),
         ];
 
         $picks = isset($body['picks']) && is_array($body['picks']) ? $body['picks'] : [];
@@ -197,7 +199,7 @@ class GALADO_Bundles_App {
                     }
                     $obj = $vobj;
                 }
-                $regular = round((float) wc_get_price_to_display($obj), 2);
+                $regular = round(GALADO_Bundles_Currency::base_price($obj), 2);
                 $unit    = $regular;
                 $circle  = (string) $info['circle'];
                 $pwp     = false;
@@ -247,16 +249,27 @@ class GALADO_Bundles_App {
             }
         }
 
+        // Everything above is BASE-currency arithmetic, identical to the cart engine's.
+        // Now each line is converted once, per line, exactly as CURCY converts the cart
+        // lines the bridge will create from it. `unit_base` / `regular_base` are the RM
+        // figures: anything that writes a price with set_price() must use THOSE (CURCY
+        // converts on read), never `unit`.
         $regular_total = 0.0;
         $total = 0.0;
-        foreach ($lines as $l) {
-            $regular_total += $l['regular'] * $l['qty'];
-            $total         += $l['unit'] * $l['qty'];
+        foreach ($lines as $i => $l) {
+            $lines[$i]['unit_base']    = $l['unit'];
+            $lines[$i]['regular_base'] = $l['regular'];
+            $lines[$i]['unit']         = GALADO_Bundles_Currency::convert($l['unit']);
+            $lines[$i]['regular']      = GALADO_Bundles_Currency::convert($l['regular']);
+            $regular_total += $lines[$i]['regular'] * $l['qty'];
+            $total         += $lines[$i]['unit'] * $l['qty'];
         }
         return [
-            'ok'      => true,
-            'lines'   => $lines,
-            'totals'  => [
+            'ok'       => true,
+            'currency' => GALADO_Bundles_Currency::code(),
+            'rate'     => GALADO_Bundles_Currency::rate(),
+            'lines'    => $lines,
+            'totals'   => [
                 'regular' => round($regular_total, 2),
                 'total'   => round($total, 2),
                 'saving'  => round(max(0, $regular_total - $total), 2),
@@ -282,7 +295,7 @@ class GALADO_Bundles_App {
                     'variation_id' => $vid,
                     'qty'          => $qty,
                     'name'         => $obj->get_name(),
-                    'unit'         => round((float) wc_get_price_to_display($obj), 2),
+                    'unit'         => round(GALADO_Bundles_Currency::base_price($obj), 2),
                 ];
             } else {
                 $obj = wc_get_product((int) $it['product_id']);
@@ -292,7 +305,7 @@ class GALADO_Bundles_App {
                     'variation_id' => 0,
                     'qty'          => $qty,
                     'name'         => $obj->get_name(),
-                    'unit'         => round((float) wc_get_price_to_display($obj), 2),
+                    'unit'         => round(GALADO_Bundles_Currency::base_price($obj), 2),
                 ];
             }
             $sum += end($units)['unit'] * $qty;
