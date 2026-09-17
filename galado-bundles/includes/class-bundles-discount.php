@@ -71,7 +71,7 @@ class GALADO_Bundles_Discount {
                 if (empty($ci['galado_addon_price'])) continue;
                 $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
                 $own  = $p ? (float) wc_get_price_to_display($p) : 0.0;
-                $paid = (float) $ci['galado_addon_price'];
+                $paid = GALADO_Bundles_Currency::convert($ci['galado_addon_price']);
                 if ($own > $paid) $saving += ($own - $paid) * max(1, (int) $ci['quantity']);
             }
         }
@@ -138,7 +138,9 @@ class GALADO_Bundles_Discount {
                 $p = $ci ? wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']) : null;
                 if (!$p) { $broken = true; break; }
                 $qty = max(1, (int) $ci['quantity']);
-                $own[$k] = ['unit' => (float) $p->get_price(), 'qty' => $qty];
+                // BASE prices: combo_price is RM and the targets go back in through set_price(),
+                // which CURCY converts once on read. Converted prices here were converted twice.
+                $own[$k] = ['unit' => GALADO_Bundles_Currency::base_price($p), 'qty' => $qty];
                 $sum += $own[$k]['unit'] * $qty;
             }
             $price = (float) $e['combo_price'];

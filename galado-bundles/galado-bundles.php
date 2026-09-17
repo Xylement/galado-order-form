@@ -2,14 +2,14 @@
 /**
  * Plugin Name: GALADO Bundles
  * Description: Self-service product bundles: staff build kits in wp-admin (simple + variable items), one flat margin-funded RM saving per bundle, rendered into home-v3 via [galado_bundles] and applied at cart as a complete-set-only negative fee. Generalises and retires Code Snippet #95. Writes no product data; reversible by deactivation. Spec: BUNDLES-SPEC.md.
- * Version: 0.20.0
+ * Version: 0.21.0
  * Author: GALADO
  * Text Domain: galado-bundles
  */
 
 if (!defined('ABSPATH')) exit;
 
-define('GALADO_BUNDLES_VERSION', '0.20.0');
+define('GALADO_BUNDLES_VERSION', '0.21.0');
 define('GALADO_BUNDLES_PATH', plugin_dir_path(__FILE__));
 define('GALADO_BUNDLES_URL', plugin_dir_url(__FILE__));
 
@@ -97,6 +97,7 @@ function galado_bundles_caps() {
 }
 
 require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-cpt.php';
+require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-currency.php';
 require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-data.php';
 require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-rest.php';
 require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-admin.php';
@@ -108,6 +109,9 @@ require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-combos.php';
 require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-addons.php';
 require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-app.php';
 require_once GALADO_BUNDLES_PATH . 'includes/class-bundles-extras.php';
+
+// The app names its currency on app-page / app-quote; set before CURCY reads it at init.
+add_action('plugins_loaded', ['GALADO_Bundles_Currency', 'request_override'], 0);
 
 add_action('plugins_loaded', function () {
     if (!class_exists('WooCommerce')) {
