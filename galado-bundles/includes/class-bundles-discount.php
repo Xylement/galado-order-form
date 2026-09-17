@@ -132,28 +132,24 @@ class GALADO_Bundles_Discount {
         foreach (GALADO_Bundles_Cart::combo_instances($cart) as $e) {
             if (empty($e['repriced'])) continue;
 
+            // BASE prices: combo_price is RM and the targets go back in through set_price(),
+            // which CURCY converts once on read. Converted prices here were converted twice.
+            // The lead goes first: split_set() puts the remainder on line 0.
+            $keys = array_values(array_unique(array_merge([$e['lead']], $e['keys'])));
             $own = []; $sum = 0.0; $broken = false;
-            foreach ($e['keys'] as $k) {
+            foreach ($keys as $k) {
                 $ci = $cart->get_cart_item($k);
                 $p = $ci ? wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']) : null;
                 if (!$p) { $broken = true; break; }
                 $qty = max(1, (int) $ci['quantity']);
-                // BASE prices: combo_price is RM and the targets go back in through set_price(),
-                // which CURCY converts once on read. Converted prices here were converted twice.
                 $own[$k] = ['unit' => GALADO_Bundles_Currency::base_price($p), 'qty' => $qty];
                 $sum += $own[$k]['unit'] * $qty;
             }
             $price = (float) $e['combo_price'];
             if ($broken || $sum <= 0 || $sum <= $price) continue;
 
-            $targets = []; $acc = 0.0;
-            foreach ($own as $k => $o) {
-                $t = max(0.01 * $o['qty'], round($o['unit'] * $o['qty'] * $price / $sum, 2));
-                $targets[$k] = $t;
-                $acc += $t;
-            }
-            $lead = $e['lead'];
-            $targets[$lead] = max(0.01, round($targets[$lead] + ($price - $acc), 2));
+            $split   = GALADO_Bundles_Currency::split_set(array_values($own), $price);
+            $targets = array_combine(array_keys($own), $split);
 
             foreach ($targets as $k => $t) {
                 $ci = $cart->get_cart_item($k);

@@ -78,6 +78,64 @@ class GALADO_Bundles_Currency {
     }
 
     /**
+     * Split a set's price across its component lines. Returns one RM line total
+     * per input line (same order; line 0 is the lead that absorbs the remainder).
+     *
+     * Base currency: proportional to the components' own prices, 0.01 floors, cent
+     * remainder on the lead - the split the cart engine has always used.
+     *
+     * Converted currency: CURCY rounds EVERY line it converts (S$ .50 grid), so a
+     * base-currency split that sums to RM110 converts line by line to S$44.50 while
+     * the card promises S$44.00. Here the split is done on the shopper's grid
+     * instead: each line's share is converted and rounded the way CURCY will round
+     * it, the lead absorbs the drift, and the lines are handed back as the RM
+     * figures that convert EXACTLY to those grid values (x = k / rate is exact for
+     * the fixed rates in use). What the card shows is then what the cart charges.
+     *
+     * @param array $units [['unit' => RM unit price, 'qty' => int], ...]
+     * @param float $set_price RM price of the whole set
+     */
+    public static function split_set(array $units, $set_price) {
+        $set_price = (float) $set_price;
+        $sum = 0.0;
+        foreach ($units as $u) $sum += (float) $u['unit'] * max(1, (int) $u['qty']);
+        if ($sum <= 0 || $set_price <= 0) return array_fill(0, count($units), 0.0);
+
+        if (self::is_base()) {
+            $targets = []; $acc = 0.0;
+            foreach ($units as $i => $u) {
+                $qty = max(1, (int) $u['qty']);
+                $t = max(0.01 * $qty, round((float) $u['unit'] * $qty * $set_price / $sum, 2));
+                $targets[$i] = $t;
+                $acc += $t;
+            }
+            $targets[0] = max(0.01, round($targets[0] + ($set_price - $acc), 2));
+            return $targets;
+        }
+
+        $rate = self::rate();
+        $disp_total = self::convert($set_price);
+        $disp = []; $acc = 0.0;
+        foreach ($units as $i => $u) {
+            $qty = max(1, (int) $u['qty']);
+            $share_unit = (float) $u['unit'] * $set_price / $sum;   // RM per unit
+            $d = self::convert($share_unit) * $qty;                 // on the shopper's grid
+            $disp[$i] = $d;
+            $acc += $d;
+        }
+        $drift = round($disp_total - $acc, 2);
+        if (abs($drift) >= 0.005) {
+            // Put the drift on the first single-quantity line so its unit stays on the grid.
+            foreach ($units as $i => $u) {
+                if (max(1, (int) $u['qty']) === 1) { $disp[$i] = max(0.5, round($disp[$i] + $drift, 2)); break; }
+            }
+        }
+        $targets = [];
+        foreach ($disp as $i => $d) $targets[$i] = $rate > 0 ? round($d / $rate, 4) : $d;
+        return $targets;
+    }
+
+    /**
      * The native app names its currency explicitly (SPEC-SGD-PARITY section 7):
      * `currency=SGD` in the query string of app-page / app-quote, or `currency`
      * in the app-quote JSON body. Honoured by setting the cookie CURCY reads,

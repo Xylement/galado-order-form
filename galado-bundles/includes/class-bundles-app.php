@@ -314,14 +314,8 @@ class GALADO_Bundles_App {
         $price = (float) ($desc['combo']['combo_price'] ?? ($desc['combo_price'] ?? 0));
         $out = [];
         if ($price > 0 && $sum > $price) {
-            // Proportional split, exactly like Discount::reprice_combos.
-            $targets = []; $acc = 0.0;
-            foreach ($units as $i => $u) {
-                $t = max(0.01 * $u['qty'], round($u['unit'] * $u['qty'] * $price / $sum, 2));
-                $targets[$i] = $t;
-                $acc += $t;
-            }
-            $targets[0] = max(0.01, round($targets[0] + ($price - $acc), 2));
+            // The same split as Discount::reprice_combos (one function, so they cannot drift).
+            $targets = GALADO_Bundles_Currency::split_set($units, $price);
             foreach ($units as $i => $u) {
                 $out[] = [
                     'kind'         => 'combo',
@@ -329,7 +323,7 @@ class GALADO_Bundles_App {
                     'variation_id' => $u['variation_id'],
                     'qty'          => $u['qty'],
                     'name'         => $u['name'],
-                    'unit'         => round($targets[$i] / $u['qty'], 2),
+                    'unit'         => round($targets[$i] / $u['qty'], 4),
                     'regular'      => $u['unit'],
                     'pwp'          => true,
                 ];
