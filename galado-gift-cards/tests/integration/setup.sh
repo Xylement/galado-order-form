@@ -24,5 +24,12 @@ gct_wp option update woocommerce_enable_coupons yes
 gct_wp option update woocommerce_calc_taxes no
 gct_wp option update woocommerce_custom_orders_table_enabled no
 gct_wp option update woocommerce_coming_soon no
+# Optional: WooCommerce Points and Rewards (a paid Woo extension, not downloadable here). Point
+# GCT_PR_DIR at a copy of the plugin folder (live runs 1.6.13); run.sh then activates it for every
+# file and test-spending.php checks Shopping Credits against the real plugin.
+if [ -n "${GCT_PR_DIR:-}" ] && [ -d "$GCT_PR_DIR" ]; then
+  docker run --rm -v "$GCT_VOL":/var/www/html -v "$GCT_PR_DIR":/src:ro --user root --entrypoint sh wordpress:cli -c \
+    'rm -rf /var/www/html/wp-content/plugins/woocommerce-points-and-rewards && cp -a /src /var/www/html/wp-content/plugins/woocommerce-points-and-rewards && chown -R 33:33 /var/www/html/wp-content/plugins/woocommerce-points-and-rewards'
+fi
 docker exec "$GCT_DB" sh -c 'mariadb-dump -uroot -proot --single-transaction wp > /tmp/gct-baseline.sql'
 echo "Test WordPress ready. Run: tests/integration/run.sh"

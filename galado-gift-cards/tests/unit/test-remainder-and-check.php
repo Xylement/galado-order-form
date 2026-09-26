@@ -22,6 +22,10 @@ check('two RM100 cards on a RM150 order: RM50 lost, one sentence for both', Gala
     'Your gift cards are worth RM200 and this order is RM150. The RM50 left will be lost. Add more items?');
 check('an applied figure above the value is capped (never a negative remainder)',
     Galado_GC_Remainder::compute([['value' => 50.0, 'applied' => 80.0]])['remainder'], 0.0);
+$capped = Galado_GC_Remainder::compute([['value' => 100.0, 'applied' => 100.0]], 2, 10.0);
+check('a RM10 discount the order could not use (the card already covered everything) counts as lost',
+    [$capped['covered'], $capped['remainder']], [90.0, 10.0]);
+check('... and never takes "covered" below zero', Galado_GC_Remainder::compute([['value' => 50.0, 'applied' => 5.0]], 2, 20.0)['covered'], 0.0);
 $sgd = Galado_GC_Remainder::compute([['value' => 31.32, 'applied' => 18.79]]);
 check('in the shopper\'s currency: a RM100 card is S$31.32 at 0.31317, S$12.53 lost', $sgd['remainder'], 12.53);
 

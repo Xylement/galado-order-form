@@ -63,15 +63,19 @@ check('paid on 29 Feb 2028: expires 28 Feb 2031 (no 29 Feb that year)',
 check('the expiry moment is 15:59:59 UTC (UTC+8)',
     gmdate('H:i:s', Galado_GC_Time::expiry_timestamp($ts('2026-09-26 14:05:00'))), '15:59:59');
 
-echo "-- delivery: 09:00 Malaysian time on the chosen date, or now\n";
+echo "-- delivery: now for today or earlier, else 09:00 Malaysian time on the chosen date\n";
 $now = $ts('2026-09-26 10:00:00');
 check('a future date goes out at 09:00 MYT that day',
     $fmt(Galado_GC_Time::delivery_timestamp('2026-12-25', $now)), '2026-12-25 09:00:00');
 check('that is 01:00 UTC', gmdate('H:i', Galado_GC_Time::delivery_timestamp('2026-12-25', $now)), '01:00');
 check('today after 9am: right now', Galado_GC_Time::delivery_timestamp('2026-09-26', $now), $now);
 $early = $ts('2026-09-26 07:30:00');
-check('today before 9am: at 9am today, not at once',
-    $fmt(Galado_GC_Time::delivery_timestamp('2026-09-26', $early)), '2026-09-26 09:00:00');
+check('today before 9am: right now too (the handover: "at once if the date is today")',
+    Galado_GC_Time::delivery_timestamp('2026-09-26', $early), $early);
+check('tomorrow, bought at 23:30 the night before: 09:00 tomorrow, not at once',
+    $fmt(Galado_GC_Time::delivery_timestamp('2026-09-27', $ts('2026-09-26 23:30:00'))), '2026-09-27 09:00:00');
+check('"today" is the Malaysian date: 00:30 MYT on the 27th (still the 26th in UTC) sends a card dated the 27th at once',
+    Galado_GC_Time::delivery_timestamp('2026-09-27', $ts('2026-09-27 00:30:00')), $ts('2026-09-27 00:30:00'));
 check('a past date: right now', Galado_GC_Time::delivery_timestamp('2026-09-01', $now), $now);
 check('an unparseable date: right now, never silently dropped', Galado_GC_Time::delivery_timestamp('not-a-date', $now), $now);
 

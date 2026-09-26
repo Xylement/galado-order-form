@@ -107,6 +107,36 @@ check('readable rows for emails and My Account', [trim($shown['Card value']), tr
 check('no hidden key is shown', count(array_filter(array_keys($shown), function ($k) { return 0 === strpos($k, '_'); })), 0);
 check('the order helper reports RM150', galado_gift_cards_order_gift_total($order), 150.0);
 
+echo "-- the price shown for the card\n";
+$gp = wc_get_product(gct_product());
+$price = html_entity_decode(wp_strip_all_tags($gp->get_price_html()), ENT_QUOTES, 'UTF-8');
+check('"RM30.00 to RM1,000.00": no en dash, and the real top of the range', [$price, preg_match('/\x{2013}|\x{2014}/u', $price)], ['RM30.00 to RM1,000.00', 0]);
+$by_label = [];
+foreach ($gp->get_available_variations() as $v) {
+    $by_label[$v['attributes']['attribute_amount']] = html_entity_decode(wp_strip_all_tags($v['price_html']), ENT_QUOTES, 'UTF-8');
+}
+check('choosing "Custom amount" shows the range, not its RM30 floor', $by_label['Custom amount'], 'RM30.00 to RM1,000.00');
+check('negative control: RM100 shows RM100.00', $by_label['RM100'], 'RM100.00');
+check('the product and every amount earn 0 Points and Rewards points',
+    array_values(array_unique(array_map(function ($id) { return get_post_meta($id, '_wc_points_earned', true); }, array_merge([gct_product()], $gp->get_children())))), ['0']);
+
+echo "-- saving the order in admin does not copy the display rows into real order data\n";
+$o = gct_paid_order([['value' => 100, 'message' => 'Hi there']]);
+$item = current($o->get_items());
+$item_id = $item->get_id();
+$product = $item->get_product();
+$form = function () use ($item, $item_id, $product) {
+    ob_start();
+    include WC_ABSPATH . 'includes/admin/meta-boxes/views/html-order-item-meta.php';
+    return ob_get_clean();
+};
+$html = $form();
+check('the admin item form posts none of the four display rows', preg_match('/meta_key\[' . $item_id . '\]\[galado_gc_/', $html), 0);
+check('... while the customer still sees them (emails, My Account)', count(array_filter($item->get_formatted_meta_data(), function ($m) { return 0 === strpos($m->key, 'galado_gc_'); })), 4);
+remove_filter('woocommerce_hidden_order_itemmeta', [Galado_GC_Cart::class, 'hide_display_rows']);
+check('negative control: without the fix the form would post them', preg_match('/meta_key\[' . $item_id . '\]\[galado_gc_value\]/', $form()), 1);
+add_filter('woocommerce_hidden_order_itemmeta', [Galado_GC_Cart::class, 'hide_display_rows']);
+
 echo "-- the app cannot buy a card yet (Store API)\n";
 gct_cart();
 add_filter('woocommerce_store_api_disable_nonce_check', '__return_true');

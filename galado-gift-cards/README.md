@@ -20,11 +20,15 @@ Spec: `galado-international/HANDOVER-GIFT-CARD-PLUGIN.md`. Requires PHP 7.4+, Wo
 
 ## How the product is marked
 
-- Option `galado_gift_cards_product_id` holds the product ID, and the product has meta
-  `_galado_gift_card = yes`. Either one identifies it.
+- The product meta `_galado_gift_card = yes` is what marks it (variations count through their parent).
+  The option `galado_gift_cards_product_id` only records the ID that create-product made; the plugin
+  never reads it.
 - Variations: RM50, RM100, RM150, RM200, RM300 (meta `_galado_gc_amount`), and "Custom amount"
   (meta `_galado_gc_custom = yes`, RM30 up to the per-card limit, whole ringgit). Virtual, tax status none,
   sold individually.
+- The product and every variation carry `_wc_points_earned = 0`, so Points and Rewards neither gives
+  points for a card nor shows "earn N points" on its page.
+- The price shows as "RM30.00 to RM1,000.00" (the per-card limit), not WooCommerce's dashed range.
 
 ## Settings (WooCommerce > Settings > Products > Gift cards)
 
@@ -51,7 +55,8 @@ Check `function_exists()` before calling them from another plugin.
 - **Order item (a card line):** `_galado_gc_value`, `_galado_gc_recipient_name`,
   `_galado_gc_recipient_email`, `_galado_gc_message`, `_galado_gc_delivery_date` (Y-m-d, Malaysian time),
   `_galado_gc_coupon_ids`, `_galado_gc_sent_at`.
-- **Order:** `_galado_gc_risk_level`, `_galado_gc_hold`, `_galado_gc_released`.
+- **Order:** `_galado_gc_risk_level`, `_galado_gc_hold`, `_galado_gc_released`, and
+  `_galado_gc_issue_attempts` while issuing is failing (cleared once it works).
 - **Coupon (one per card):** `_galado_gift_card = yes`, `_galado_gc_order_id`, `_galado_gc_order_item_id`,
   `_galado_gc_index`, `_galado_gc_value`, and `_galado_gc_revoked` once disabled. A disabled card is the
   coupon moved to Draft.
@@ -59,8 +64,19 @@ Check `function_exists()` before calling them from another plugin.
 - Action Scheduler group `galado-gift-cards`: `galado_gc_deliver` (order id, item id) and
   `galado_gc_issue_retry`.
 
-Codes never go into order notes, logs or page text: notes and the buyer's email show only the last four
-characters.
+Codes never go into order notes, logs, URLs or page text: notes (including WooCommerce's own "Coupon
+applied" note) and the buyer's email show only the last four characters.
+
+## Things other plugins should know
+
+- Create coupons with `new WC_Coupon( 0 )`, never `new WC_Coupon()`. With Points and Rewards 1.6.13
+  active and no redemption in the session, its `woocommerce_get_shop_coupon_data` filter matches the
+  empty code and turns the object into a virtual coupon that `save()` silently never writes.
+- Negative cart fees (REDIS cart rules, Club offers) are capped so they never pay for a gift card being
+  bought. The Club bridge should still leave gift lines out of its minimum spend with
+  `galado_gift_cards_cart_gift_total()`, and out of points with `galado_gift_cards_order_gift_total()`.
+- Points and Rewards 1.6.13 does not declare HPOS support, so WooCommerce will not switch HPOS on while
+  it is active.
 
 ## Emails
 
@@ -81,3 +97,5 @@ Templates, overridable from the theme under `woocommerce/`:
 - Integration (real WordPress 6.9.9 + WooCommerce 10.5.3 in Docker, throwaway database):
   `bash tests/integration/setup.sh` once, then `bash tests/integration/run.sh`. Runs every file on a fresh
   database, the order tests again under HPOS, and two PHP processes racing to issue the same order.
+  Set `GCT_PR_DIR` to a copy of the Points and Rewards plugin folder before setup.sh to test against it
+  too (it is a paid extension, so it is not downloaded); without it those checks are skipped.

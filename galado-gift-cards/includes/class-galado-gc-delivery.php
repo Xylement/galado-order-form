@@ -2,8 +2,8 @@
 /**
  * Delivery, and the two payment safeguards that decide whether a card may go out.
  *
- * - One Action Scheduler job per order line at 09:00 Malaysian time on the chosen date (at once if
- *   that moment has passed). It emails the recipient, then tells the buyer the card was sent.
+ * - One Action Scheduler job per order line: at once if the chosen date is today or earlier, else
+ *   09:00 Malaysian time on that date. It emails the recipient, then tells the buyer it was sent.
  * - 3-D Secure: gift card orders paid by card ask Stripe for 3-D Secure on every payment, through
  *   Payment Plugins for Stripe's own filter wc_stripe_payment_intent_args (create and update).
  * - Risk hold: the same plugin fires wc_stripe_save_order_meta with the Stripe charge before it

@@ -9,8 +9,10 @@
  * card back, publish its coupon again.
  *
  * - Cancelled, refunded or failed order: every unused code of the order.
- * - Refund of some lines: only as many unused codes of each refunded card line as cards refunded.
- * - A refund with no line items cannot be matched to a card: it leaves a note for staff instead.
+ * - Refund of some lines: only as many unused codes of each refunded card line as cards refunded
+ *   (by quantity, or by whole cards' worth of the amount when staff typed only an amount).
+ * - A refund with no line items, or of part of a card's price, cannot be matched to a card: it
+ *   leaves a note for staff instead.
  */
 
 if (!defined('ABSPATH')) {
@@ -65,16 +67,53 @@ class Galado_GC_Revoke {
             return [];
         }
         $done = [];
+        $part_card = false;
         foreach (Galado_GC_Cart::order_gift_items($order) as $item_id => $item) {
-            $refunded = (int) abs($order->get_qty_refunded_for_item($item_id));
-            if ($refunded <= 0) {
+            $cards = self::cards_refunded($order, $item);
+            if ($cards['part'] && self::refund_touches_line($refund, $item_id)) {
+                $part_card = true;
+            }
+            if ($cards['count'] <= 0) {
                 continue;
             }
-            $done = array_merge($done, self::revoke_for_line($item_id, $refunded, 'refund_' . (int) $refund_id));
+            $done = array_merge($done, self::revoke_for_line($item_id, $cards['count'], 'refund_' . (int) $refund_id));
             self::unschedule_if_nothing_left($order_id, $item_id);
         }
         self::note($order, $done);
+        if ($part_card) {
+            $order->add_order_note(__('Part of a gift card\'s price was refunded, not a whole card, so no code was disabled for that part. If the card should stop working, set its coupon to Draft.', 'galado-gift-cards'));
+        }
         return $done;
+    }
+
+    /**
+     * Cards refunded so far on a card line, over all its refunds: the refunded quantity, or, when
+     * staff typed only an amount (WooCommerce then records quantity 0), whole cards' worth of the
+     * refunded amount at the line's own price (order currency, so S$ and US$ orders work too).
+     *
+     * @return array{count:int, part:bool} part = the refunded amount does not end on a whole card
+     */
+    public static function cards_refunded($order, $item) {
+        $by_qty = (int) abs($order->get_qty_refunded_for_item($item->get_id()));
+        $amount = (float) abs($order->get_total_refunded_for_item($item->get_id()));
+        $qty = max(1, (int) $item->get_quantity());
+        $unit = (float) $item->get_total() / $qty;
+        if ($unit <= 0 || $amount <= 0) {
+            return ['count' => $by_qty, 'part' => false];
+        }
+        $by_amount = (int) floor(($amount + 0.005) / $unit);
+        $left = $amount - $by_amount * $unit;
+        return ['count' => min($qty, max($by_qty, $by_amount)), 'part' => $by_qty <= $by_amount && $left > 0.005];
+    }
+
+    /** Whether this refund has a line for the given order line. */
+    private static function refund_touches_line($refund, $item_id) {
+        foreach ($refund->get_items('line_item') as $ri) {
+            if ((int) $ri->get_meta('_refunded_item_id') === (int) $item_id) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

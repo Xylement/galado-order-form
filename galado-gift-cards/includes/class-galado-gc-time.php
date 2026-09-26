@@ -37,17 +37,16 @@ class Galado_GC_Time {
     }
 
     /**
-     * When the recipient's email goes out: 09:00 Malaysian time on the chosen date, or right now if
-     * that moment has passed (the date is today after 9am, or in the past).
+     * When the recipient's email goes out: right now if the chosen date is today or earlier
+     * (Malaysian dates, at any hour), otherwise 09:00 Malaysian time on that date.
      */
     public static function delivery_timestamp($date_ymd, $now = null) {
         $now = $now === null ? time() : (int) $now;
         $at = DateTimeImmutable::createFromFormat('!Y-m-d', (string) $date_ymd, self::tz());
-        if (!$at) {
+        if (!$at || $at->format('Y-m-d') <= self::today($now)) {
             return $now;
         }
-        $ts = $at->setTime(Galado_GC_Config::DELIVERY_HOUR, 0, 0)->getTimestamp();
-        return max($ts, $now);
+        return $at->setTime(Galado_GC_Config::DELIVERY_HOUR, 0, 0)->getTimestamp();
     }
 
     /** A delivery date the buyer may pick: today up to one year ahead, Malaysian dates. */

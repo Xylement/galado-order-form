@@ -12,12 +12,18 @@
  *    A code on a cart holding only gift cards is rejected with a clear message.
  * 2. A gift card code works alongside any other code, including "individual use only" ones, in
  *    both orders of applying (classic cart and Store API honour the same two filters).
- * 3. Buying a card earns no Points and Rewards points (per line filters). See README: the Club
- *    bridge overrides the order total, so it must leave gift lines out itself.
- * 4. REDIS Dynamic Pricing never prices the gift card, and gift lines never unlock its cart rules.
+ * 3. Buying a card earns no Points and Rewards points (per line filters; the product also carries
+ *    _wc_points_earned = 0, which hides P&R's "earn N points" messages). See README: the Club
+ *    bridge overrides the order total, so it must leave gift lines out itself. A Shopping Credits
+ *    redemption in a cart that also buys a card gets its full amount on the other items.
+ * 4. REDIS Dynamic Pricing never prices the gift card, and gift lines never count toward its cart
+ *    subtotal or item-quantity conditions.
  * 5. Free-shipping minimums ignore gift card lines.
- * 6. Codes stay out of page text (Clarity) and URLs (GA4, Cloudflare): totals label, notices.
+ * 6. Codes stay out of page text (Clarity), URLs (GA4, Cloudflare) and order notes: totals label,
+ *    remove link, notices, notes.
  * 7. Each gift code line on an order records the RM value it paid, for the Club and G-Coins.
+ * 8. Discount fees (REDIS cart rules, Club offers, anything added as a negative fee) never pay for
+ *    a gift card being bought: together they are capped at what the other lines and shipping cost.
  */
 
 if (!defined('ABSPATH')) {
@@ -36,15 +42,24 @@ class Galado_GC_Spending {
         add_filter('woocommerce_apply_with_individual_use_coupon', [__CLASS__, 'allow_with_individual_use'], 20, 2);
         add_filter('woocommerce_points_earned_for_order_item', [__CLASS__, 'no_points_for_order_item'], 20, 2);
         add_filter('woocommerce_points_earned_for_cart_item', [__CLASS__, 'no_points_for_cart_item'], 20, 3);
-        add_filter('viredis_may_be_apply_to_cart', [__CLASS__, 'redis_may_apply'], 20, 4);
+        add_filter('viredis_may_be_apply_to_cart', [__CLASS__, 'redis_may_apply'], 20, 6);
         add_filter('viredis_get_current_price', [__CLASS__, 'redis_price'], 20, 4);
         add_filter('viredis_condition_get_cart_subtotal', [__CLASS__, 'redis_cart_subtotal'], 20, 1);
         add_filter('woocommerce_shipping_free_shipping_is_available', [__CLASS__, 'free_shipping'], 20, 3);
+        add_filter('viredis_get_product_qty_in_cart', [__CLASS__, 'redis_qty_in_cart'], 20, 3);
+        add_filter('woocommerce_coupon_get_discount_amount', [__CLASS__, 'points_share_without_gift_lines'], 20, 5);
         add_filter('woocommerce_cart_totals_coupon_label', [__CLASS__, 'coupon_label'], 20, 2);
+        add_filter('woocommerce_cart_totals_coupon_html', [__CLASS__, 'coupon_html'], 20, 2);
+        add_filter('woocommerce_new_order_note_data', [__CLASS__, 'mask_order_note']);
         add_filter('woocommerce_coupon_error', [__CLASS__, 'coupon_error'], 99, 3);
         add_filter('woocommerce_coupon_message', [__CLASS__, 'coupon_message'], 99, 3);
         add_action('wp_footer', [__CLASS__, 'mask_coupon_fields']);
         add_action('woocommerce_checkout_create_order_coupon_item', [__CLASS__, 'stamp_coupon_item'], 10, 4);
+        // After every plugin has registered its fee callbacks (REDIS adds its own at PHP_INT_MAX
+        // when it loads), so at the same priority this runs last.
+        add_action('wp_loaded', function () {
+            add_action('woocommerce_cart_calculate_fees', [__CLASS__, 'cap_discount_fees'], PHP_INT_MAX);
+        }, 0);
     }
 
     /** 1. Gift card lines are never discounted by any coupon. */
@@ -115,9 +130,83 @@ class Galado_GC_Spending {
         return ($product instanceof WC_Product && Galado_GC_Product::is_gift_card_product($product)) ? 0 : $points;
     }
 
-    /** 4. REDIS: no pricing rule applies to the gift card product ('check' lets REDIS decide). */
-    public static function redis_may_apply($check, $rule_id = 0, $conditions = [], $product = null) {
-        return ($product instanceof WC_Product && Galado_GC_Product::is_gift_card_product($product)) ? false : $check;
+    /**
+     * 4. REDIS: no pricing rule applies to the gift card product ('check' lets REDIS decide). An
+     * item-quantity condition counts every cart line; recounted without the gift lines, a rule
+     * the other items alone do not qualify for is refused here.
+     */
+    public static function redis_may_apply($check, $rule_id = 0, $conditions = [], $product = null, $product_id = 0, $product_qty = 0) {
+        if ($product instanceof WC_Product && Galado_GC_Product::is_gift_card_product($product)) {
+            return false;
+        }
+        $gift_qty = self::cart_gift_qty();
+        if ('check' !== $check || $gift_qty <= 0 || !is_array($conditions) || empty($conditions['qty_item']) || !is_array($conditions['qty_item'])) {
+            return $check;
+        }
+        $min = (int) ($conditions['qty_item']['qty_item_min'] ?? 0);
+        $max = $conditions['qty_item']['qty_item_max'] ?? '';
+        $qty = WC()->cart->get_cart_contents_count() - $gift_qty + (int) $product_qty;
+        if (($min && $min > $qty) || ('' !== $max && (int) $max && (int) $max < $qty)) {
+            return false;
+        }
+        return $check;
+    }
+
+    /** 4. REDIS bulk pricing "all items in the cart": leave the gift lines out of the count. */
+    public static function redis_qty_in_cart($qty, $product_id = 0, $product_qty = 0) {
+        $gift_qty = self::cart_gift_qty();
+        if ($gift_qty > 0 && function_exists('WC') && WC()->cart && (int) $qty === WC()->cart->get_cart_contents_count() + (int) $product_qty) {
+            return max(0, (int) $qty - $gift_qty);
+        }
+        return $qty;
+    }
+
+    /** Number of gift cards in the cart. */
+    public static function cart_gift_qty() {
+        if (!function_exists('WC') || !WC()->cart) {
+            return 0;
+        }
+        $n = 0;
+        foreach (WC()->cart->get_cart() as $item) {
+            if (!empty($item['data']) && $item['data'] instanceof WC_Product && Galado_GC_Product::is_gift_card_product($item['data'])) {
+                $n += (int) $item['quantity'];
+            }
+        }
+        return $n;
+    }
+
+    /**
+     * 3. Points and Rewards spreads a Shopping Credits redemption over the lines in proportion to
+     * the cart subtotal, gift lines included. The gift lines get none of it (rule 1), so without
+     * this the other lines would receive only their share and the rest would go unused. Scale each
+     * share up to the subtotal without the gift lines, never above what the line can take.
+     */
+    public static function points_share_without_gift_lines($discount, $discounting_amount, $cart_item = null, $single = false, $coupon = null) {
+        if (!$coupon instanceof WC_Coupon || 0 !== strpos(strtolower((string) $coupon->get_code()), self::POINTS_PREFIX)
+            || (float) $discount <= 0 || !function_exists('WC') || !WC()->cart) {
+            return $discount;
+        }
+        $incl = wc_prices_include_tax();
+        $gift = 0.0;
+        foreach (WC()->cart->get_cart() as $item) {
+            if (!empty($item['data']) && $item['data'] instanceof WC_Product && Galado_GC_Product::is_gift_card_product($item['data'])) {
+                $price = $incl ? wc_get_price_including_tax($item['data']) : wc_get_price_excluding_tax($item['data']);
+                $gift += (float) $price * (int) $item['quantity'];
+            }
+        }
+        if ($gift <= 0) {
+            return $discount;
+        }
+        // The same base Points and Rewards divides by: the subtotal less fixed_product discounts.
+        $pr = isset($GLOBALS['wc_points_rewards']) ? $GLOBALS['wc_points_rewards'] : null;
+        $existing = ($pr && isset($pr->discount) && is_callable([$pr->discount, 'get_discount_total_from_existing_coupons']))
+            ? (float) $pr->discount->get_discount_total_from_existing_coupons() : 0.0;
+        $cart = WC()->cart; // WC_Cart::$subtotal / $subtotal_ex_tax, as Points and Rewards reads them
+        $base = (float) $cart->get_subtotal() + ($incl ? (float) $cart->get_subtotal_tax() : 0.0) - $existing;
+        if ($base - $gift <= 0) {
+            return $discount;
+        }
+        return round(min((float) $discount * $base / ($base - $gift), (float) $discounting_amount), wc_get_rounding_precision());
     }
 
     /** 4. REDIS: the gift card keeps its own price. */
@@ -191,7 +280,12 @@ class Galado_GC_Spending {
         $sum = 0.0;
         foreach (WC()->cart->get_cart() as $item) {
             if (!empty($item['data']) && $item['data'] instanceof WC_Product && Galado_GC_Product::is_gift_card_product($item['data'])) {
-                $sum += (float) $item['line_subtotal'] + ($incl ? (float) $item['line_subtotal_tax'] : 0.0);
+                // line_subtotal is only set once WooCommerce has totalled the cart (not yet during
+                // the first pass after an add to cart, when REDIS may already ask); the card is not
+                // taxable, so its price times quantity is the same figure.
+                $sum += isset($item['line_subtotal'])
+                    ? (float) $item['line_subtotal'] + ($incl ? (float) ($item['line_subtotal_tax'] ?? 0) : 0.0)
+                    : (float) $item['data']->get_price() * (int) $item['quantity'];
             }
         }
         return $sum;
@@ -204,6 +298,76 @@ class Galado_GC_Spending {
             return sprintf(__('Gift card ending %s', 'galado-gift-cards'), Galado_GC_Codes::tail($coupon->get_code()));
         }
         return $label;
+    }
+
+    /**
+     * 6. The [Remove] link beside a card in the totals: WooCommerce puts the code in its address
+     * (?remove_coupon=...) and its label. Removal works through data-coupon over AJAX; the address
+     * becomes the plain cart or checkout page, so following it without the script shows no code.
+     */
+    public static function coupon_html($html, $coupon) {
+        if (!Galado_GC_Codes::is_gift_coupon($coupon)) {
+            return $html;
+        }
+        $page = (defined('WOOCOMMERCE_CHECKOUT') && WOOCOMMERCE_CHECKOUT) ? wc_get_checkout_url() : wc_get_cart_url();
+        $html = preg_replace('/\shref="[^"]*"/', ' href="' . esc_url($page) . '"', (string) $html, 1);
+        return preg_replace('/\saria-label="[^"]*"/', ' aria-label="' . esc_attr__('Remove gift card', 'galado-gift-cards') . '"', $html, 1);
+    }
+
+    /** 6. Order notes (WooCommerce writes 'Coupon applied: "..."' when staff add a code). */
+    public static function mask_order_note($data) {
+        if (is_array($data) && isset($data['comment_content'])) {
+            $data['comment_content'] = preg_replace_callback(Galado_GC_Codes::FIND_PATTERN, function ($m) {
+                /* translators: %s: last four characters of the code */
+                return sprintf(__('gift card ending %s', 'galado-gift-cards'), Galado_GC_Codes::tail($m[0]));
+            }, (string) $data['comment_content']);
+        }
+        return $data;
+    }
+
+    /**
+     * 8. Negative fees are applied after coupons, and WooCommerce only caps them at the cart's
+     * items and shipping, gift lines included. So a discount fee could pay for a card being bought
+     * (a RM30 offer on a RM20 charm and a RM100 card takes RM10 off the card). Cap them together
+     * at what the other lines (after coupons), positive fees and shipping cost. Each cut fee keeps
+     * its original amount in galado_gc_original, for the remainder warning.
+     */
+    public static function cap_discount_fees($cart) {
+        if (!$cart instanceof WC_Cart) {
+            return;
+        }
+        $gift = 0.0;
+        $room = 0.0;
+        foreach ($cart->get_cart() as $item) {
+            $line = (float) ($item['line_total'] ?? 0);
+            if (!empty($item['data']) && $item['data'] instanceof WC_Product && Galado_GC_Product::is_gift_card_product($item['data'])) {
+                $gift += $line;
+            } else {
+                $room += $line;
+            }
+        }
+        if ($gift <= 0) {
+            return;
+        }
+        $room += (float) $cart->get_shipping_total();
+        $fees = $cart->fees_api()->get_fees();
+        foreach ($fees as $fee) {
+            if ((float) $fee->amount > 0) {
+                $room += (float) $fee->amount;
+            }
+        }
+        foreach ($fees as $fee) {
+            $amount = (float) $fee->amount;
+            if ($amount >= 0) {
+                continue;
+            }
+            $take = min(-$amount, max(0.0, $room));
+            $room -= $take;
+            if ($take < -$amount) {
+                $fee->galado_gc_original = isset($fee->galado_gc_original) ? $fee->galado_gc_original : $amount;
+                $fee->amount = wc_format_decimal(-$take);
+            }
+        }
     }
 
     /** 6. Errors about a gift card in plain words, never repeating the code. */

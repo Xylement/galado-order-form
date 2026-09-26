@@ -14,7 +14,7 @@ $new_card = function ($value) {
     return strtoupper(gct_coupons($o)[0]->get_code());
 };
 $promo = function ($code, $type, $amount, $individual = false) {
-    $c = new WC_Coupon();
+    $c = new WC_Coupon(0); // not new WC_Coupon(): Points and Rewards turns that into a virtual coupon
     $c->set_code($code);
     $c->set_discount_type($type);
     $c->set_amount((string) $amount);
@@ -183,5 +183,127 @@ Galado_GC_Spending::stamp_coupon_item($item, $item->get_code(), $cp);
 remove_filter('woocommerce_coupon_get_amount', $sgd, 10);
 // S$ figures are rounded to cents, so converting back can be a cent or two off (exact when the card is used up).
 check('in S$: about RM60 recorded (within 5 sen), no exchange rate needed', abs((float) $item->get_meta('_galado_gc_rm_used') - 60) <= 0.05, true);
+
+echo "-- the [Remove] link and order notes never carry a code\n";
+$card = $new_card(100);
+gct_cart();
+WC()->cart->add_to_cart($charm60);
+WC()->cart->apply_coupon($card);
+WC()->cart->apply_coupon('TENOFF');
+WC()->cart->calculate_totals();
+ob_start();
+wc_cart_totals_coupon_html(new WC_Coupon(strtolower($card)));
+$html = ob_get_clean();
+preg_match('/href="([^"]*)"/', $html, $href);
+preg_match('/aria-label="([^"]*)"/', $html, $aria);
+check('gift card row: the link and its label carry no code', [stripos($href[1] ?? '', substr($card, 5)), $aria[1] ?? ''], [false, 'Remove gift card']);
+check('... and the AJAX removal still has what it needs (data-coupon)', false !== strpos($html, 'data-coupon="' . strtolower($card) . '"'), true);
+ob_start();
+wc_cart_totals_coupon_html(new WC_Coupon('tenoff'));
+check('negative control: a promo row is left as WooCommerce builds it', false !== strpos(ob_get_clean(), 'remove_coupon=tenoff'), true);
+$counter = wc_create_order();
+$ci = new WC_Order_Item_Product();
+$ci->set_product(wc_get_product($charm60));
+$ci->set_quantity(1);
+$ci->set_subtotal('60');
+$ci->set_total('60');
+$counter->add_item($ci);
+$counter->calculate_totals();
+$counter->save();
+$staff_card = $new_card(50);
+$counter = wc_get_container()->get(\Automattic\WooCommerce\Internal\Orders\CouponsController::class)
+    ->add_coupon_discount(['order_id' => $counter->get_id(), 'coupon' => $staff_card]); // staff applying it on the admin order screen
+$notes = html_entity_decode(gct_notes_text($counter), ENT_QUOTES, 'UTF-8'); // WooCommerce escapes its note
+check('staff apply a card on the admin order screen: it pays RM50 of the RM60', (float) $counter->get_discount_total(), 50.0);
+check("WooCommerce's \"Coupon applied\" note shows only the last four characters",
+    [false !== stripos($notes, 'Coupon applied: "gift card ending ' . substr($staff_card, -4)), stripos($notes, substr($staff_card, 5))], [true, false]);
+
+echo "-- discount fees (a Club offer, a REDIS cart rule) never pay for a card being bought\n";
+$club = function ($cart) { $cart->add_fee('GALADO Club welcome: RM30 off your first order', -30); };
+add_action('woocommerce_cart_calculate_fees', $club);
+gct_cart();
+gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+WC()->cart->add_to_cart($charm20);
+WC()->cart->calculate_totals();
+check('RM30 offer on a RM100 card + RM20 charm: only RM20 comes off (the charm), the card is paid in full', WC()->cart->get_total('edit'), '100.00');
+gct_cart();
+WC()->cart->add_to_cart($charm150);
+WC()->cart->calculate_totals();
+check('negative control: without a card in the cart the offer is untouched (RM150 - RM30)', WC()->cart->get_total('edit'), '120.00');
+gct_cart();
+gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+WC()->cart->calculate_totals();
+check('a cart of only a card: the offer takes nothing', WC()->cart->get_total('edit'), '100.00');
+remove_action('woocommerce_cart_calculate_fees', $club);
+$redis = function ($cart) { $cart->add_fee('Spend RM100, save RM10', -10); };
+add_action('woocommerce_cart_calculate_fees', $redis);
+$card = $new_card(100);
+gct_cart();
+$charm100 = gct_charm(100, 'Charm 100');
+WC()->cart->add_to_cart($charm100);
+WC()->cart->apply_coupon($card);
+WC()->cart->calculate_totals();
+check('a card covering every item leaves nothing for a RM10 discount fee: the warning counts it as lost',
+    Galado_GC_Remainder::message(Galado_GC_Remainder::current()),
+    'Your gift card is worth RM100 and this order is RM90. The RM10 left will be lost. Add more items?');
+remove_action('woocommerce_cart_calculate_fees', $redis);
+WC()->cart->calculate_totals();
+check('negative control: without that fee nothing is lost', Galado_GC_Remainder::current(), null);
+
+echo "-- REDIS conditions leave gift cards out (its filters, called as REDIS calls them)\n";
+gct_cart();
+gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+WC()->cart->add_to_cart($charm20);
+$qty_rule = ['qty_item' => ['qty_item_min' => 2, 'qty_item_max' => '']];
+check('"2 or more items" with a charm + a card: not met (the card does not count)',
+    apply_filters('viredis_may_be_apply_to_cart', 'check', 7, $qty_rule, '', 0, 0, true), false);
+WC()->cart->add_to_cart($charm60);
+check('negative control: two charms + a card meet it (REDIS goes on checking)',
+    apply_filters('viredis_may_be_apply_to_cart', 'check', 7, $qty_rule, '', 0, 0, true), 'check');
+check('bulk pricing on "all items": 3 lines counted as 2 (the card left out)',
+    apply_filters('viredis_get_product_qty_in_cart', WC()->cart->get_cart_contents_count() + 1, $charm20, 1), 3);
+check('negative control: a per-product count is left alone', apply_filters('viredis_get_product_qty_in_cart', 2, $charm20, 1), 2);
+gct_cart();
+WC()->cart->add_to_cart($charm20);
+$seen = null;
+$peek = function () use (&$seen) { $seen = Galado_GC_Spending::cart_gift_subtotal(); };
+add_action('woocommerce_add_to_cart', $peek, 1); // before WooCommerce totals the new line
+gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+remove_action('woocommerce_add_to_cart', $peek, 1);
+check('asked before WooCommerce has totalled a just-added card, the gift subtotal is still RM100', $seen, 100.0);
+
+echo "-- Points and Rewards, the real plugin\n";
+if (!class_exists('WC_Points_Rewards_Discount')) {
+    echo "skip Points and Rewards is not installed in the test WordPress (setup.sh GCT_PR_DIR)\n";
+} else {
+    $uid = wp_insert_user(['user_login' => 'shopper_pr', 'user_pass' => wp_generate_password(), 'user_email' => 'pr@example.test', 'role' => 'customer']);
+    wp_set_current_user($uid);
+    WC_Points_Rewards_Manager::set_points_balance($uid, 500, 'admin-adjustment'); // exactly RM50 of Shopping Credits (sign-up points aside)
+    $redeem = function () {
+        WC()->session->set('wc_points_rewards_discount_amount', '');
+        $code = WC_Points_Rewards_Discount::generate_discount_code();
+        WC()->cart->apply_coupon($code);
+        WC()->cart->calculate_totals();
+        return $code;
+    };
+    gct_cart();
+    gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+    WC()->cart->add_to_cart($charm20);
+    $code = $redeem();
+    check('RM50 of Shopping Credits on a RM100 card + RM20 charm: the charm is fully paid, nothing off the card',
+        [$discount($code), WC()->cart->get_total('edit')], [20.0, '100.00']);
+    remove_filter('woocommerce_coupon_get_discount_amount', [Galado_GC_Spending::class, 'points_share_without_gift_lines'], 20);
+    gct_cart();
+    gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+    WC()->cart->add_to_cart($charm20);
+    $code = $redeem();
+    check('negative control: without the fix the charm gets only its share (about RM8.33)', $discount($code) < 10, true);
+    add_filter('woocommerce_coupon_get_discount_amount', [Galado_GC_Spending::class, 'points_share_without_gift_lines'], 20, 5);
+    check('the card earns no points, so P&R shows no "earn N points" message for it',
+        [(int) WC_Points_Rewards_Product::get_points_earned_for_product_purchase(wc_get_product(gct_variation('RM100'))),
+         (int) WC_Points_Rewards_Product::get_points_earned_for_product_purchase(wc_get_product(gct_product()))], [0, 0]);
+    check('negative control: a charm does earn points', WC_Points_Rewards_Product::get_points_earned_for_product_purchase(wc_get_product($charm20)) > 0, true);
+    wp_set_current_user(0);
+}
 
 done();

@@ -31,6 +31,7 @@ class Galado_GC_Cart {
         add_action('woocommerce_check_cart_items', [__CLASS__, 'check_cart_items']);
         add_action('woocommerce_checkout_create_order_line_item', [__CLASS__, 'create_order_line_item'], 10, 3);
         add_filter('woocommerce_order_item_get_formatted_meta_data', [__CLASS__, 'formatted_meta'], 10, 2);
+        add_filter('woocommerce_hidden_order_itemmeta', [__CLASS__, 'hide_display_rows']);
     }
 
     /**
@@ -89,7 +90,8 @@ class Galado_GC_Cart {
             return new WP_Error('galado_gc', __("Please enter the recipient's email address.", 'galado-gift-cards'));
         }
 
-        $message = trim(sanitize_textarea_field($get('galado_gc_message')));
+        // Browsers send a textarea's line breaks as CRLF but count each as one character.
+        $message = trim(sanitize_textarea_field(str_replace(["\r\n", "\r"], "\n", $get('galado_gc_message'))));
         if (self::length($message) > Galado_GC_Config::MESSAGE_MAX) {
             /* translators: %d: characters */
             return new WP_Error('galado_gc', sprintf(__('The message can be up to %d characters.', 'galado-gift-cards'), Galado_GC_Config::MESSAGE_MAX));
@@ -227,12 +229,14 @@ class Galado_GC_Cart {
         $item->add_meta_data(self::META_DATE, $f['delivery_date'], true);
     }
 
-    /** Readable rows for order emails, My Account and the admin order screen. Never a code. */
+    const DISPLAY_ROWS = ['galado_gc_value', 'galado_gc_to', 'galado_gc_date', 'galado_gc_message'];
+
+    /** Readable rows for order emails, My Account and the thank-you page. Never a code. */
     public static function formatted_meta($formatted, $item) {
         if (!$item instanceof WC_Order_Item_Product || '' === (string) $item->get_meta(self::META_VALUE)) {
             return $formatted;
         }
-        $rows = [
+        $rows = [ // keys: self::DISPLAY_ROWS
             'galado_gc_value' => [__('Card value', 'galado-gift-cards'), self::rm((float) $item->get_meta(self::META_VALUE))],
             'galado_gc_to'    => [__('To', 'galado-gift-cards'), $item->get_meta(self::META_NAME) . ' (' . $item->get_meta(self::META_EMAIL) . ')'],
             'galado_gc_date'  => [__('Send on', 'galado-gift-cards'), Galado_GC_Time::human_ymd($item->get_meta(self::META_DATE))],
@@ -249,6 +253,15 @@ class Galado_GC_Cart {
             ];
         }
         return $formatted;
+    }
+
+    /**
+     * The admin order screen prints every formatted row into its hidden item-meta edit form, and
+     * saving the order would store these display-only rows as real, customer-visible meta. Keep
+     * them out of it (staff see the raw _galado_gc_* fields and each card instead).
+     */
+    public static function hide_display_rows($keys) {
+        return array_merge((array) $keys, self::DISPLAY_ROWS);
     }
 
     /** RM value of the gift card lines in the current cart. */

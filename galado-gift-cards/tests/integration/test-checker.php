@@ -63,7 +63,7 @@ $o = gct_paid_order([['value' => 100]]);
 $disabled = strtoupper(gct_coupons($o)[0]->get_code());
 $o->update_status('refunded');
 check('a disabled (refunded) card reads as not found', $post($disabled, '203.0.113.3')[0], 'We couldn’t find that gift card. Check the code and try again.');
-$promo = new WC_Coupon();
+$promo = new WC_Coupon(0); // not new WC_Coupon(): Points and Rewards turns that into a virtual coupon
 $promo->set_code('GIFT-AAAA-BBBB-CCCC'); // looks like a card but was never issued as one
 $promo->set_amount('50');
 $promo->save();

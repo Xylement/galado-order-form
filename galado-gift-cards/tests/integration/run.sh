@@ -6,10 +6,23 @@
 set -uo pipefail
 . "$(dirname "$0")/env.sh"
 reset_db() {
-  docker exec "$GCT_DB" sh -c 'mariadb -uroot -proot wp < /tmp/gct-baseline.sql'
+  # Drop and recreate, not just re-import: tables made after the baseline (HPOS order tables,
+  # Points and Rewards) would otherwise keep rows from the previous file under reused order ids.
+  docker exec "$GCT_DB" sh -c 'mariadb -uroot -proot -e "DROP DATABASE wp; CREATE DATABASE wp" && mariadb -uroot -proot wp < /tmp/gct-baseline.sql'
   gct_wp plugin activate galado-gift-cards >/dev/null
+  # Live has Points and Rewards active; when setup.sh installed it (GCT_PR_DIR), so do the tests.
+  if gct_wp plugin is-installed woocommerce-points-and-rewards 2>/dev/null; then
+    gct_wp plugin activate woocommerce-points-and-rewards >/dev/null 2>&1
+    # It builds its tables and default settings only on an admin page load: run that step, then
+    # the live rates (1 point per RM2 spent, 10 points = RM1).
+    gct_wp eval '$m = new ReflectionMethod("WC_Points_Rewards", "install"); $m->setAccessible(true); $m->invoke($GLOBALS["wc_points_rewards"]);
+      update_option("wc_points_rewards_earn_points_ratio", "1:2"); update_option("wc_points_rewards_redeem_points_ratio", "10:1");' >/dev/null 2>&1
+  fi
 }
 enable_hpos() {
+  # Points and Rewards 1.6.13 does not declare HPOS support, and WooCommerce will not switch HPOS
+  # on while an incompatible plugin is active (the same holds on live).
+  gct_wp plugin deactivate woocommerce-points-and-rewards >/dev/null 2>&1
   gct_wp wc hpos enable >/dev/null 2>&1
   local on; on=$(gct_wp eval 'echo \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled() ? "on" : "off";' 2>/dev/null)
   [ "$on" = "on" ] || { echo "could not switch HPOS on"; return 1; }

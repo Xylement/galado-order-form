@@ -77,4 +77,48 @@ $notes = gct_notes_text($o);
 check('the issuing note names only the last four characters', false !== strpos($notes, 'ending ' . Galado_GC_Codes::tail(gct_coupons($o)[0]->get_code())), true);
 check('no full code in any note', preg_match(Galado_GC_Codes::FIND_PATTERN, $notes), 0);
 
+echo "-- Points and Rewards is active here, as on live (it once stopped every card being created)\n";
+check('P&R active in this run', class_exists('WC_Points_Rewards_Discount') ? 'active' : 'not installed (setup.sh GCT_PR_DIR)', class_exists('WC_Points_Rewards_Discount') ? 'active' : 'not installed (setup.sh GCT_PR_DIR)');
+if (class_exists('WC_Points_Rewards_Discount')) {
+    $bare = new WC_Coupon();
+    $bare->set_code('probe-bare-coupon');
+    $bare->set_discount_type('fixed_cart');
+    $bare->set_amount('1');
+    check('negative control: with P&R active, a coupon made by `new WC_Coupon()` is never saved', (int) $bare->save(), 0);
+}
+$o = gct_paid_order([['value' => 100]]);
+check('with no session (a payment webhook), the card is a real, saved coupon', [count(gct_coupons($o)), gct_coupons($o)[0]->get_id() > 0, get_post_type(gct_coupons($o)[0]->get_id())], [1, true, 'shop_coupon']);
+
+echo "-- a failure is retried, further apart each time, then staff are told\n";
+// The database refuses every new coupon, the way a clash with another plugin made saves vanish.
+$boom = function ($refuse, $postarr) {
+    return 'shop_coupon' === ($postarr['post_type'] ?? '') ? true : $refuse;
+};
+$pending = function ($id) {
+    return as_get_scheduled_actions(['hook' => Galado_GC_Issuer::RETRY_HOOK, 'args' => [$id], 'group' => Galado_GC_Issuer::GROUP,
+        'status' => ActionScheduler_Store::STATUS_PENDING], 'ids');
+};
+$run_try = function ($id) use ($pending) { // as Action Scheduler runs it: marked running, then executed
+    ActionScheduler::runner()->process_action((int) current($pending($id)), 'test');
+};
+$o = gct_paid_order([['value' => 50, 'label' => 'RM50']], null);
+$id = $o->get_id();
+add_filter('wp_insert_post_empty_content', $boom, 10, 2);
+$o->set_date_paid(time());
+$o->update_status('processing');
+check('first failure: no code, one try booked, attempt 1', [count(gct_coupons(wc_get_order($id))), count($pending($id)), wc_get_order($id)->get_meta(Galado_GC_Issuer::ORDER_ATTEMPTS)], [0, 1, '1']);
+$run_try($id);
+check('the booked try fails too: the next one is booked from inside it (attempt 2)', [count($pending($id)), wc_get_order($id)->get_meta(Galado_GC_Issuer::ORDER_ATTEMPTS)], [1, '2']);
+$o = wc_get_order($id);
+$o->update_meta_data(Galado_GC_Issuer::ORDER_ATTEMPTS, (string) Galado_GC_Issuer::MAX_ATTEMPTS);
+$o->save_meta_data();
+$run_try($id);
+$notes = gct_notes_text(wc_get_order($id));
+check('after the last try: nothing more booked, and a note tells staff', [count($pending($id)), false !== strpos($notes, 'could not be created')], [0, true]);
+check('no note ever claimed a code was issued', false !== strpos($notes, 'Issued'), false);
+remove_filter('wp_insert_post_empty_content', $boom, 10);
+wc_get_order($id)->update_status('completed');
+check('fixed, then moved to Completed as the note says: the card is issued and the count cleared',
+    [count(gct_coupons(wc_get_order($id))), wc_get_order($id)->get_meta(Galado_GC_Issuer::ORDER_ATTEMPTS)], [1, '']);
+
 done();

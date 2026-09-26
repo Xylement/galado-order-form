@@ -38,6 +38,11 @@ check('name up to 60 characters', $parse(['galado_gc_recipient_name' => str_repe
 check('email validated', $parse(['galado_gc_recipient_email' => 'not-an-email']), "Please enter the recipient's email address.");
 check('message limited to 200 characters', $parse(['galado_gc_message' => str_repeat('x', 201)]), 'The message can be up to 200 characters.');
 check('200 characters of multibyte text is allowed', strlen($parse(['galado_gc_message' => str_repeat('祝', 200)])['message']) > 0, true);
+$lines = str_repeat('x', 99) . "\r\n" . str_repeat('y', 100); // 200 as the browser counts it (a line break is one)
+check('a line break counts once: 200 characters over two lines is allowed', is_array($parse(['galado_gc_message' => $lines])), true);
+check('... and is kept as a single newline', $parse(['galado_gc_message' => $lines])['message'], str_repeat('x', 99) . "\n" . str_repeat('y', 100));
+check('negative control: 201 characters over two lines is still refused',
+    $parse(['galado_gc_message' => str_repeat('x', 100) . "\r\n" . str_repeat('y', 100)]), 'The message can be up to 200 characters.');
 check('delivery date before today refused', $parse(['galado_gc_delivery_date' => '2026-09-25']), 'Please choose a delivery date from today up to one year ahead.');
 check('delivery date more than a year ahead refused', $parse(['galado_gc_delivery_date' => '2027-09-27']), 'Please choose a delivery date from today up to one year ahead.');
 

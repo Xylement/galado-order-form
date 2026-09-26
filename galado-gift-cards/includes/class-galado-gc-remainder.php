@@ -31,17 +31,21 @@ class Galado_GC_Remainder {
     }
 
     /**
-     * Pure maths. $cards: list of [value, applied], both in the same currency.
+     * Pure maths. $cards: list of [value, applied], both in the same currency. $fees_lost: other
+     * discounts the order could not use because the cards had already covered the items (discount
+     * fees are applied after coupons, so the card pays first); the cards really covered that much
+     * less, since "the order" is the items after other discounts.
      *
      * @return array{value: float, covered: float, remainder: float, count: int}
      */
-    public static function compute(array $cards, $decimals = 2) {
+    public static function compute(array $cards, $decimals = 2, $fees_lost = 0.0) {
         $value = 0.0;
         $covered = 0.0;
         foreach ($cards as $card) {
             $value += (float) $card['value'];
             $covered += min((float) $card['applied'], (float) $card['value']);
         }
+        $covered = max(0.0, $covered - max(0.0, (float) $fees_lost));
         $value = round($value, (int) $decimals);
         $covered = round($covered, (int) $decimals);
         $remainder = round(max(0.0, $value - $covered), (int) $decimals);
@@ -67,14 +71,36 @@ class Galado_GC_Remainder {
         return $cards;
     }
 
+    /**
+     * Discount fees (REDIS cart rules, Club offers) cut short because nothing was left to take them
+     * from: by WooCommerce (fee total below its amount) or by Galado_GC_Spending::cap_discount_fees.
+     */
+    public static function fees_lost($cart = null) {
+        $cart = $cart ?: (function_exists('WC') ? WC()->cart : null);
+        if (!$cart) {
+            return 0.0;
+        }
+        $lost = 0.0;
+        foreach ($cart->get_fees() as $fee) {
+            $asked = isset($fee->galado_gc_original) ? (float) $fee->galado_gc_original : (float) $fee->amount;
+            $got = isset($fee->total) ? (float) $fee->total : (float) $fee->amount;
+            if ($asked < 0 && $got > $asked) {
+                $lost += min(-$asked, $got - $asked);
+            }
+        }
+        return $lost;
+    }
+
+    /** The figures for the current cart (null when no gift card is applied). */
+    public static function summary($cart = null) {
+        $cards = self::cart_cards($cart);
+        return $cards ? self::compute($cards, wc_get_price_decimals(), self::fees_lost($cart)) : null;
+    }
+
     /** The warning for the current cart, or null when nothing will be lost. */
     public static function current($cart = null) {
-        $cards = self::cart_cards($cart);
-        if (!$cards) {
-            return null;
-        }
-        $r = self::compute($cards, wc_get_price_decimals());
-        return $r['remainder'] > 0 ? $r : null;
+        $r = self::summary($cart);
+        return $r && $r['remainder'] > 0 ? $r : null;
     }
 
     /** The customer-facing sentence (plain text). $format turns an amount into "RM100" etc. */
@@ -123,9 +149,8 @@ class Galado_GC_Remainder {
 
     public static function store_api_data() {
         $d = wc_get_price_decimals();
-        $cards = self::cart_cards();
-        $r = self::compute($cards, $d);
-        $lost = $cards && $r['remainder'] > 0;
+        $r = self::summary() ?: self::compute([], $d);
+        $lost = $r['remainder'] > 0;
         return [
             'remainder_lost'  => number_format($lost ? $r['remainder'] : 0, $d, '.', ''),
             'currency'        => get_woocommerce_currency(),

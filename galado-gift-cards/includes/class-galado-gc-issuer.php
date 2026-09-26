@@ -9,7 +9,8 @@
  *     coupon, by each coupon's own meta (order item id + card number), not by a flag on the order
  *     that a crashed request might have failed to write;
  *  3. creates only the missing ones.
- * If the lock cannot be taken in time, a retry is scheduled instead of issuing without it.
+ * If the lock cannot be taken in time, or issuing fails, it tries again later through Action
+ * Scheduler (up to MAX_ATTEMPTS, further apart each time), then leaves staff a note.
  *
  * Coupon: fixed_cart, amount = the card's RM value, usage limit 1, no email restriction (that is
  * also what keeps Coreem Coupon Reminder away: it skips coupons with no allowed emails), not
@@ -34,6 +35,8 @@ class Galado_GC_Issuer {
     const RETRY_HOOK = 'galado_gc_issue_retry';
     const GROUP = 'galado-gift-cards';
     const LOCK_WAIT = 10; // seconds
+    const ORDER_ATTEMPTS = '_galado_gc_issue_attempts';
+    const MAX_ATTEMPTS = 5;
 
     public static function init() {
         add_action('woocommerce_order_status_processing', [__CLASS__, 'on_paid'], 20);
@@ -115,6 +118,10 @@ class Galado_GC_Issuer {
                     implode(', ', $tails)
                 ));
             }
+            if ('' !== (string) $order->get_meta(self::ORDER_ATTEMPTS)) {
+                $order->delete_meta_data(self::ORDER_ATTEMPTS); // issued: earlier failures no longer count
+                $order->save_meta_data();
+            }
         } finally {
             self::release($lock);
         }
@@ -165,7 +172,10 @@ class Galado_GC_Issuer {
 
     private static function create_coupon($order, $item_id, $n, $value, $expires) {
         $code = Galado_GC_Codes::unique();
-        $coupon = new WC_Coupon();
+        // Not `new WC_Coupon()`: with Points and Rewards 1.6.13 active and no redemption in the
+        // session, its woocommerce_get_shop_coupon_data filter matches the empty code ('' == null)
+        // and turns the object into a virtual coupon that save() never writes.
+        $coupon = new WC_Coupon(0);
         $coupon->set_code($code);
         $coupon->set_discount_type('fixed_cart');
         $coupon->set_amount(wc_format_decimal($value, 2));
@@ -186,7 +196,12 @@ class Galado_GC_Issuer {
         $coupon->update_meta_data(self::META_ITEM, (string) (int) $item_id);
         $coupon->update_meta_data(self::META_INDEX, (string) (int) $n);
         $coupon->update_meta_data(self::META_COUPON_VALUE, wc_format_decimal($value, 2));
-        return (int) $coupon->save();
+        $id = (int) $coupon->save();
+        if ($id <= 0 || 'shop_coupon' !== get_post_type($id)) {
+            // Fail loudly (retry, then a staff note) rather than record a card that does not exist.
+            throw new RuntimeException('coupon_not_saved');
+        }
+        return $id;
     }
 
     private static function is_paid($order) {
@@ -210,9 +225,28 @@ class Galado_GC_Issuer {
         $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $name));
     }
 
+    /**
+     * Try again later, unless a try is already waiting. Only a pending try counts: inside the retry
+     * job itself Action Scheduler still reports that (running) job as scheduled.
+     */
     private static function schedule_retry($order_id) {
-        if (function_exists('as_schedule_single_action') && !as_next_scheduled_action(self::RETRY_HOOK, [$order_id], self::GROUP)) {
-            as_schedule_single_action(time() + 120, self::RETRY_HOOK, [$order_id], self::GROUP);
+        $order = wc_get_order($order_id);
+        if (!$order || !function_exists('as_schedule_single_action')) {
+            return;
+        }
+        $attempts = (int) $order->get_meta(self::ORDER_ATTEMPTS) + 1;
+        $order->update_meta_data(self::ORDER_ATTEMPTS, (string) $attempts);
+        $order->save_meta_data();
+        if ($attempts > self::MAX_ATTEMPTS) {
+            $order->add_order_note(__('Gift card codes could not be created for this order after several tries. Change the order status (for example to Completed) to try again, or contact the developer.', 'galado-gift-cards'));
+            return;
+        }
+        $waiting = as_get_scheduled_actions([
+            'hook' => self::RETRY_HOOK, 'args' => [(int) $order_id], 'group' => self::GROUP,
+            'status' => ActionScheduler_Store::STATUS_PENDING, 'per_page' => 1,
+        ], 'ids');
+        if (!$waiting) {
+            as_schedule_single_action(time() + 120 * $attempts, self::RETRY_HOOK, [(int) $order_id], self::GROUP);
         }
     }
 

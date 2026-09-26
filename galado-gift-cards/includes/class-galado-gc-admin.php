@@ -1,8 +1,9 @@
 <?php
 /**
  * Admin only: the launch-day "Create the gift card product" action (WooCommerce > Settings >
- * Products > Gift cards) and, on the order screen, each card's code and state for support.
- * Every action checks a nonce and the manage_woocommerce capability.
+ * Products > Gift cards), on the order screen each card's code and state for support, and the
+ * coupon editor keeping a card's expiry at the end of its day. Every action checks a nonce and
+ * the manage_woocommerce capability.
  */
 
 if (!defined('ABSPATH')) {
@@ -18,6 +19,26 @@ class Galado_GC_Admin {
         add_action('woocommerce_admin_field_galado_gc_product', [__CLASS__, 'render_product_field']);
         add_action('admin_post_' . self::CREATE_ACTION, [__CLASS__, 'handle_create']);
         add_action('woocommerce_after_order_itemmeta', [__CLASS__, 'render_item_cards'], 10, 2);
+        add_action('woocommerce_coupon_options_save', [__CLASS__, 'keep_end_of_day_expiry'], 20, 2);
+    }
+
+    /**
+     * WooCommerce's coupon editor saves the expiry as a bare date, which it reads as 00:00. For a
+     * gift card (for example when staff publish a disabled card again) put it back to 23:59:59
+     * Malaysian time on the date shown, so the card still works all of its last day.
+     */
+    public static function keep_end_of_day_expiry($post_id, $coupon = null) {
+        $coupon = $coupon instanceof WC_Coupon ? $coupon : new WC_Coupon((int) $post_id);
+        $expires = $coupon->get_date_expires();
+        if (!$expires || !Galado_GC_Codes::is_gift_coupon($coupon)) {
+            return;
+        }
+        $day = (new DateTimeImmutable('@' . $expires->getTimestamp()))->setTimezone(Galado_GC_Time::tz())->format('Y-m-d');
+        $end = (new DateTimeImmutable($day . ' 23:59:59', Galado_GC_Time::tz()))->getTimestamp();
+        if ($expires->getTimestamp() !== $end) {
+            $coupon->set_date_expires($end);
+            $coupon->save();
+        }
     }
 
     public static function add_product_field($settings, $section) {

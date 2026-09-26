@@ -24,8 +24,42 @@ class Galado_GC_Product {
     const ATTRIBUTE_KEY = 'amount';              // sanitize_title( 'Amount' ): WooCommerce's key for a local attribute
     const CUSTOM_LABEL = 'Custom amount';
 
+    const META_POINTS = '_wc_points_earned';    // Points and Rewards: points this product earns
+
     public static function init() {
         add_action('woocommerce_before_add_to_cart_button', [__CLASS__, 'render_fields']);
+        add_filter('woocommerce_get_price_html', [__CLASS__, 'price_html'], 20, 2);
+        add_filter('woocommerce_available_variation', [__CLASS__, 'custom_variation_price'], 20, 3);
+    }
+
+    /**
+     * "RM30.00 to RM1,000.00" instead of WooCommerce's variable range, which has an en dash
+     * (customers read it) and stops at the dearest preset although a custom card can go higher.
+     * Amounts in the shopper's currency when CURCY is active.
+     */
+    public static function price_html($html, $product) {
+        if (!$product instanceof WC_Product || $product->is_type('variation') || !self::is_gift_card_product($product)) {
+            return $html;
+        }
+        return '<span class="galado-gc-price">' . esc_html(self::range_text()) . '</span>';
+    }
+
+    /** The custom-amount choice has no price of its own (its stored RM30 is only a floor). */
+    public static function custom_variation_price($data, $product = null, $variation = null) {
+        if (is_array($data) && !empty($data['variation_id']) && self::is_custom_variation((int) $data['variation_id'])) {
+            $data['price_html'] = '<span class="price">' . esc_html(self::range_text()) . '</span>';
+        }
+        return $data;
+    }
+
+    public static function range_text() {
+        $show = function ($rm) {
+            $amount = function_exists('wmc_get_price') ? (float) wmc_get_price($rm) : (float) $rm;
+            return html_entity_decode(wp_strip_all_tags(wc_price($amount)), ENT_QUOTES, 'UTF-8');
+        };
+        $low = min(Galado_GC_Config::CUSTOM_MIN, min(Galado_GC_Config::PRESET_AMOUNTS));
+        /* translators: 1: lowest amount, 2: highest amount */
+        return sprintf(__('%1$s to %2$s', 'galado-gift-cards'), $show($low), $show(Galado_GC_Config::max_card()));
     }
 
     /** @param WC_Product|int $product */
@@ -82,6 +116,13 @@ class Galado_GC_Product {
     public static function create_product() {
         $existing = self::find_product_id();
         if ($existing) {
+            // Made before the points setting existed: add it to the product and every amount.
+            $product = wc_get_product($existing);
+            foreach (array_merge([$existing], $product ? $product->get_children() : []) as $id) {
+                if ('0' !== (string) get_post_meta($id, self::META_POINTS, true)) {
+                    update_post_meta($id, self::META_POINTS, '0');
+                }
+            }
             return $existing;
         }
 
@@ -107,6 +148,10 @@ class Galado_GC_Product {
         $product->set_description(self::terms_text());
         $product->set_attributes([$attribute]);
         $product->update_meta_data(self::META_FLAG, 'yes');
+        // Points and Rewards: earns 0 points. Besides earning nothing, this hides its "Earn up to N
+        // points" messages on the product page, which read the product's points, not the filters.
+        // Each amount gets it too: P&R 1.6.13's fallback to the parent reads the variation again.
+        $product->update_meta_data(self::META_POINTS, '0');
         $product_id = $product->save();
 
         foreach (Galado_GC_Config::PRESET_AMOUNTS as $amount) {
@@ -127,6 +172,7 @@ class Galado_GC_Product {
         $variation->set_virtual(true);
         $variation->set_tax_status('none');
         $variation->set_status('publish');
+        $variation->update_meta_data(self::META_POINTS, '0');
         if ($custom) {
             $variation->update_meta_data(self::META_CUSTOM, 'yes');
         } else {
