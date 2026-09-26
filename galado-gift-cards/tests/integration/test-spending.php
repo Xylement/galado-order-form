@@ -1,0 +1,187 @@
+<?php
+/**
+ * Spending on the website, through WooCommerce's real discount engine: full value, a smaller
+ * order (warning, remainder lost), with promo codes (including individual use, both orders),
+ * every blocked route, the free-shipping minimum, the Store API figures for the app, and the RM
+ * value recorded on the order.
+ */
+require __DIR__ . '/bootstrap.php';
+
+gct_product();
+gct_shipping_zones();
+$new_card = function ($value) {
+    $o = gct_paid_order([['value' => $value, 'label' => 'Custom amount']]);
+    return strtoupper(gct_coupons($o)[0]->get_code());
+};
+$promo = function ($code, $type, $amount, $individual = false) {
+    $c = new WC_Coupon();
+    $c->set_code($code);
+    $c->set_discount_type($type);
+    $c->set_amount((string) $amount);
+    $c->set_individual_use($individual);
+    $c->save();
+    return $code;
+};
+$discount = function ($code) { return round((float) WC()->cart->get_coupon_discount_amount(strtolower($code), false), 2); };
+$charm60 = gct_charm(60, 'Charm 60');
+$charm150 = gct_charm(150, 'Charm 150');
+$charm20 = gct_charm(20, 'Charm 20');
+
+echo "-- spent in full, and on a smaller order (the warning shows, the rest is lost)\n";
+$card = $new_card(100);
+gct_cart();
+WC()->cart->add_to_cart($charm150);
+check('applied', WC()->cart->apply_coupon($card), true);
+WC()->cart->calculate_totals();
+check('RM150 order: the card pays RM100 in full', [$discount($card), WC()->cart->get_total('edit')], [100.0, '50.00']);
+check('no warning when nothing is lost', Galado_GC_Remainder::current(), null);
+gct_cart();
+WC()->cart->add_to_cart($charm60);
+WC()->cart->apply_coupon($card);
+WC()->cart->calculate_totals();
+check('RM60 order: the card pays RM60, total RM0', [$discount($card), WC()->cart->get_total('edit')], [60.0, '0.00']);
+check('the warning, word for word', Galado_GC_Remainder::message(Galado_GC_Remainder::current()),
+    'Your gift card is worth RM100 and this order is RM60. The RM40 left will be lost. Add more items?');
+ob_start();
+do_action('woocommerce_cart_totals_before_order_total');
+$row = ob_get_clean();
+check('it is a row in the cart totals, linking to the shop', [false !== strpos($row, 'The RM40 left will be lost.'), false !== strpos($row, '<a href=')], [true, true]);
+ob_start();
+do_action('woocommerce_review_order_before_order_total');
+check('and in the checkout order review', false !== strpos(ob_get_clean(), 'The RM40 left will be lost.'), true);
+$label = wc_cart_totals_coupon_label(new WC_Coupon($card), false);
+check('the totals show "Gift card ending ...", never the code', [$label, false !== stripos($label, $card)], ['Gift card ending ' . substr($card, -4), false]);
+
+echo "-- the app gets the same figures (Store API cart)\n";
+$res = rest_do_request(new WP_REST_Request('GET', '/wc/store/v1/cart'));
+$data = json_decode(wp_json_encode($res->get_data()), true); // the Store API returns objects
+$ext = $data['extensions']['galado-gift-cards'] ?? null;
+check('extensions.galado-gift-cards', $ext, [
+    'remainder_lost' => '40.00', 'currency' => 'MYR', 'gift_card_value' => '100.00', 'order_amount' => '60.00',
+    'message' => 'Your gift card is worth RM100 and this order is RM60. The RM40 left will be lost. Add more items?',
+]);
+
+echo "-- works together with other codes, including individual-use ones, either order\n";
+$promo('TENOFF', 'percent', 10, true);
+gct_cart();
+WC()->cart->add_to_cart($charm150);
+WC()->cart->apply_coupon('TENOFF');
+check('individual-use promo first, then the gift card: both stay', [WC()->cart->apply_coupon($card), count(WC()->cart->get_applied_coupons())], [true, 2]);
+WC()->cart->calculate_totals();
+check('the promo takes 10% first, the card pays the discounted RM135 up to RM100', [$discount('TENOFF'), $discount($card), WC()->cart->get_total('edit')], [15.0, 100.0, '35.00']);
+gct_cart();
+WC()->cart->add_to_cart($charm150);
+WC()->cart->apply_coupon($card);
+WC()->cart->apply_coupon('TENOFF');
+check('gift card first, then the individual-use promo: the card is kept', WC()->cart->get_applied_coupons(), [strtolower($card), 'tenoff']);
+$promo('SOLO5', 'fixed_cart', 5, true);
+$promo('EXTRA3', 'fixed_cart', 3);
+gct_cart();
+WC()->cart->add_to_cart($charm150);
+WC()->cart->apply_coupon('EXTRA3');
+WC()->cart->apply_coupon('SOLO5');
+check('negative control: an ordinary code is still removed by an individual-use one', array_values(WC()->cart->get_applied_coupons()), ['solo5']);
+
+echo "-- nothing ever discounts the gift card product\n";
+gct_cart();
+gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+WC()->cart->add_to_cart($charm60);
+WC()->cart->apply_coupon('TENOFF');
+WC()->cart->calculate_totals();
+check('a 10% promo on a RM100 card + RM60 charm takes RM6 (the charm only)', [$discount('TENOFF'), WC()->cart->get_total('edit')], [6.0, '154.00']);
+$other_card = $new_card(300);
+WC()->cart->apply_coupon($other_card);
+WC()->cart->calculate_totals();
+check('a RM300 gift card with it pays only the rest of the charm (RM54); the new card is paid in cash', [$discount($other_card), WC()->cart->get_total('edit')], [54.0, '100.00']);
+check('... and the warning shows what that card loses', Galado_GC_Remainder::current()['remainder'], 246.0);
+
+echo "-- every blocked route on a gift-card-only cart fails with a clear message\n";
+$blocked = function ($code) {
+    gct_cart();
+    gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+    wc_clear_notices();
+    $ok = WC()->cart->apply_coupon($code);
+    return [$ok, gct_notices()];
+};
+check('a promo code', $blocked('TENOFF'), [false, ['Discount codes can’t be used to buy a gift card.']]);
+check('another gift card', $blocked($new_card(50)), [false, ['A gift card can’t be used to buy another gift card.']]);
+$points = $promo('wc_points_redemption_1_' . gmdate('Ymd') . '_abc', 'fixed_cart', 50);
+check('Shopping Credits (a Points and Rewards redemption coupon)', $blocked($points), [false, ['Shopping Credits can’t be used to buy a gift card.']]);
+gct_cart();
+gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+WC()->cart->add_to_cart($charm20);
+WC()->cart->apply_coupon($points);
+WC()->cart->calculate_totals();
+check('Shopping Credits with a charm in the cart discount the charm only (RM20 of RM50)', $discount($points), 20.0);
+
+echo "-- used, expired and unknown codes say so plainly\n";
+$used = $new_card(100);
+$uc = new WC_Coupon(strtolower($used));
+$uc->increase_usage_count('x@example.test');
+gct_cart();
+WC()->cart->add_to_cart($charm60);
+wc_clear_notices();
+WC()->cart->apply_coupon($used);
+check('used (as a guest, where WooCommerce 10.5.3 reports it as "stuck")', gct_notices(), ['This gift card has already been used.']);
+$held_code = $new_card(100);
+$hc = new WC_Coupon(strtolower($held_code));
+check('an unpaid checkout elsewhere holds the unused card', (bool) $hc->get_data_store()->check_and_hold_coupon($hc), true);
+check('... so WooCommerce counts one held use', Galado_GC_Spending::is_held_by_unpaid_order(new WC_Coupon(strtolower($held_code))), true);
+wc_clear_notices();
+WC()->cart->apply_coupon($held_code);
+check('negative control: a held card says "try again", not "used"', gct_notices(),
+    ['This gift card is in another order that has not been paid yet. Please try again in a few minutes.']);
+$exp = $new_card(100);
+$ec = new WC_Coupon(strtolower($exp));
+$ec->set_date_expires(time() - 60);
+$ec->save();
+wc_clear_notices();
+WC()->cart->apply_coupon($exp);
+check('expired', gct_notices(), ['This gift card has expired.']);
+wc_clear_notices();
+WC()->cart->apply_coupon('GIFT-2345-6789-ABCD');
+check('unknown', gct_notices(), ['We couldn’t find that gift card. Check the code and try again.']);
+
+echo "-- Singapore free shipping from RM150 ignores gift card lines\n";
+gct_cart('SG');
+WC()->cart->add_to_cart($charm150);
+check('RM150 of products: free shipping offered', gct_rates(), ['flat_rate', 'free_shipping']);
+gct_cart('SG');
+gct_add_gift('Custom amount', ['galado_gc_custom_amount' => '150', 'galado_gc_recipient_email' => 'sg@example.test']);
+WC()->cart->add_to_cart($charm20);
+check('RM150 card + RM20 charm: not free, only the flat rate', gct_rates(), ['flat_rate']);
+gct_cart('SG');
+gct_add_gift('RM50', ['galado_gc_recipient_email' => 'sg@example.test']);
+WC()->cart->add_to_cart($charm150);
+check('RM150 charm + RM50 card: still free', gct_rates(), ['flat_rate', 'free_shipping']);
+gct_cart('SG');
+gct_add_gift('RM100', ['galado_gc_recipient_email' => 'sg@example.test']);
+WC()->cart->calculate_totals();
+check('a gift-card-only cart needs no shipping at all', WC()->cart->needs_shipping(), false);
+gct_cart('MY');
+gct_add_gift('RM100', ['galado_gc_recipient_email' => 'my@example.test']);
+WC()->cart->add_to_cart($charm20);
+check('Malaysia stays free as before', gct_rates(), ['free_shipping']);
+
+echo "-- the order records the RM value each card paid (for Shopping Credits and G-Coins)\n";
+$card = $new_card(100);
+gct_cart();
+WC()->cart->add_to_cart($charm60);
+WC()->cart->apply_coupon($card);
+$order = gct_order_from_cart();
+$line = current($order->get_items('coupon'));
+check('the gift code line: flagged, RM60 used of RM100', [$line->get_meta('_galado_gift_card'), $line->get_meta('_galado_gc_rm_used')], ['yes', '60.00']);
+check('the public helper', galado_gift_cards_order_gift_coupon_total($order), 60.0);
+// The shopper's currency: simulate CURCY converting the coupon to S$ at 0.31317 on read.
+$sgd = function ($amount, $coupon) { return Galado_GC_Codes::is_gift_coupon($coupon) ? round((float) $amount * 0.31317, 2) : $amount; };
+$item = new WC_Order_Item_Coupon();
+$item->set_code(strtolower($new_card(100)));
+$item->set_discount(18.79);          // S$18.79 applied = RM60 of the RM100 card
+$cp = new WC_Coupon($item->get_code());
+add_filter('woocommerce_coupon_get_amount', $sgd, 10, 2);
+Galado_GC_Spending::stamp_coupon_item($item, $item->get_code(), $cp);
+remove_filter('woocommerce_coupon_get_amount', $sgd, 10);
+// S$ figures are rounded to cents, so converting back can be a cent or two off (exact when the card is used up).
+check('in S$: about RM60 recorded (within 5 sen), no exchange rate needed', abs((float) $item->get_meta('_galado_gc_rm_used') - 60) <= 0.05, true);
+
+done();
