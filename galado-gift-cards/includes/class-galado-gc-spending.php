@@ -16,8 +16,9 @@
  *    _wc_points_earned = 0, which hides P&R's "earn N points" messages). See README: the Club
  *    bridge overrides the order total, so it must leave gift lines out itself. A Shopping Credits
  *    redemption in a cart that also buys a card gets its full amount on the other items.
- * 4. REDIS Dynamic Pricing never prices the gift card, and gift lines never count toward its cart
- *    subtotal or item-quantity conditions.
+ * 4. REDIS Dynamic Pricing never prices the gift card. Gift lines never count toward its cart
+ *    subtotal conditions, and never help meet an item-quantity minimum or an "all items" bulk count
+ *    (an item-quantity maximum still counts them: REDIS checks that itself, after this plugin).
  * 5. Free-shipping minimums ignore gift card lines.
  * 6. Codes stay out of page text (Clarity), URLs (GA4, Cloudflare) and order notes: totals label,
  *    remove link, notices, notes.
@@ -34,6 +35,9 @@ class Galado_GC_Spending {
 
     const POINTS_PREFIX = 'wc_points_redemption_';
     const ITEM_RM_USED = '_galado_gc_rm_used';
+
+    /** Discount fees dropped by cap_discount_fees in the latest cart calculation (cart currency). */
+    public static $fees_dropped = 0.0;
 
     public static function init() {
         add_filter('woocommerce_coupon_get_items_to_apply', [__CLASS__, 'items_to_apply'], 20, 2);
@@ -132,8 +136,9 @@ class Galado_GC_Spending {
 
     /**
      * 4. REDIS: no pricing rule applies to the gift card product ('check' lets REDIS decide). An
-     * item-quantity condition counts every cart line; recounted without the gift lines, a rule
-     * the other items alone do not qualify for is refused here.
+     * item-quantity minimum counts every cart line; recounted without the gift lines, a rule the
+     * other items alone do not reach is refused here. (This filter can only refuse, so a maximum is
+     * left to REDIS, which still counts the cards.)
      */
     public static function redis_may_apply($check, $rule_id = 0, $conditions = [], $product = null, $product_id = 0, $product_qty = 0) {
         if ($product instanceof WC_Product && Galado_GC_Product::is_gift_card_product($product)) {
@@ -144,12 +149,8 @@ class Galado_GC_Spending {
             return $check;
         }
         $min = (int) ($conditions['qty_item']['qty_item_min'] ?? 0);
-        $max = $conditions['qty_item']['qty_item_max'] ?? '';
         $qty = WC()->cart->get_cart_contents_count() - $gift_qty + (int) $product_qty;
-        if (($min && $min > $qty) || ('' !== $max && (int) $max && (int) $max < $qty)) {
-            return false;
-        }
-        return $check;
+        return ($min && $min > $qty) ? false : $check;
     }
 
     /** 4. REDIS bulk pricing "all items in the cart": leave the gift lines out of the count. */
@@ -187,20 +188,25 @@ class Galado_GC_Spending {
             return $discount;
         }
         $incl = wc_prices_include_tax();
+        $pr = isset($GLOBALS['wc_points_rewards']) ? $GLOBALS['wc_points_rewards'] : null;
+        $pr_discount = ($pr && isset($pr->discount) && is_object($pr->discount)) ? $pr->discount : null;
+        // Each gift line's weight in P&R's split: its price less the fixed_product discount P&R counts
+        // on it (P&R counts one even though rule 1 never applies it there), so base - gift is exactly
+        // what P&R divided the other lines' shares by and the scaled shares add up to the redemption.
         $gift = 0.0;
         foreach (WC()->cart->get_cart() as $item) {
             if (!empty($item['data']) && $item['data'] instanceof WC_Product && Galado_GC_Product::is_gift_card_product($item['data'])) {
                 $price = $incl ? wc_get_price_including_tax($item['data']) : wc_get_price_excluding_tax($item['data']);
-                $gift += (float) $price * (int) $item['quantity'];
+                $gift += (float) $price * (int) $item['quantity']
+                    - (($pr_discount && is_callable([$pr_discount, 'get_cart_item_discount_total'])) ? (float) $pr_discount->get_cart_item_discount_total($item) : 0.0);
             }
         }
         if ($gift <= 0) {
             return $discount;
         }
         // The same base Points and Rewards divides by: the subtotal less fixed_product discounts.
-        $pr = isset($GLOBALS['wc_points_rewards']) ? $GLOBALS['wc_points_rewards'] : null;
-        $existing = ($pr && isset($pr->discount) && is_callable([$pr->discount, 'get_discount_total_from_existing_coupons']))
-            ? (float) $pr->discount->get_discount_total_from_existing_coupons() : 0.0;
+        $existing = ($pr_discount && is_callable([$pr_discount, 'get_discount_total_from_existing_coupons']))
+            ? (float) $pr_discount->get_discount_total_from_existing_coupons() : 0.0;
         $cart = WC()->cart; // WC_Cart::$subtotal / $subtotal_ex_tax, as Points and Rewards reads them
         $base = (float) $cart->get_subtotal() + ($incl ? (float) $cart->get_subtotal_tax() : 0.0) - $existing;
         if ($base - $gift <= 0) {
@@ -330,9 +336,11 @@ class Galado_GC_Spending {
      * items and shipping, gift lines included. So a discount fee could pay for a card being bought
      * (a RM30 offer on a RM20 charm and a RM100 card takes RM10 off the card). Cap them together
      * at what the other lines (after coupons), positive fees and shipping cost. Each cut fee keeps
-     * its original amount in galado_gc_original, for the remainder warning.
+     * its original amount in galado_gc_original, for the remainder warning; a fee cut to nothing is
+     * dropped, so no "RM30 off" line shows RM0 (and no offer is recorded as used for nothing).
      */
     public static function cap_discount_fees($cart) {
+        self::$fees_dropped = 0.0;
         if (!$cart instanceof WC_Cart) {
             return;
         }
@@ -356,17 +364,27 @@ class Galado_GC_Spending {
                 $room += (float) $fee->amount;
             }
         }
+        $keep = [];
+        $dropped = false;
         foreach ($fees as $fee) {
             $amount = (float) $fee->amount;
-            if ($amount >= 0) {
-                continue;
+            if ($amount < 0) {
+                $take = min(-$amount, max(0.0, $room));
+                $room -= $take;
+                if ($take < -$amount) {
+                    $fee->galado_gc_original = isset($fee->galado_gc_original) ? $fee->galado_gc_original : $amount;
+                    $fee->amount = wc_format_decimal(-$take);
+                }
+                if ($take <= 0) {
+                    $dropped = true;
+                    self::$fees_dropped += -$amount;
+                    continue;
+                }
             }
-            $take = min(-$amount, max(0.0, $room));
-            $room -= $take;
-            if ($take < -$amount) {
-                $fee->galado_gc_original = isset($fee->galado_gc_original) ? $fee->galado_gc_original : $amount;
-                $fee->amount = wc_format_decimal(-$take);
-            }
+            $keep[] = $fee;
+        }
+        if ($dropped) {
+            $cart->fees_api()->set_fees($keep);
         }
     }
 

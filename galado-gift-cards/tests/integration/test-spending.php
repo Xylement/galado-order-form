@@ -234,6 +234,7 @@ gct_cart();
 gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
 WC()->cart->calculate_totals();
 check('a cart of only a card: the offer takes nothing', WC()->cart->get_total('edit'), '100.00');
+check('... and its line is removed, not left showing "RM30 off" at RM0', count(WC()->cart->get_fees()), 0);
 remove_action('woocommerce_cart_calculate_fees', $club);
 $redis = function ($cart) { $cart->add_fee('Spend RM100, save RM10', -10); };
 add_action('woocommerce_cart_calculate_fees', $redis);
@@ -299,6 +300,15 @@ if (!class_exists('WC_Points_Rewards_Discount')) {
     $code = $redeem();
     check('negative control: without the fix the charm gets only its share (about RM8.33)', $discount($code) < 10, true);
     add_filter('woocommerce_coupon_get_discount_amount', [Galado_GC_Spending::class, 'points_share_without_gift_lines'], 20, 5);
+    WC_Points_Rewards_Manager::set_points_balance($uid, 100, 'admin-adjustment'); // RM10 of credits
+    $promo('FIVEEACH', 'fixed_product', 5);
+    gct_cart();
+    gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+    WC()->cart->add_to_cart(gct_charm(50, 'Charm 50'));
+    WC()->cart->apply_coupon('FIVEEACH');
+    $code = $redeem();
+    check('RM10 of credits beside a "RM5 off each item" promo, a card and a RM50 charm: exactly RM10 used, never more than held',
+        [$discount('FIVEEACH'), $discount($code)], [5.0, 10.0]);
     check('the card earns no points, so P&R shows no "earn N points" message for it',
         [(int) WC_Points_Rewards_Product::get_points_earned_for_product_purchase(wc_get_product(gct_variation('RM100'))),
          (int) WC_Points_Rewards_Product::get_points_earned_for_product_purchase(wc_get_product(gct_product()))], [0, 0]);

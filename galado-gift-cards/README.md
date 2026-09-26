@@ -73,8 +73,12 @@ applied" note) and the buyer's email show only the last four characters.
   active and no redemption in the session, its `woocommerce_get_shop_coupon_data` filter matches the
   empty code and turns the object into a virtual coupon that `save()` silently never writes.
 - Negative cart fees (REDIS cart rules, Club offers) are capped so they never pay for a gift card being
-  bought. The Club bridge should still leave gift lines out of its minimum spend with
+  bought: a cut fee's `amount` is lowered in place (the original is kept in `$fee->galado_gc_original`),
+  and a fee cut to nothing is removed. Anything that records an offer from its fee must use the amount
+  after the cut. The Club bridge should also leave gift lines out of its minimum spend with
   `galado_gift_cards_cart_gift_total()`, and out of points with `galado_gift_cards_order_gift_total()`.
+- REDIS item-quantity maximums still count gift cards (REDIS checks those itself); minimums, subtotal
+  conditions and "all items" bulk counts do not.
 - Points and Rewards 1.6.13 does not declare HPOS support, so WooCommerce will not switch HPOS on while
   it is active.
 

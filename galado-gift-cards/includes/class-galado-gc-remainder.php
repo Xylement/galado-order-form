@@ -80,7 +80,7 @@ class Galado_GC_Remainder {
         if (!$cart) {
             return 0.0;
         }
-        $lost = 0.0;
+        $lost = (float) Galado_GC_Spending::$fees_dropped; // cut to nothing and removed from the cart
         foreach ($cart->get_fees() as $fee) {
             $asked = isset($fee->galado_gc_original) ? (float) $fee->galado_gc_original : (float) $fee->amount;
             $got = isset($fee->total) ? (float) $fee->total : (float) $fee->amount;
