@@ -24,6 +24,7 @@ require_once GALADO_GC_DIR . 'includes/class-galado-gc-config.php';
 require_once GALADO_GC_DIR . 'includes/class-galado-gc-time.php';
 require_once GALADO_GC_DIR . 'includes/class-galado-gc-codes.php';
 require_once GALADO_GC_DIR . 'includes/class-galado-gc-product.php';
+require_once GALADO_GC_DIR . 'includes/class-galado-gc-designs.php';
 require_once GALADO_GC_DIR . 'includes/class-galado-gc-cart.php';
 require_once GALADO_GC_DIR . 'includes/class-galado-gc-issuer.php';
 require_once GALADO_GC_DIR . 'includes/class-galado-gc-delivery.php';
@@ -48,6 +49,7 @@ add_action('plugins_loaded', function () {
     }
     Galado_GC_Config::init();
     Galado_GC_Product::init();
+    Galado_GC_Designs::init();
     Galado_GC_Cart::init();
     Galado_GC_Issuer::init();
     Galado_GC_Delivery::init();
@@ -63,8 +65,8 @@ add_action('plugins_loaded', function () {
 });
 
 /*
- * Stable helpers for the other lanes (Club bridge, G-Coins, reports). Names and return values
- * do not change without a version bump. All amounts are ringgit (the store's base currency).
+ * Stable helpers for other GALADO code (packing sheet, reports). Names and return values do not
+ * change without a version bump.
  */
 
 /** True when the product (or the parent of a variation) is the gift card product. */
@@ -77,30 +79,3 @@ function galado_gift_cards_is_gift_card_code($code) {
     return Galado_GC_Codes::is_gift_card_code($code);
 }
 
-/**
- * RM value of the gift card lines in the current cart (0 when there is no cart). The Club bridge
- * uses it so gift cards never count toward the welcome, referral or win-back minimum spend.
- */
-function galado_gift_cards_cart_gift_total() {
-    return Galado_GC_Cart::cart_gift_total();
-}
-
-/**
- * RM value of the gift card lines bought on an order, so earning (G-Coins, Shopping Credits) can
- * leave the card purchase out: buying a card earns nothing.
- *
- * @param WC_Order|int $order
- */
-function galado_gift_cards_order_gift_total($order) {
-    return Galado_GC_Cart::order_gift_total($order);
-}
-
-/**
- * RM value paid by gift card codes on an order, so earning can treat that part as if it were paid
- * in cash: the order a card is spent on earns as normal.
- *
- * @param WC_Order|int $order
- */
-function galado_gift_cards_order_gift_coupon_total($order) {
-    return Galado_GC_Spending::order_gift_coupon_total($order);
-}

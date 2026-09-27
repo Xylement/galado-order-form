@@ -70,6 +70,8 @@ class Galado_GC_Email_Recipient extends WC_Email {
             'recipient_name'     => $this->placeholders['{recipient_name}'],
             'buyer_name'         => $this->placeholders['{buyer_name}'],
             'message'            => $this->item ? (string) $this->item->get_meta(Galado_GC_Cart::META_MESSAGE) : '',
+            'design_image'       => Galado_GC_Designs::image_url($this->item ? $this->item->get_meta(Galado_GC_Designs::META) : ''),
+            'design_headline'    => Galado_GC_Designs::headline($this->item ? $this->item->get_meta(Galado_GC_Designs::META) : ''),
             'cards'              => $this->cards,
             'where_to_use'       => self::where_to_use(),
             'single_use_rule'    => self::single_use_rule(),

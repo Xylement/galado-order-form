@@ -8,6 +8,8 @@
  * @var string   $recipient_name
  * @var string   $buyer_name
  * @var string   $message         the buyer's message, raw: escape on output
+ * @var string   $design_image    absolute URL of the chosen design's artwork
+ * @var string   $design_headline the design's headline, e.g. "Happy birthday"
  * @var array[]  $cards           each [code, value (RM), expires (timestamp)]
  * @var string   $where_to_use
  * @var string   $single_use_rule
@@ -20,6 +22,9 @@ if (!defined('ABSPATH')) {
 }
 
 do_action('woocommerce_email_header', $email_heading, $email); ?>
+
+<p style="margin:0 0 16px;"><img src="<?php echo esc_url($design_image); ?>" alt="<?php echo esc_attr($design_headline); ?>" width="560" style="display:block;width:100%;max-width:560px;height:auto;border-radius:12px;border:0;"></p>
+<p style="margin:0 0 16px;font-size:22px;font-weight:bold;line-height:1.2;"><?php echo esc_html($design_headline); ?></p>
 
 <p><?php /* translators: %s: recipient name */ printf(esc_html__('Hi %s,', 'galado-gift-cards'), esc_html($recipient_name)); ?></p>
 <p><?php /* translators: %s: buyer name */ printf(esc_html__('%s sent you a GALADO gift card.', 'galado-gift-cards'), esc_html($buyer_name)); ?></p>

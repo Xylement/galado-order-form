@@ -33,6 +33,7 @@ function wp_unslash($s) { return is_string($s) ? stripslashes($s) : $s; }
 function sanitize_text_field($s) { return trim(preg_replace('/[\r\n\t ]+/', ' ', strip_tags((string) $s))); }
 function sanitize_textarea_field($s) { return trim(strip_tags((string) $s)); }
 function sanitize_email($s) { return preg_replace('/[^a-z0-9+_.@-]/i', '', (string) $s); }
+function apply_filters($tag, $value) { return $value; }
 function sanitize_key($s) { return preg_replace('/[^a-z0-9_\-]/', '', strtolower((string) $s)); }
 function is_email($s) { return (bool) filter_var($s, FILTER_VALIDATE_EMAIL); }
 function wc_format_decimal($n, $dp = false) { return $dp === false ? (string) $n : number_format((float) $n, $dp, '.', ''); }
@@ -105,6 +106,7 @@ require GALADO_GC_DIR . 'includes/class-galado-gc-config.php';
 require GALADO_GC_DIR . 'includes/class-galado-gc-time.php';
 require GALADO_GC_DIR . 'includes/class-galado-gc-codes.php';
 require GALADO_GC_DIR . 'includes/class-galado-gc-product.php';
+require GALADO_GC_DIR . 'includes/class-galado-gc-designs.php';
 require GALADO_GC_DIR . 'includes/class-galado-gc-cart.php';
 require GALADO_GC_DIR . 'includes/class-galado-gc-spending.php';
 require GALADO_GC_DIR . 'includes/class-galado-gc-remainder.php';

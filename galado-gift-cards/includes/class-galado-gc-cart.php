@@ -5,9 +5,10 @@
  * and again at checkout), and writes them onto the order item.
  *
  * Cart item data: $cart_item['galado_gc'] = [value, recipient_name, recipient_email, message,
- * delivery_date], value in RM. Order item meta (hidden, underscore): _galado_gc_value,
+ * delivery_date, design], value in RM. Order item meta (hidden, underscore): _galado_gc_value,
  * _galado_gc_recipient_name, _galado_gc_recipient_email, _galado_gc_message,
- * _galado_gc_delivery_date. Customers see them through formatted meta, never the raw keys.
+ * _galado_gc_delivery_date, _galado_gc_design. Customers see them through formatted meta, never
+ * the raw keys.
  */
 
 if (!defined('ABSPATH')) {
@@ -97,6 +98,14 @@ class Galado_GC_Cart {
             return new WP_Error('galado_gc', sprintf(__('The message can be up to %d characters.', 'galado-gift-cards'), Galado_GC_Config::MESSAGE_MAX));
         }
 
+        // No design posted (a theme's quick view, no script): the default. An unknown one: refuse.
+        $design = sanitize_key($get(Galado_GC_Designs::FIELD));
+        if ('' === $design) {
+            $design = Galado_GC_Designs::default_key();
+        } elseif (!Galado_GC_Designs::exists($design)) {
+            return new WP_Error('galado_gc', __('Please choose a card design.', 'galado-gift-cards'));
+        }
+
         $date = trim($get('galado_gc_delivery_date'));
         if (!Galado_GC_Time::is_valid_delivery_date($date, $now)) {
             return new WP_Error('galado_gc', __('Please choose a delivery date from today up to one year ahead.', 'galado-gift-cards'));
@@ -108,6 +117,7 @@ class Galado_GC_Cart {
             'recipient_email' => $email,
             'message'         => $message,
             'delivery_date'   => $date,
+            'design'          => $design,
         ];
     }
 
@@ -179,6 +189,8 @@ class Galado_GC_Cart {
             'display' => esc_html($f['recipient_name']) . ' <span data-clarity-mask="True">(' . esc_html($f['recipient_email']) . ')</span>',
         ];
         $rows[] = ['key' => __('Send on', 'galado-gift-cards'), 'value' => $f['delivery_date'], 'display' => esc_html(Galado_GC_Time::human_ymd($f['delivery_date']))];
+        $design = Galado_GC_Designs::label(isset($f['design']) ? $f['design'] : '');
+        $rows[] = ['key' => __('Design', 'galado-gift-cards'), 'value' => $design, 'display' => esc_html($design)];
         if ('' !== $f['message']) {
             $rows[] = ['key' => __('Message', 'galado-gift-cards'), 'value' => $f['message'], 'display' => '<span data-clarity-mask="True">' . esc_html($f['message']) . '</span>'];
         }
@@ -227,9 +239,10 @@ class Galado_GC_Cart {
         $item->add_meta_data(self::META_EMAIL, $f['recipient_email'], true);
         $item->add_meta_data(self::META_MESSAGE, $f['message'], true);
         $item->add_meta_data(self::META_DATE, $f['delivery_date'], true);
+        $item->add_meta_data(Galado_GC_Designs::META, Galado_GC_Designs::resolve(isset($f['design']) ? $f['design'] : ''), true);
     }
 
-    const DISPLAY_ROWS = ['galado_gc_value', 'galado_gc_to', 'galado_gc_date', 'galado_gc_message'];
+    const DISPLAY_ROWS = ['galado_gc_value', 'galado_gc_to', 'galado_gc_date', 'galado_gc_design', 'galado_gc_message'];
 
     /** Readable rows for order emails, My Account and the thank-you page. Never a code. */
     public static function formatted_meta($formatted, $item) {
@@ -240,6 +253,7 @@ class Galado_GC_Cart {
             'galado_gc_value' => [__('Card value', 'galado-gift-cards'), self::rm((float) $item->get_meta(self::META_VALUE))],
             'galado_gc_to'    => [__('To', 'galado-gift-cards'), $item->get_meta(self::META_NAME) . ' (' . $item->get_meta(self::META_EMAIL) . ')'],
             'galado_gc_date'  => [__('Send on', 'galado-gift-cards'), Galado_GC_Time::human_ymd($item->get_meta(self::META_DATE))],
+            'galado_gc_design' => [__('Design', 'galado-gift-cards'), Galado_GC_Designs::label($item->get_meta(Galado_GC_Designs::META))],
         ];
         if ('' !== (string) $item->get_meta(self::META_MESSAGE)) {
             $rows['galado_gc_message'] = [__('Message', 'galado-gift-cards'), (string) $item->get_meta(self::META_MESSAGE)];
@@ -273,22 +287,6 @@ class Galado_GC_Cart {
         foreach (WC()->cart->get_cart() as $item) {
             if (!empty($item[self::CART_KEY]['value'])) {
                 $total += (float) $item[self::CART_KEY]['value'] * (int) $item['quantity'];
-            }
-        }
-        return round($total, 2);
-    }
-
-    /** @param WC_Order|int $order */
-    public static function order_gift_total($order) {
-        $order = $order instanceof WC_Order ? $order : wc_get_order($order);
-        if (!$order) {
-            return 0.0;
-        }
-        $total = 0.0;
-        foreach ($order->get_items('line_item') as $item) {
-            $value = $item->get_meta(self::META_VALUE);
-            if ('' !== (string) $value) {
-                $total += (float) $value * (int) $item->get_quantity();
             }
         }
         return round($total, 2);

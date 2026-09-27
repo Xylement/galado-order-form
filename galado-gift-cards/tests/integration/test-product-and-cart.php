@@ -77,7 +77,7 @@ gct_add_gift('Custom amount', ['galado_gc_custom_amount' => '1000', 'galado_gc_r
 wc_clear_notices();
 check('RM2,000 in the cart, then a RM50 card is refused', [gct_add_gift('RM50', ['galado_gc_recipient_email' => 'c@example.test']), gct_notices()],
     [false, ['Gift cards in one order can add up to RM2,000. Please check out what is in your cart first.']]);
-check('the cart helper reports RM2,000', galado_gift_cards_cart_gift_total(), 2000.0);
+check('the limit counts RM2,000 in the cart', Galado_GC_Cart::cart_gift_total(), 2000.0);
 update_option('galado_gift_cards_max_order', '1500');
 wc_clear_notices();
 do_action('woocommerce_check_cart_items');
@@ -105,7 +105,6 @@ foreach ($line->get_formatted_meta_data() as $m) {
 check('readable rows for emails and My Account', [trim($shown['Card value']), trim($shown['To']), trim($shown['Message'])],
     ['RM150', 'Jade (recipient@example.test)', 'Love you']);
 check('no hidden key is shown', count(array_filter(array_keys($shown), function ($k) { return 0 === strpos($k, '_'); })), 0);
-check('the order helper reports RM150', galado_gift_cards_order_gift_total($order), 150.0);
 
 echo "-- the price shown for the card\n";
 $gp = wc_get_product(gct_product());
@@ -117,8 +116,43 @@ foreach ($gp->get_available_variations() as $v) {
 }
 check('choosing "Custom amount" shows the range, not its RM30 floor', $by_label['Custom amount'], 'RM30.00 to RM1,000.00');
 check('negative control: RM100 shows RM100.00', $by_label['RM100'], 'RM100.00');
-check('the product and every amount earn 0 Points and Rewards points',
-    array_values(array_unique(array_map(function ($id) { return get_post_meta($id, '_wc_points_earned', true); }, array_merge([gct_product()], $gp->get_children())))), ['0']);
+check('no points setting on the product or its amounts: the buyer earns on what they pay, like any product',
+    array_values(array_unique(array_map(function ($id) { return get_post_meta($id, '_wc_points_earned', true); }, array_merge([gct_product()], $gp->get_children())))), ['']);
+
+echo "-- choosing a design, with a live preview\n";
+$GLOBALS['product'] = $gp;
+ob_start();
+Galado_GC_Product::render_fields();
+$page = ob_get_clean();
+preg_match_all('/name="galado_gc_design" value="([a-z]+)"/', $page, $m);
+check('four designs to choose from, Classic first and chosen', [$m[1], (bool) preg_match('/value="classic"[^>]*checked/', $page)], [['classic', 'birthday', 'thanks', 'festive'], true]);
+check('a live preview card with the amount, name and message', [
+    false !== strpos($page, 'data-galado-gc-preview'), false !== strpos($page, 'data-gc-amount'),
+    false !== strpos($page, 'data-gc-to'), false !== strpos($page, 'data-gc-message'),
+], [true, true, true, true]);
+check('every design has its artwork in the plugin',
+    array_map(function ($key) { return is_readable(GALADO_GC_DIR . 'assets/designs/' . $key . '.jpg'); }, array_keys(Galado_GC_Designs::all())), [true, true, true, true]);
+gct_cart();
+$key = gct_add_gift('RM100', ['galado_gc_design' => 'birthday']);
+$rows = array_column(apply_filters('woocommerce_get_item_data', [], WC()->cart->get_cart_item($key)), 'value', 'key');
+check('the cart line shows the design', $rows['Design'] ?? null, 'Birthday');
+$order = gct_order_from_cart();
+$line = current($order->get_items());
+$shown = [];
+foreach ($line->get_formatted_meta_data() as $meta) {
+    $shown[$meta->display_key] = trim(wp_strip_all_tags($meta->display_value));
+}
+check('the order line keeps it, and customers see it', [$line->get_meta('_galado_gc_design'), $shown['Design'] ?? null], ['birthday', 'Birthday']);
+gct_cart();
+wc_clear_notices();
+check('an unknown design is refused', [gct_add_gift('RM100', ['galado_gc_design' => 'nope']), gct_notices()], [false, ['Please choose a card design.']]);
+$theme_art = get_stylesheet_directory() . '/' . Galado_GC_Designs::THEME_DIR . 'birthday.jpg';
+wp_mkdir_p(dirname($theme_art));
+copy(GALADO_GC_DIR . 'assets/designs/festive.jpg', $theme_art);
+check('real artwork dropped into the child theme is used instead of the placeholder',
+    Galado_GC_Designs::image_url('birthday'), get_stylesheet_directory_uri() . '/' . Galado_GC_Designs::THEME_DIR . 'birthday.jpg');
+unlink($theme_art);
+check('negative control: without it, the plugin placeholder', Galado_GC_Designs::image_url('birthday'), GALADO_GC_URL . 'assets/designs/birthday.jpg');
 
 echo "-- saving the order in admin does not copy the display rows into real order data\n";
 $o = gct_paid_order([['value' => 100, 'message' => 'Hi there']]);
@@ -131,8 +165,8 @@ $form = function () use ($item, $item_id, $product) {
     return ob_get_clean();
 };
 $html = $form();
-check('the admin item form posts none of the four display rows', preg_match('/meta_key\[' . $item_id . '\]\[galado_gc_/', $html), 0);
-check('... while the customer still sees them (emails, My Account)', count(array_filter($item->get_formatted_meta_data(), function ($m) { return 0 === strpos($m->key, 'galado_gc_'); })), 4);
+check('the admin item form posts none of the five display rows', preg_match('/meta_key\[' . $item_id . '\]\[galado_gc_/', $html), 0);
+check('... while the customer still sees them (emails, My Account)', count(array_filter($item->get_formatted_meta_data(), function ($m) { return 0 === strpos($m->key, 'galado_gc_'); })), 5); // value, to, date, design, message
 remove_filter('woocommerce_hidden_order_itemmeta', [Galado_GC_Cart::class, 'hide_display_rows']);
 check('negative control: without the fix the form would post them', preg_match('/meta_key\[' . $item_id . '\]\[galado_gc_value\]/', $form()), 1);
 add_filter('woocommerce_hidden_order_itemmeta', [Galado_GC_Cart::class, 'hide_display_rows']);

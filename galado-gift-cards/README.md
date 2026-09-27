@@ -1,7 +1,10 @@
 # GALADO Gift Cards
 
-E-gift cards as one-time WooCommerce coupons. Sold as a normal product, issued once per card when the
-order is paid, emailed to the recipient on the chosen date, spent in one order (any unused value is lost).
+Fully digital e-gift cards as one-time WooCommerce coupons. The buyer picks an amount and a design, writes
+a message, sees a live preview of the card and chooses when it is sent. The card is issued once when the
+order is paid, emailed to the recipient on that date, and spent in one order (any unused value is lost).
+Points are untouched: whoever pays earns on what they pay (the buyer on the card; the recipient only on
+what they pay on top of it).
 
 Spec: `galado-international/HANDOVER-GIFT-CARD-PLUGIN.md`. Requires PHP 7.4+, WooCommerce 8.8+ (tested on
 10.5.3, orders in posts and under HPOS).
@@ -14,6 +17,7 @@ Spec: `galado-international/HANDOVER-GIFT-CARD-PLUGIN.md`. Requires PHP 7.4+, Wo
    - `wp galado-gift-cards create-product`
 
    It is created **Private**. Add images and the description, then publish it.
+   Real card artwork: see "Card designs" below (the plugin ships placeholders).
 3. Same settings screen: per-card limit, per-order limit, the risk hold.
 4. Publish a "Check your gift card" page containing `[galado_gift_card_check]`, and the terms.
 5. Cloudflare rate-limit rules for that page and for coupon apply calls.
@@ -26,9 +30,19 @@ Spec: `galado-international/HANDOVER-GIFT-CARD-PLUGIN.md`. Requires PHP 7.4+, Wo
 - Variations: RM50, RM100, RM150, RM200, RM300 (meta `_galado_gc_amount`), and "Custom amount"
   (meta `_galado_gc_custom = yes`, RM30 up to the per-card limit, whole ringgit). Virtual, tax status none,
   sold individually.
-- The product and every variation carry `_wc_points_earned = 0`, so Points and Rewards neither gives
-  points for a card nor shows "earn N points" on its page.
 - The price shows as "RM30.00 to RM1,000.00" (the per-card limit), not WooCommerce's dashed range.
+
+## Card designs
+
+Classic (the default), Birthday, Thank you and Festive. The product page shows them as swatches above a
+live preview of the card (design, amount, recipient's name, message); the chosen design is stored on the
+order line (`_galado_gc_design`), shown in the cart and order, and heads the recipient's email.
+
+- Artwork is a plain 1200 x 750 JPG with no words (the headline and amount are laid over it as text).
+  Placeholders are in `assets/designs/`. To use real artwork without changing the plugin, put a JPG with
+  the same name in the child theme: `woocommerce/galado-gift-cards/designs/birthday.jpg` and so on.
+- Names and headlines, or more designs: the `galado_gift_cards_designs` filter
+  (`key => [label, headline]`; the first is the default).
 
 ## Settings (WooCommerce > Settings > Products > Gift cards)
 
@@ -44,9 +58,6 @@ Spec: `galado-international/HANDOVER-GIFT-CARD-PLUGIN.md`. Requires PHP 7.4+, Wo
 |---|---|
 | `galado_gift_cards_is_gift_card_product( $product_id )` | bool; variations count as their parent |
 | `galado_gift_cards_is_gift_card_code( $code )` | bool; any issued card, in any state |
-| `galado_gift_cards_cart_gift_total()` | float, RM value of gift card lines in the cart |
-| `galado_gift_cards_order_gift_total( $order )` | float, RM value of gift card lines bought in an order |
-| `galado_gift_cards_order_gift_coupon_total( $order )` | float, RM value paid by gift card codes on an order |
 
 Check `function_exists()` before calling them from another plugin.
 
@@ -54,13 +65,12 @@ Check `function_exists()` before calling them from another plugin.
 
 - **Order item (a card line):** `_galado_gc_value`, `_galado_gc_recipient_name`,
   `_galado_gc_recipient_email`, `_galado_gc_message`, `_galado_gc_delivery_date` (Y-m-d, Malaysian time),
-  `_galado_gc_coupon_ids`, `_galado_gc_sent_at`.
+  `_galado_gc_design`, `_galado_gc_coupon_ids`, `_galado_gc_sent_at`.
 - **Order:** `_galado_gc_risk_level`, `_galado_gc_hold`, `_galado_gc_released`, and
   `_galado_gc_issue_attempts` while issuing is failing (cleared once it works).
 - **Coupon (one per card):** `_galado_gift_card = yes`, `_galado_gc_order_id`, `_galado_gc_order_item_id`,
   `_galado_gc_index`, `_galado_gc_value`, and `_galado_gc_revoked` once disabled. A disabled card is the
   coupon moved to Draft.
-- **Coupon line on the order that spent a card:** `_galado_gift_card = yes`, `_galado_gc_rm_used`.
 - Action Scheduler group `galado-gift-cards`: `galado_gc_deliver` (order id, item id) and
   `galado_gc_issue_retry`.
 
@@ -72,11 +82,14 @@ applied" note) and the buyer's email show only the last four characters.
 - Create coupons with `new WC_Coupon( 0 )`, never `new WC_Coupon()`. With Points and Rewards 1.6.13
   active and no redemption in the session, its `woocommerce_get_shop_coupon_data` filter matches the
   empty code and turns the object into a virtual coupon that `save()` silently never writes.
-- Negative cart fees (REDIS cart rules, Club offers) are capped so they never pay for a gift card being
-  bought: a cut fee's `amount` is lowered in place (the original is kept in `$fee->galado_gc_original`),
-  and a fee cut to nothing is removed. Anything that records an offer from its fee must use the amount
-  after the cut. The Club bridge should also leave gift lines out of its minimum spend with
-  `galado_gift_cards_cart_gift_total()`, and out of points with `galado_gift_cards_order_gift_total()`.
+- A gift card always costs its full price. Negative cart fees (REDIS cart rules, Club offers) are capped
+  so they never pay for a card being bought: a cut fee's `amount` is lowered in place (the original is
+  kept in `$fee->galado_gc_original`), and a fee cut to nothing is removed. Anything that records an
+  offer from its fee must use the amount after the cut. The Club bridge's win-back is corrected here:
+  after it records `_galado_winback_applied` at checkout (priority 10), this plugin scales that figure
+  to the share actually given (priority 20), so the member's balance is charged what they got. Welcome
+  and referral already record the amount after the cut. No Club code change is needed; if the bridge
+  renames that fee ("GALADO Club reward") or meta, update `Galado_GC_Spending` to match.
 - REDIS item-quantity maximums still count gift cards (REDIS checks those itself); minimums, subtotal
   conditions and "all items" bulk counts do not.
 - Points and Rewards 1.6.13 does not declare HPOS support, so WooCommerce will not switch HPOS on while

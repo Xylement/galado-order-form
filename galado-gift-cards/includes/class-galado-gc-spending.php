@@ -12,19 +12,18 @@
  *    A code on a cart holding only gift cards is rejected with a clear message.
  * 2. A gift card code works alongside any other code, including "individual use only" ones, in
  *    both orders of applying (classic cart and Store API honour the same two filters).
- * 3. Buying a card earns no Points and Rewards points (per line filters; the product also carries
- *    _wc_points_earned = 0, which hides P&R's "earn N points" messages). See README: the Club
- *    bridge overrides the order total, so it must leave gift lines out itself. A Shopping Credits
- *    redemption in a cart that also buys a card gets its full amount on the other items.
+ * 3. Points are left as they are: whoever pays earns on what they pay (the buyer on the card, the
+ *    recipient only on what they pay on top of it). A Shopping Credits redemption in a cart that
+ *    also buys a card gets its full amount on the other items.
  * 4. REDIS Dynamic Pricing never prices the gift card. Gift lines never count toward its cart
  *    subtotal conditions, and never help meet an item-quantity minimum or an "all items" bulk count
  *    (an item-quantity maximum still counts them: REDIS checks that itself, after this plugin).
  * 5. Free-shipping minimums ignore gift card lines.
  * 6. Codes stay out of page text (Clarity), URLs (GA4, Cloudflare) and order notes: totals label,
  *    remove link, notices, notes.
- * 7. Each gift code line on an order records the RM value it paid, for the Club and G-Coins.
- * 8. Discount fees (REDIS cart rules, Club offers, anything added as a negative fee) never pay for
+ * 7. Discount fees (REDIS cart rules, Club offers, anything added as a negative fee) never pay for
  *    a gift card being bought: together they are capped at what the other lines and shipping cost.
+ *    When that trims a Club win-back, the amount the Club bridge records is trimmed to match.
  */
 
 if (!defined('ABSPATH')) {
@@ -34,7 +33,9 @@ if (!defined('ABSPATH')) {
 class Galado_GC_Spending {
 
     const POINTS_PREFIX = 'wc_points_redemption_';
-    const ITEM_RM_USED = '_galado_gc_rm_used';
+    // The Club bridge's win-back offer: its fee name prefix and the RM it records on the order.
+    const CLUB_WINBACK_FEE = 'GALADO Club reward';
+    const CLUB_WINBACK_META = '_galado_winback_applied';
 
     /** Discount fees dropped by cap_discount_fees in the latest cart calculation (cart currency). */
     public static $fees_dropped = 0.0;
@@ -44,8 +45,6 @@ class Galado_GC_Spending {
         add_filter('woocommerce_coupon_is_valid', [__CLASS__, 'is_valid'], 20, 3);
         add_filter('woocommerce_apply_individual_use_coupon', [__CLASS__, 'keep_gift_codes'], 20, 3);
         add_filter('woocommerce_apply_with_individual_use_coupon', [__CLASS__, 'allow_with_individual_use'], 20, 2);
-        add_filter('woocommerce_points_earned_for_order_item', [__CLASS__, 'no_points_for_order_item'], 20, 2);
-        add_filter('woocommerce_points_earned_for_cart_item', [__CLASS__, 'no_points_for_cart_item'], 20, 3);
         add_filter('viredis_may_be_apply_to_cart', [__CLASS__, 'redis_may_apply'], 20, 6);
         add_filter('viredis_get_current_price', [__CLASS__, 'redis_price'], 20, 4);
         add_filter('viredis_condition_get_cart_subtotal', [__CLASS__, 'redis_cart_subtotal'], 20, 1);
@@ -58,12 +57,14 @@ class Galado_GC_Spending {
         add_filter('woocommerce_coupon_error', [__CLASS__, 'coupon_error'], 99, 3);
         add_filter('woocommerce_coupon_message', [__CLASS__, 'coupon_message'], 99, 3);
         add_action('wp_footer', [__CLASS__, 'mask_coupon_fields']);
-        add_action('woocommerce_checkout_create_order_coupon_item', [__CLASS__, 'stamp_coupon_item'], 10, 4);
         // After every plugin has registered its fee callbacks (REDIS adds its own at PHP_INT_MAX
         // when it loads), so at the same priority this runs last.
         add_action('wp_loaded', function () {
             add_action('woocommerce_cart_calculate_fees', [__CLASS__, 'cap_discount_fees'], PHP_INT_MAX);
         }, 0);
+        // After the Club bridge records its win-back (priority 10 on both checkout paths).
+        add_action('woocommerce_checkout_create_order', [__CLASS__, 'match_club_winback_record'], 20, 1);
+        add_action('woocommerce_store_api_checkout_update_order_from_request', [__CLASS__, 'match_club_winback_record'], 20, 1);
     }
 
     /** 1. Gift card lines are never discounted by any coupon. */
@@ -121,17 +122,6 @@ class Galado_GC_Spending {
     /** 2. A gift card code may join a cart that already has an "individual use only" code. */
     public static function allow_with_individual_use($apply, $the_coupon) {
         return Galado_GC_Codes::is_gift_coupon($the_coupon) ? true : $apply;
-    }
-
-    /** 3. Buying a card earns no points (order, at payment). */
-    public static function no_points_for_order_item($points, $product) {
-        return ($product instanceof WC_Product && Galado_GC_Product::is_gift_card_product($product)) ? 0 : $points;
-    }
-
-    /** 3. Buying a card earns no points (the "you will earn" message in cart and checkout). */
-    public static function no_points_for_cart_item($points, $item_key, $item) {
-        $product = is_array($item) && isset($item['data']) ? $item['data'] : null;
-        return ($product instanceof WC_Product && Galado_GC_Product::is_gift_card_product($product)) ? 0 : $points;
     }
 
     /**
@@ -332,7 +322,7 @@ class Galado_GC_Spending {
     }
 
     /**
-     * 8. Negative fees are applied after coupons, and WooCommerce only caps them at the cart's
+     * 7. Negative fees are applied after coupons, and WooCommerce only caps them at the cart's
      * items and shipping, gift lines included. So a discount fee could pay for a card being bought
      * (a RM30 offer on a RM20 charm and a RM100 card takes RM10 off the card). Cap them together
      * at what the other lines (after coupons), positive fees and shipping cost. Each cut fee keeps
@@ -388,6 +378,33 @@ class Galado_GC_Spending {
         }
     }
 
+    /**
+     * 7. The Club bridge records on the order the RM of win-back it worked out for the cart, and
+     * takes that from the member's balance on payment. When the cap above trimmed the win-back fee,
+     * record only the share actually given, so the balance is charged what the discount was.
+     */
+    public static function match_club_winback_record($order) {
+        if (!$order instanceof WC_Order || !function_exists('WC') || !WC()->cart) {
+            return;
+        }
+        $recorded = (float) $order->get_meta(self::CLUB_WINBACK_META);
+        if ($recorded <= 0) {
+            return;
+        }
+        $asked = 0.0;
+        $given = 0.0;
+        foreach (WC()->cart->get_fees() as $fee) {
+            if (0 !== strpos((string) $fee->name, self::CLUB_WINBACK_FEE)) {
+                continue;
+            }
+            $given += abs((float) $fee->amount);
+            $asked += abs((float) (isset($fee->galado_gc_original) ? $fee->galado_gc_original : $fee->amount));
+        }
+        if ($asked > 0 && $given < $asked) {
+            $order->update_meta_data(self::CLUB_WINBACK_META, wc_format_decimal($recorded * $given / $asked, 2));
+        }
+    }
+
     /** 6. Errors about a gift card in plain words, never repeating the code. */
     public static function coupon_error($message, $code = 0, $coupon = null) {
         $is_gift = Galado_GC_Codes::is_gift_coupon($coupon)
@@ -439,46 +456,5 @@ class Galado_GC_Spending {
         echo "<script>(function(){function m(){var s='input[name=\"coupon_code\"],.cart-discount,[data-coupon]';" .
             "document.querySelectorAll(s).forEach(function(e){e.setAttribute('data-clarity-mask','True');});}" .
             "m();if(window.jQuery){jQuery(document.body).on('updated_cart_totals updated_checkout applied_coupon applied_coupon_in_checkout',m);}})();</script>\n";
-    }
-
-    /**
-     * 7. At checkout, record on each gift code line the RM value it paid. CURCY converts a
-     * fixed_cart coupon on read, so the discount is in the shopper's currency; the share of the
-     * card used times its RM value gives the RM paid with no exchange rate needed.
-     */
-    public static function stamp_coupon_item($item, $code, $coupon, $order = null) {
-        if (!Galado_GC_Codes::is_gift_coupon($coupon)) {
-            return;
-        }
-        $applied = (float) $item->get_discount() + (float) $item->get_discount_tax();
-        $converted = (float) $coupon->get_amount();          // shopper's currency (CURCY view)
-        $rm_value = (float) $coupon->get_amount('edit');     // stored ringgit
-        $rm_used = $converted > 0 ? min($rm_value, $rm_value * $applied / $converted) : 0.0;
-        $item->add_meta_data(Galado_GC_Codes::META_FLAG, 'yes', true);
-        $item->add_meta_data(self::ITEM_RM_USED, wc_format_decimal($rm_used, 2), true);
-    }
-
-    /** RM value paid by gift card codes on an order. */
-    public static function order_gift_coupon_total($order) {
-        $order = $order instanceof WC_Order ? $order : wc_get_order($order);
-        if (!$order) {
-            return 0.0;
-        }
-        $total = 0.0;
-        foreach ($order->get_items('coupon') as $item) {
-            $flag = 'yes' === $item->get_meta(Galado_GC_Codes::META_FLAG);
-            if (!$flag && !Galado_GC_Codes::is_gift_card_code($item->get_code())) {
-                continue;
-            }
-            $stamped = $item->get_meta(self::ITEM_RM_USED);
-            if ('' !== (string) $stamped) {
-                $total += (float) $stamped;
-            } elseif ($order->get_currency() === get_option('woocommerce_currency')) {
-                $total += (float) $item->get_discount() + (float) $item->get_discount_tax(); // counter / admin orders in RM
-            } else {
-                error_log('[galado-gift-cards] gift_coupon_rm_unknown order=' . $order->get_id() . ' currency=' . $order->get_currency());
-            }
-        }
-        return round($total, 2);
     }
 }

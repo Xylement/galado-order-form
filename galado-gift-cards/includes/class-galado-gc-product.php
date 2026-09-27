@@ -24,8 +24,6 @@ class Galado_GC_Product {
     const ATTRIBUTE_KEY = 'amount';              // sanitize_title( 'Amount' ): WooCommerce's key for a local attribute
     const CUSTOM_LABEL = 'Custom amount';
 
-    const META_POINTS = '_wc_points_earned';    // Points and Rewards: points this product earns
-
     public static function init() {
         add_action('woocommerce_before_add_to_cart_button', [__CLASS__, 'render_fields']);
         add_filter('woocommerce_get_price_html', [__CLASS__, 'price_html'], 20, 2);
@@ -116,13 +114,6 @@ class Galado_GC_Product {
     public static function create_product() {
         $existing = self::find_product_id();
         if ($existing) {
-            // Made before the points setting existed: add it to the product and every amount.
-            $product = wc_get_product($existing);
-            foreach (array_merge([$existing], $product ? $product->get_children() : []) as $id) {
-                if ('0' !== (string) get_post_meta($id, self::META_POINTS, true)) {
-                    update_post_meta($id, self::META_POINTS, '0');
-                }
-            }
             return $existing;
         }
 
@@ -148,10 +139,6 @@ class Galado_GC_Product {
         $product->set_description(self::terms_text());
         $product->set_attributes([$attribute]);
         $product->update_meta_data(self::META_FLAG, 'yes');
-        // Points and Rewards: earns 0 points. Besides earning nothing, this hides its "Earn up to N
-        // points" messages on the product page, which read the product's points, not the filters.
-        // Each amount gets it too: P&R 1.6.13's fallback to the parent reads the variation again.
-        $product->update_meta_data(self::META_POINTS, '0');
         $product_id = $product->save();
 
         foreach (Galado_GC_Config::PRESET_AMOUNTS as $amount) {
@@ -172,7 +159,6 @@ class Galado_GC_Product {
         $variation->set_virtual(true);
         $variation->set_tax_status('none');
         $variation->set_status('publish');
-        $variation->update_meta_data(self::META_POINTS, '0');
         if ($custom) {
             $variation->update_meta_data(self::META_CUSTOM, 'yes');
         } else {
@@ -213,6 +199,7 @@ class Galado_GC_Product {
                        min="<?php echo esc_attr((string) Galado_GC_Config::CUSTOM_MIN); ?>" max="<?php echo esc_attr((string) $max_card); ?>" step="1"
                        value="<?php echo esc_attr($posted('galado_gc_custom_amount')); ?>">
             </p>
+            <?php Galado_GC_Designs::render_picker($posted(Galado_GC_Designs::FIELD)); ?>
             <p class="form-row">
                 <label for="galado_gc_recipient_name"><?php esc_html_e("Recipient's name", 'galado-gift-cards'); ?></label>
                 <input type="text" id="galado_gc_recipient_name" name="galado_gc_recipient_name" required

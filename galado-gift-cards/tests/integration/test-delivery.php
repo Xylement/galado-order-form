@@ -34,6 +34,8 @@ check('the expiry date', false !== strpos($text, 'Valid until') && false !== str
 check('the message, escaped', [false !== strpos($text, 'Happy birthday, Jade!'), false !== strpos($html, '<script>')], [true, false]);
 check('where to use it', false !== strpos($text, 'Use it at checkout on galado.com.my, in the promo code box in the GALADO app, or at our counter.'), true);
 check('the rule', false !== strpos($text, 'Single use: spend it in one order. Any unused value is lost.'), true);
+check('the card design heads it: artwork and headline (Classic when none was chosen)',
+    [false !== strpos($html, 'src="' . esc_url(Galado_GC_Designs::image_url('classic')) . '"'), false !== strpos($text, 'A gift for you')], [true, true]);
 check('no em or en dash in anything our template writes', preg_match('/\x{2013}|\x{2014}/u', str_replace(wp_strip_all_tags(get_option('woocommerce_email_footer_text')), '', $text)), 0);
 
 echo "-- the buyer is told, without a spendable copy of the code\n";

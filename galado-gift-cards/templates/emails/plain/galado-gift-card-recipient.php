@@ -7,6 +7,7 @@
  * @var string  $recipient_name
  * @var string  $buyer_name
  * @var string  $message
+ * @var string  $design_headline
  * @var array[] $cards
  * @var string  $where_to_use
  * @var string  $single_use_rule
@@ -18,6 +19,9 @@ if (!defined('ABSPATH')) {
 }
 
 echo '= ' . wp_strip_all_tags($email_heading) . " =\n\n";
+if (!empty($design_headline)) {
+    echo wp_strip_all_tags($design_headline) . "\n\n";
+}
 /* translators: %s: recipient name */
 echo sprintf(__('Hi %s,', 'galado-gift-cards'), wp_strip_all_tags($recipient_name)) . "\n\n";
 /* translators: %s: buyer name */

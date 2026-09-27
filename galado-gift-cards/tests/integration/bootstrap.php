@@ -150,6 +150,9 @@ function gct_paid_order(array $lines, $status = 'processing', $email = 'buyer@ex
         $item->add_meta_data('_galado_gc_recipient_email', isset($line['email']) ? $line['email'] : 'recipient@example.test', true);
         $item->add_meta_data('_galado_gc_message', isset($line['message']) ? $line['message'] : '', true);
         $item->add_meta_data('_galado_gc_delivery_date', isset($line['date']) ? $line['date'] : Galado_GC_Time::today(), true);
+        if (isset($line['design'])) {
+            $item->add_meta_data('_galado_gc_design', $line['design'], true);
+        }
         $order->add_item($item);
     }
     $order->calculate_totals();

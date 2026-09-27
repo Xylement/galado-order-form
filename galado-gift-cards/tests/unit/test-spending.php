@@ -47,12 +47,6 @@ check('a gift card may join a cart that already has an individual-use code',
     Galado_GC_Spending::allow_with_individual_use(false, new WC_Coupon('GIFT-7KQ4-M2XD-9PWA', ['_galado_gift_card' => 'yes'])), true);
 check('negative control: an ordinary code still may not', Galado_GC_Spending::allow_with_individual_use(false, new WC_Coupon('SUMMER5')), false);
 
-echo "-- Points and Rewards: buying a card earns nothing\n";
-check('order item: gift card earns 0', Galado_GC_Spending::no_points_for_order_item(50, new WC_Product(501, 500)), 0);
-check('order item: a charm keeps its points', Galado_GC_Spending::no_points_for_order_item(12, new WC_Product(700)), 12);
-check('cart message: gift card earns 0', Galado_GC_Spending::no_points_for_cart_item(50, 'k', ['data' => new WC_Product(506, 500)]), 0);
-check('cart message: a charm keeps its points', Galado_GC_Spending::no_points_for_cart_item(12, 'k', ['data' => new WC_Product(700)]), 12);
-
 echo "-- REDIS dynamic pricing leaves the gift card alone\n";
 check('no pricing rule applies to the gift card', Galado_GC_Spending::redis_may_apply('check', 1, [], new WC_Product(501, 500)), false);
 check("other products: REDIS decides ('check')", Galado_GC_Spending::redis_may_apply('check', 1, [], new WC_Product(700)), 'check');

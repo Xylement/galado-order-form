@@ -27,8 +27,15 @@ $parse = function (array $overrides, $variation = 501) use ($post, $now) {
 echo "-- product page fields travel into the cart\n";
 check('a preset card carries its RM value and the fields', $parse([]), [
     'value' => 100.0, 'recipient_name' => 'Mei Chin', 'recipient_email' => 'meichin@example.com',
-    'message' => 'Happy birthday!', 'delivery_date' => '2026-10-01',
+    'message' => 'Happy birthday!', 'delivery_date' => '2026-10-01', 'design' => 'classic',
 ]);
+check('the chosen design travels too', $parse(['galado_gc_design' => 'birthday'])['design'], 'birthday');
+check('no design posted (no script, a quick view): the default, Classic', $parse(['galado_gc_design' => ''])['design'], 'classic');
+check('an unknown design is refused', $parse(['galado_gc_design' => 'nope']), 'Please choose a card design.');
+check('designs: Classic, Birthday, Thank you, Festive, with their headlines',
+    array_map(function ($d) { return $d['label'] . ' / ' . $d['headline']; }, array_values(Galado_GC_Designs::all())),
+    ['Classic / A gift for you', 'Birthday / Happy birthday', 'Thank you / Thank you', 'Festive / Happy holidays']);
+check('an order made before designs existed reads as Classic', [Galado_GC_Designs::resolve(''), Galado_GC_Designs::label('')], ['classic', 'Classic']);
 check('the message is optional', $parse(['galado_gc_message' => ''])['message'], '');
 check('tags are stripped from the message (it is escaped again wherever shown)',
     $parse(['galado_gc_message' => '<script>alert(1)</script>Hi'])['message'], 'alert(1)Hi');

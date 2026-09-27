@@ -163,26 +163,32 @@ gct_add_gift('RM100', ['galado_gc_recipient_email' => 'my@example.test']);
 WC()->cart->add_to_cart($charm20);
 check('Malaysia stays free as before', gct_rates(), ['free_shipping']);
 
-echo "-- the order records the RM value each card paid (for Shopping Credits and G-Coins)\n";
-$card = $new_card(100);
+echo "-- a Club win-back trimmed so it cannot pay for a card: the member's balance is charged what was given\n";
+// The Club bridge's two steps, the way it does them: a "GALADO Club reward" fee on the cart, then at
+// checkout (priority 10) it records on the order the RM it worked out, whenever the fee applied.
+$winback = function ($cart) { $cart->add_fee('GALADO Club reward: RM30 off', -30, false); };
+$record = function ($order) {
+    foreach (WC()->cart->get_fees() as $fee) {
+        if (0 === strpos($fee->name, 'GALADO Club reward') && abs((float) $fee->amount) > 0) {
+            $order->update_meta_data('_galado_winback_applied', 30);
+        }
+    }
+};
+add_action('woocommerce_cart_calculate_fees', $winback);
+add_action('woocommerce_checkout_create_order', $record, 10);
 gct_cart();
-WC()->cart->add_to_cart($charm60);
-WC()->cart->apply_coupon($card);
+gct_add_gift('Custom amount', ['galado_gc_custom_amount' => '150', 'galado_gc_recipient_email' => 'friend@example.test']);
+WC()->cart->add_to_cart($charm20);
 $order = gct_order_from_cart();
-$line = current($order->get_items('coupon'));
-check('the gift code line: flagged, RM60 used of RM100', [$line->get_meta('_galado_gift_card'), $line->get_meta('_galado_gc_rm_used')], ['yes', '60.00']);
-check('the public helper', galado_gift_cards_order_gift_coupon_total($order), 60.0);
-// The shopper's currency: simulate CURCY converting the coupon to S$ at 0.31317 on read.
-$sgd = function ($amount, $coupon) { return Galado_GC_Codes::is_gift_coupon($coupon) ? round((float) $amount * 0.31317, 2) : $amount; };
-$item = new WC_Order_Item_Coupon();
-$item->set_code(strtolower($new_card(100)));
-$item->set_discount(18.79);          // S$18.79 applied = RM60 of the RM100 card
-$cp = new WC_Coupon($item->get_code());
-add_filter('woocommerce_coupon_get_amount', $sgd, 10, 2);
-Galado_GC_Spending::stamp_coupon_item($item, $item->get_code(), $cp);
-remove_filter('woocommerce_coupon_get_amount', $sgd, 10);
-// S$ figures are rounded to cents, so converting back can be a cent or two off (exact when the card is used up).
-check('in S$: about RM60 recorded (within 5 sen), no exchange rate needed', abs((float) $item->get_meta('_galado_gc_rm_used') - 60) <= 0.05, true);
+check('RM30 win-back on a RM150 card + RM20 charm: RM20 given (the card paid in full), RM20 recorded for the balance',
+    [(float) $order->get_total(), (float) $order->get_meta('_galado_winback_applied')], [150.0, 20.0]);
+gct_cart();
+WC()->cart->add_to_cart($charm150);
+$order = gct_order_from_cart();
+check('negative control: no card in the order, the full RM30 given and recorded',
+    [(float) $order->get_total(), (float) $order->get_meta('_galado_winback_applied')], [120.0, 30.0]);
+remove_action('woocommerce_cart_calculate_fees', $winback);
+remove_action('woocommerce_checkout_create_order', $record, 10);
 
 echo "-- the [Remove] link and order notes never carry a code\n";
 $card = $new_card(100);
@@ -309,10 +315,8 @@ if (!class_exists('WC_Points_Rewards_Discount')) {
     $code = $redeem();
     check('RM10 of credits beside a "RM5 off each item" promo, a card and a RM50 charm: exactly RM10 used, never more than held',
         [$discount('FIVEEACH'), $discount($code)], [5.0, 10.0]);
-    check('the card earns no points, so P&R shows no "earn N points" message for it',
-        [(int) WC_Points_Rewards_Product::get_points_earned_for_product_purchase(wc_get_product(gct_variation('RM100'))),
-         (int) WC_Points_Rewards_Product::get_points_earned_for_product_purchase(wc_get_product(gct_product()))], [0, 0]);
-    check('negative control: a charm does earn points', WC_Points_Rewards_Product::get_points_earned_for_product_purchase(wc_get_product($charm20)) > 0, true);
+    check('the buyer earns on a card like any product they pay for (RM100 at 1 point per RM2 = 50)',
+        (int) WC_Points_Rewards_Product::get_points_earned_for_product_purchase(wc_get_product(gct_variation('RM100'))), 50);
     wp_set_current_user(0);
 }
 
