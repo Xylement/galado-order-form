@@ -32,9 +32,19 @@ check('a preset card carries its RM value and the fields', $parse([]), [
 check('the chosen design travels too', $parse(['galado_gc_design' => 'birthday'])['design'], 'birthday');
 check('no design posted (no script, a quick view): the default, Classic', $parse(['galado_gc_design' => ''])['design'], 'classic');
 check('an unknown design is refused', $parse(['galado_gc_design' => 'nope']), 'Please choose a card design.');
-check('designs: Classic, Birthday, Thank you, Festive, with their headlines',
-    array_map(function ($d) { return $d['label'] . ' / ' . $d['headline']; }, array_values(Galado_GC_Designs::all())),
-    ['Classic / A gift for you', 'Birthday / Happy birthday', 'Thank you / Thank you', 'Festive / Happy holidays']);
+check('18 designs, Classic first: label / headline / group / text colour over the art',
+    array_map(function ($d) { return implode(' / ', [$d['label'], $d['headline'], $d['group'], $d['text']]); }, array_values(Galado_GC_Designs::all())), [
+        'Classic / A gift for you / any / white', 'Thank you / Thank you / any / ink', 'Just because / Just because / any / ink',
+        'Thinking of you / Thinking of you / any / ink', 'Get well soon / Get well soon / any / ink',
+        'Birthday / Happy birthday / celebrate / ink', 'Congratulations / Congratulations / celebrate / white',
+        'Graduation / Congrats, graduate / celebrate / ink', 'Wedding / Happily ever after / celebrate / ink',
+        'Anniversary / Happy anniversary / celebrate / ink', 'New baby / Welcome, little one / celebrate / ink',
+        'Hari Raya / Selamat Hari Raya / festival / ink', 'Chinese New Year / Gong Xi Fa Cai / festival / white',
+        'Deepavali / Happy Deepavali / festival / white', 'Christmas / Merry Christmas / festival / white',
+        'Valentine’s Day / Happy Valentine’s Day / love / ink', 'Mother’s Day / Happy Mother’s Day / love / ink',
+        'Father’s Day / Happy Father’s Day / love / white',
+    ]);
+check('four picker groups', array_values(Galado_GC_Designs::groups()), ['Any day', 'Celebrations', 'Festivals', 'Love and family']);
 check('an order made before designs existed reads as Classic', [Galado_GC_Designs::resolve(''), Galado_GC_Designs::label('')], ['classic', 'Classic']);
 check('the message is optional', $parse(['galado_gc_message' => ''])['message'], '');
 check('tags are stripped from the message (it is escaped again wherever shown)',

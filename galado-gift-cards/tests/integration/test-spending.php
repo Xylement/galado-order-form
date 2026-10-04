@@ -367,4 +367,27 @@ if (!class_exists('WC_Points_Rewards_Discount')) {
     wp_set_current_user(0);
 }
 
+echo "-- dark launch: a normal cart gets nothing from the plugin's Clarity masking script\n";
+$cart_page = wc_get_page_id('cart');
+if ($cart_page <= 0) {
+    $cart_page = wp_insert_post(['post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'Cart', 'post_content' => '[woocommerce_cart]']);
+    update_option('woocommerce_cart_page_id', $cart_page);
+}
+$GLOBALS['wp_query'] = new WP_Query(['page_id' => $cart_page]);
+$GLOBALS['wp_the_query'] = $GLOBALS['wp_query'];
+$footer = function () {
+    ob_start();
+    Galado_GC_Spending::mask_coupon_fields();
+    return ob_get_clean();
+};
+gct_cart();
+WC()->cart->add_to_cart($charm60);
+WC()->cart->apply_coupon('TENOFF');
+check('the cart page with a charm and a promo code: no script at all', $footer(), '');
+WC()->cart->apply_coupon($new_card(100));
+check('negative control: with a gift card code applied, the masking script is there', false !== strpos($footer(), 'data-clarity-mask'), true);
+gct_cart();
+gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+check('... and with a card being bought', false !== strpos($footer(), 'data-clarity-mask'), true);
+
 done();

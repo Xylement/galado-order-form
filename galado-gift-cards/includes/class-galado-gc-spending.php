@@ -421,6 +421,9 @@ class Galado_GC_Spending {
 
     /** A gift card line in the cart, or a gift card code applied to it. */
     private static function cart_involves_gift_card() {
+        if (!function_exists('WC') || !WC()->cart) {
+            return false;
+        }
         if (self::cart_gift_qty() > 0) {
             return true;
         }
@@ -473,11 +476,13 @@ class Galado_GC_Spending {
     }
 
     /**
-     * 6. Session recordings (Clarity) never see what is typed into the coupon field. Clarity's
-     * default masking already hides input values; this makes it explicit for the code fields.
+     * 6. Session recordings (Clarity) never see a gift card code on the page. Clarity's default
+     * masking already hides what is typed into the coupon field; once a card is in the cart, this
+     * also masks the discount rows and the coupon field explicitly. Carts without a gift card get
+     * nothing (the plugin stays out of normal carts).
      */
     public static function mask_coupon_fields() {
-        if (!function_exists('is_cart') || !(is_cart() || is_checkout())) {
+        if (!function_exists('is_cart') || !(is_cart() || is_checkout()) || !self::cart_involves_gift_card()) {
             return;
         }
         echo "<script>(function(){function m(){var s='input[name=\"coupon_code\"],.cart-discount,[data-coupon]';" .

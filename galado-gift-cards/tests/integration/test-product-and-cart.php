@@ -134,7 +134,15 @@ $on_page = function ($query) {
 };
 $page = $on_page(['p' => gct_product(), 'post_type' => 'product']); // the card's own product page
 preg_match_all('/name="galado_gc_design" value="([a-z]+)"/', $page, $m);
-check('four designs to choose from, Classic first and chosen', [$m[1], (bool) preg_match('/value="classic"[^>]*checked/', $page)], [['classic', 'birthday', 'thanks', 'festive'], true]);
+check('18 designs to choose from, Classic first and chosen', [$m[1], (bool) preg_match('/value="classic"[^>]*checked/', $page)], [[
+    'classic', 'thanks', 'justbecause', 'thinking', 'getwell', 'birthday', 'congrats', 'graduation', 'wedding', 'anniversary',
+    'newbaby', 'raya', 'cny', 'deepavali', 'christmas', 'valentines', 'mothers', 'fathers'], true]);
+preg_match_all('/class="galado-gc-designs__title">([^<]+)</', $page, $g);
+check('under four group headings', $g[1], ['Any day', 'Celebrations', 'Festivals', 'Love and family']);
+check('each choice carries its text colour: white on Classic, dark on Birthday (light art)',
+    [(bool) preg_match('/value="classic"[^>]*data-text="white"/', $page), (bool) preg_match('/value="birthday"[^>]*data-text="ink"/', $page)], [true, true]);
+check('the card shows the galado wordmark, white and dark, and starts in white text for Classic',
+    [substr_count($page, 'class="galado-gc-card__wordmark'), (bool) preg_match('/class="galado-gc-card" data-gc-card/', $page)], [2, true]);
 check('a live preview card with the amount, name and message', [
     false !== strpos($page, 'data-galado-gc-preview'), false !== strpos($page, 'data-gc-amount'),
     false !== strpos($page, 'data-gc-to'), false !== strpos($page, 'data-gc-message'),
@@ -143,20 +151,21 @@ check('the name and message in the preview are masked for session recordings', (
 $quick = $on_page(['post_type' => 'page']); // a shop page: what a theme's quick view renders inside
 check('in a quick view: the card fields, but no picker (its script and styles only load on the product page)',
     [false !== strpos($quick, 'name="galado_gc_recipient_email"'), false !== strpos($quick, 'galado_gc_design')], [true, false]);
-add_filter('galado_gift_cards_designs', $raya = function ($d) {
-    $d['Raya'] = ['label' => 'Raya', 'headline' => 'Selamat Hari Raya'];
+add_filter('galado_gift_cards_designs', $extra = function ($d) {
+    $d['Teachers'] = ['label' => 'Teachers’ Day', 'headline' => 'Thank you, cikgu', 'group' => 'nope'];
     $d['broken'] = ['label' => 'No headline'];
     return $d;
 });
-$page_raya = $on_page(['p' => gct_product(), 'post_type' => 'product']);
-check('a design added through the filter with a capital in its key shows as "raya"; one without a headline is skipped',
-    [(bool) preg_match('/value="raya"/', $page_raya), false !== strpos($page_raya, 'value="broken"')], [true, false]);
+$page_extra = $on_page(['p' => gct_product(), 'post_type' => 'product']);
+check('a design added through the filter with a capital in its key shows as "teachers"; one without a headline is skipped',
+    [(bool) preg_match('/value="teachers"/', $page_extra), false !== strpos($page_extra, 'value="broken"')], [true, false]);
+check('... an unknown group lands in "Any day", and white text is the default', [Galado_GC_Designs::all()['teachers']['group'], Galado_GC_Designs::text_colour('teachers')], ['any', 'white']);
 gct_cart();
-check('... and can be bought', WC()->cart->get_cart_item(gct_add_gift('RM100', ['galado_gc_design' => 'raya']))['galado_gc']['design'] ?? null, 'raya');
-remove_filter('galado_gift_cards_designs', $raya);
+check('... and it can be bought', WC()->cart->get_cart_item(gct_add_gift('RM100', ['galado_gc_design' => 'teachers']))['galado_gc']['design'] ?? null, 'teachers');
+remove_filter('galado_gift_cards_designs', $extra);
 $page = $on_page(['p' => gct_product(), 'post_type' => 'product']);
-check('every design has its artwork in the plugin',
-    array_map(function ($key) { return is_readable(GALADO_GC_DIR . 'assets/designs/' . $key . '.jpg'); }, array_keys(Galado_GC_Designs::all())), [true, true, true, true]);
+check('every one of the 18 designs has its artwork in the plugin', [count(Galado_GC_Designs::all()),
+    array_values(array_unique(array_map(function ($key) { return is_readable(GALADO_GC_DIR . 'assets/designs/' . $key . '.jpg'); }, array_keys(Galado_GC_Designs::all()))))], [18, [true]]);
 gct_cart();
 $key = gct_add_gift('RM100', ['galado_gc_design' => 'birthday']);
 $rows = array_column(apply_filters('woocommerce_get_item_data', [], WC()->cart->get_cart_item($key)), 'value', 'key');
@@ -173,11 +182,13 @@ wc_clear_notices();
 check('an unknown design is refused', [gct_add_gift('RM100', ['galado_gc_design' => 'nope']), gct_notices()], [false, ['Please choose a card design.']]);
 $theme_art = get_stylesheet_directory() . '/' . Galado_GC_Designs::THEME_DIR . 'birthday.jpg';
 wp_mkdir_p(dirname($theme_art));
-copy(GALADO_GC_DIR . 'assets/designs/festive.jpg', $theme_art);
-check('real artwork dropped into the child theme is used instead of the placeholder',
-    Galado_GC_Designs::image_url('birthday'), get_stylesheet_directory_uri() . '/' . Galado_GC_Designs::THEME_DIR . 'birthday.jpg');
+copy(GALADO_GC_DIR . 'assets/designs/christmas.jpg', $theme_art);
+check('real artwork dropped into the child theme is used instead of the plugin\'s',
+    strtok(Galado_GC_Designs::image_url('birthday'), '?'), get_stylesheet_directory_uri() . '/' . Galado_GC_Designs::THEME_DIR . 'birthday.jpg');
 unlink($theme_art);
-check('negative control: without it, the plugin placeholder', Galado_GC_Designs::image_url('birthday'), GALADO_GC_URL . 'assets/designs/birthday.jpg');
+check('negative control: without it, the plugin\'s own', strtok(Galado_GC_Designs::image_url('birthday'), '?'), GALADO_GC_URL . 'assets/designs/birthday.jpg');
+check('artwork URLs carry the file time, so changed art is never stuck in a browser cache',
+    (bool) preg_match('/birthday\.jpg\?v=\d{9,}$/', Galado_GC_Designs::image_url('birthday')), true);
 
 echo "-- saving the order in admin does not copy the display rows into real order data\n";
 $o = gct_paid_order([['value' => 100, 'message' => 'Hi there']]);

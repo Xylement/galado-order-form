@@ -26,6 +26,7 @@
       if (chosen) {
         card.style.backgroundImage = "url('" + chosen.getAttribute('data-image') + "')";
         headline.textContent = chosen.getAttribute('data-headline');
+        card.classList.toggle('galado-gc-card--ink', chosen.getAttribute('data-text') === 'ink'); // dark text on light art
       }
       amount.textContent = amountText();
       to.textContent = (name && name.value.trim()) || box.getAttribute('data-empty-name');

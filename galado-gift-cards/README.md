@@ -39,19 +39,32 @@ GC4, GC5, GC6, GC10 and section 5.2 win where they differ). Requires PHP 7.4+, W
 
 ## Card designs
 
-Classic (the default), Birthday, Thank you and Festive. The product page shows a live preview of the card
-(design, amount, recipient's name, message) with the design swatches below it; the chosen design is
-stored on the order line (`_galado_gc_design`), shown in the cart and order, and heads the recipient's
-email. The picker is on the product page only (its script and styles load there): a theme's quick view
-shows the card fields without it, and the card gets the default design.
+18 designs in four groups, drawn to Brand Guidelines v1.0 (flat brand and campaign colours, the galado
+wordmark on the card, the headline in Archivo):
 
-- Artwork is a plain 1200 x 750 JPG with no words (the headline and amount are laid over it as text).
-  Placeholders are in `assets/designs/`. To use real artwork without changing the plugin, put a JPG with
-  the same name in the child theme: `woocommerce/galado-gift-cards/designs/birthday.jpg` and so on.
-- Names and headlines, or more designs: the `galado_gift_cards_designs` filter, entries shaped
-  `'raya' => ['label' => 'Raya', 'headline' => 'Selamat Hari Raya']` (the first is the default). Keys
-  are normalised to lowercase letters, digits, `-` and `_`; an entry without both names is skipped.
-  The preview's name and message are masked for Clarity session recordings.
+- **Any day:** Classic (the default), Thank you, Just because, Thinking of you, Get well soon
+- **Celebrations:** Birthday, Congratulations, Graduation, Wedding, Anniversary, New baby
+- **Festivals:** Hari Raya, Chinese New Year, Deepavali, Christmas
+- **Love and family:** Valentine's Day, Mother's Day, Father's Day
+
+The product page shows a live preview of the card (design, amount, recipient's name, message) with the
+design swatches below it, under those group headings; the chosen design is stored on the order line
+(`_galado_gc_design`), shown in the cart and order, and heads the recipient's email. The picker is on
+the product page only (its script and styles load there): a theme's quick view shows the card fields
+without it, and the card gets the default design.
+
+- Artwork is a plain 1200 x 750 JPG with no words (the wordmark, headline and amount are laid over it).
+  `tools/make-designs.py` draws `assets/designs/{key}.jpg` (needs Python and Pillow). To use other
+  artwork without changing the plugin, put a JPG with the same name in the child theme:
+  `woocommerce/galado-gift-cards/designs/birthday.jpg` and so on. Image, style and script URLs carry
+  the file's time, so changed art reaches browsers at once.
+- Names, headlines, groups and text colour, or more designs: the `galado_gift_cards_designs` filter,
+  entries shaped `'raya' => ['label' => 'Hari Raya', 'headline' => 'Selamat Hari Raya', 'group' =>
+  'festival', 'text' => 'ink']`. Groups: `any`, `celebrate`, `festival`, `love` (anything else lands in
+  `any`). `text` is `ink` (dark, for light art) or `white` (the default). Keys are normalised to lowercase
+  letters, digits, `-` and `_`; an entry without a label and headline is skipped. The first is the default.
+- The preview's name and message are masked for Clarity session recordings. Archivo 800 (latin) is
+  bundled in `assets/fonts/` under the SIL Open Font License (`Archivo-OFL.txt`).
 
 ## Settings (WooCommerce > Settings > Products > Gift cards)
 
