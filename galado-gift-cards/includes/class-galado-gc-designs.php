@@ -8,7 +8,11 @@
  * text, so they stay sharp and translatable). The plugin ships placeholders in assets/designs/.
  * To use real artwork without touching the plugin, put a JPG with the same name in the child
  * theme at woocommerce/galado-gift-cards/designs/{key}.jpg (1200 x 750). Names and headlines can
- * be changed, or designs added, with the galado_gift_cards_designs filter.
+ * be changed, or designs added, with the galado_gift_cards_designs filter:
+ *   key => ['label' => 'Raya', 'headline' => 'Selamat Hari Raya']
+ * Keys are lowercase letters, digits, "-" and "_" (other keys are normalised to that, so the
+ * picker and the cart always agree). The picker shows on the product page only: a theme's quick
+ * view gets no picker and the card is sold in the default design.
  */
 
 if (!defined('ABSPATH')) {
@@ -33,7 +37,17 @@ class Galado_GC_Designs {
             'thanks'   => ['label' => __('Thank you', 'galado-gift-cards'), 'headline' => __('Thank you', 'galado-gift-cards')],
             'festive'  => ['label' => __('Festive', 'galado-gift-cards'), 'headline' => __('Happy holidays', 'galado-gift-cards')],
         ];
-        return (array) apply_filters('galado_gift_cards_designs', $designs);
+        // Whatever the filter returns is normalised the way a posted choice is (sanitize_key), so a
+        // design the picker shows can always be bought; entries without both names are skipped.
+        $out = [];
+        foreach ((array) apply_filters('galado_gift_cards_designs', $designs) as $key => $design) {
+            $key = sanitize_key((string) $key);
+            if ('' === $key || !is_array($design) || !isset($design['label'], $design['headline'])) {
+                continue;
+            }
+            $out[$key] = ['label' => (string) $design['label'], 'headline' => (string) $design['headline']];
+        }
+        return $out ?: $designs;
     }
 
     public static function default_key() {
@@ -85,8 +99,15 @@ class Galado_GC_Designs {
         wp_enqueue_script('galado-gift-cards', GALADO_GC_URL . 'assets/gift-card.js', [], GALADO_GC_VERSION, true);
     }
 
-    /** The live preview and the design choice, inside the add-to-cart form. */
+    /**
+     * The live preview and the design choice, inside the add-to-cart form. Product page only: its
+     * script and styles load there, and nowhere else (a theme's quick view would show bare radio
+     * buttons and a preview that never updates; without the picker the card gets the default design).
+     */
     public static function render_picker($selected = '') {
+        if (!function_exists('is_product') || !is_product()) {
+            return;
+        }
         $selected = self::resolve($selected);
         ?>
         <div class="galado-gc-preview" aria-hidden="true" data-galado-gc-preview
@@ -100,7 +121,7 @@ class Galado_GC_Designs {
                 <span class="galado-gc-card__headline" data-gc-headline><?php echo esc_html(self::headline($selected)); ?></span>
                 <span class="galado-gc-card__amount" data-gc-amount><?php esc_html_e('Choose an amount', 'galado-gift-cards'); ?></span>
             </div>
-            <div class="galado-gc-note">
+            <div class="galado-gc-note" data-clarity-mask="True">
                 <p class="galado-gc-note__to"><?php esc_html_e('To', 'galado-gift-cards'); ?> <span data-gc-to><?php esc_html_e("Recipient's name", 'galado-gift-cards'); ?></span></p>
                 <p class="galado-gc-note__message" data-gc-message><?php esc_html_e('Your message appears here.', 'galado-gift-cards'); ?></p>
             </div>

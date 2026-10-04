@@ -10,8 +10,9 @@
 require __DIR__ . '/bootstrap.php';
 $mode = $args[0] ?? '';
 $id = (int) ($args[1] ?? 0);
-// Widen the race window: every coupon insert pauses, so a second process arriving meanwhile
-// sees a half-issued order.
+// Widen the race window. Through the plugin: every coupon insert pauses, so a second process
+// arriving meanwhile meets the lock. Negative control: the pause sits between the check and the
+// create, so two processes started a few seconds apart both see an empty line, every run.
 $slow = function () { usleep(4000000); };
 
 if ('setup' === $mode) {
@@ -25,13 +26,13 @@ if ('setup' === $mode) {
     $made = Galado_GC_Issuer::issue_for_order($id);
     printf("locked pid=%d created=%d seconds=%.1f\n", getmypid(), count($made), microtime(true) - $t);
 } elseif ('naive' === $mode) {
-    add_action('woocommerce_new_coupon', $slow);
     $order = wc_get_order($id);
     $create = new ReflectionMethod(Galado_GC_Issuer::class, 'create_coupon');
     $create->setAccessible(true);
     $made = 0;
     foreach (Galado_GC_Cart::order_gift_items($order) as $item_id => $item) {
         $existing = Galado_GC_Issuer::coupons_for_item($item_id); // check ...
+        usleep(5000000); // the race window, held open: the other process checks the same line now
         if (!isset($existing[1])) {                               // ... then create, no lock
             $create->invoke(null, $order, $item_id, 1, (float) $item->get_meta('_galado_gc_value'), time() + 86400);
             $made++;

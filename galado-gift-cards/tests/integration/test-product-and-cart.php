@@ -38,6 +38,10 @@ check('variations RM50 to RM300 and a custom amount, all virtual', $labels, ['RM
 check('priced 50 to 300, the custom one from 30', $prices, ['50', '100', '150', '200', '300', '30']);
 check('each variation is recognised as the gift card', Galado_GC_Product::is_gift_card_product(gct_variation('RM150')), true);
 check('running the creator again returns the same product, never a second', Galado_GC_Product::create_product(), $id);
+$cat = get_term_by('slug', 'gift-cards', 'product_cat');
+check('in its own "Gift cards" category (so a catalogue feed can leave it out)', [$cat ? $cat->name : null, $cat ? wc_get_product($id)->get_category_ids() : null], ['Gift cards', $cat ? [(int) $cat->term_id] : null]);
+check('on GALADO Bundles\' never-bundle list, next to what was there', apply_filters('galado_bundles_excluded_products', [404826]), [404826, $id]);
+check('negative control: an ordinary product is not added to that list', in_array(gct_charm(), apply_filters('galado_bundles_excluded_products', []), true), false);
 check('an ordinary product is not a gift card', Galado_GC_Product::is_gift_card_product(gct_charm()), false);
 check('the public helper agrees', galado_gift_cards_is_gift_card_product(gct_variation('RM50')), true);
 
@@ -121,15 +125,36 @@ check('no points setting on the product or its amounts: the buyer earns on what 
 
 echo "-- choosing a design, with a live preview\n";
 $GLOBALS['product'] = $gp;
-ob_start();
-Galado_GC_Product::render_fields();
-$page = ob_get_clean();
+$on_page = function ($query) {
+    $GLOBALS['wp_query'] = new WP_Query($query);
+    $GLOBALS['wp_the_query'] = $GLOBALS['wp_query'];
+    ob_start();
+    Galado_GC_Product::render_fields();
+    return ob_get_clean();
+};
+$page = $on_page(['p' => gct_product(), 'post_type' => 'product']); // the card's own product page
 preg_match_all('/name="galado_gc_design" value="([a-z]+)"/', $page, $m);
 check('four designs to choose from, Classic first and chosen', [$m[1], (bool) preg_match('/value="classic"[^>]*checked/', $page)], [['classic', 'birthday', 'thanks', 'festive'], true]);
 check('a live preview card with the amount, name and message', [
     false !== strpos($page, 'data-galado-gc-preview'), false !== strpos($page, 'data-gc-amount'),
     false !== strpos($page, 'data-gc-to'), false !== strpos($page, 'data-gc-message'),
 ], [true, true, true, true]);
+check('the name and message in the preview are masked for session recordings', (bool) preg_match('/class="galado-gc-note" data-clarity-mask="True"/', $page), true);
+$quick = $on_page(['post_type' => 'page']); // a shop page: what a theme's quick view renders inside
+check('in a quick view: the card fields, but no picker (its script and styles only load on the product page)',
+    [false !== strpos($quick, 'name="galado_gc_recipient_email"'), false !== strpos($quick, 'galado_gc_design')], [true, false]);
+add_filter('galado_gift_cards_designs', $raya = function ($d) {
+    $d['Raya'] = ['label' => 'Raya', 'headline' => 'Selamat Hari Raya'];
+    $d['broken'] = ['label' => 'No headline'];
+    return $d;
+});
+$page_raya = $on_page(['p' => gct_product(), 'post_type' => 'product']);
+check('a design added through the filter with a capital in its key shows as "raya"; one without a headline is skipped',
+    [(bool) preg_match('/value="raya"/', $page_raya), false !== strpos($page_raya, 'value="broken"')], [true, false]);
+gct_cart();
+check('... and can be bought', WC()->cart->get_cart_item(gct_add_gift('RM100', ['galado_gc_design' => 'raya']))['galado_gc']['design'] ?? null, 'raya');
+remove_filter('galado_gift_cards_designs', $raya);
+$page = $on_page(['p' => gct_product(), 'post_type' => 'product']);
 check('every design has its artwork in the plugin',
     array_map(function ($key) { return is_readable(GALADO_GC_DIR . 'assets/designs/' . $key . '.jpg'); }, array_keys(Galado_GC_Designs::all())), [true, true, true, true]);
 gct_cart();

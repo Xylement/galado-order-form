@@ -2,8 +2,8 @@
 /**
  * Spending on the website, through WooCommerce's real discount engine: full value, a smaller
  * order (warning, remainder lost), with promo codes (including individual use, both orders),
- * every blocked route, the free-shipping minimum, the Store API figures for the app, and the RM
- * value recorded on the order.
+ * every blocked route, the free-shipping minimum, the Store API figures for the app, discount
+ * fees and the Club win-back record, and Points and Rewards.
  */
 require __DIR__ . '/bootstrap.php';
 
@@ -163,32 +163,79 @@ gct_add_gift('RM100', ['galado_gc_recipient_email' => 'my@example.test']);
 WC()->cart->add_to_cart($charm20);
 check('Malaysia stays free as before', gct_rates(), ['free_shipping']);
 
-echo "-- a Club win-back trimmed so it cannot pay for a card: the member's balance is charged what was given\n";
-// The Club bridge's two steps, the way it does them: a "GALADO Club reward" fee on the cart, then at
-// checkout (priority 10) it records on the order the RM it worked out, whenever the fee applied.
+echo "-- Club win-back with a gift card: the member's balance is charged what the order was given\n";
+// The Club bridge's two steps: a "GALADO Club reward" fee on the cart, then at checkout (priority 10)
+// a figure on the order that payment takes from the balance. Live 0.64.12 records the fee amount; the
+// money-fixes build records the RM it worked out before any cut (that build has $winback_rm).
 $winback = function ($cart) { $cart->add_fee('GALADO Club reward: RM30 off', -30, false); };
-$record = function ($order) {
+$fee_amount = function () {
+    $sum = 0.0;
     foreach (WC()->cart->get_fees() as $fee) {
-        if (0 === strpos($fee->name, 'GALADO Club reward') && abs((float) $fee->amount) > 0) {
-            $order->update_meta_data('_galado_winback_applied', 30);
+        if (0 === strpos($fee->name, 'GALADO Club reward')) {
+            $sum += abs((float) $fee->amount);
         }
     }
+    return $sum;
 };
+$live_record = function ($order) use ($fee_amount) {
+    if ($fee_amount() > 0) {
+        $order->update_meta_data('_galado_winback_applied', $fee_amount());
+    }
+};
+$fixes_record = function ($order) use ($fee_amount) {
+    if ($fee_amount() > 0) {
+        $order->update_meta_data('_galado_winback_applied', 30);
+    }
+};
+$winback_order = function ($fill) {
+    gct_cart();
+    $fill();
+    $order = gct_order_from_cart();
+    return [(float) $order->get_total(), (float) $order->get_meta('_galado_winback_applied')];
+};
+$buys_card = function () use ($charm20) {
+    gct_add_gift('Custom amount', ['galado_gc_custom_amount' => '150', 'galado_gc_recipient_email' => 'friend@example.test']);
+    WC()->cart->add_to_cart($charm20);
+};
+$covering = [$new_card(100), $new_card(100)];
+$paid_by_card = function ($code) use ($charm60, $charm20) {
+    return function () use ($code, $charm60, $charm20) {
+        WC()->cart->add_to_cart($charm60);
+        WC()->cart->add_to_cart($charm20);
+        WC()->cart->apply_coupon($code); // RM100 card on RM80 of charms: nothing left to discount
+    };
+};
+$promo('ALLOFF', 'percent', 100);
 add_action('woocommerce_cart_calculate_fees', $winback);
-add_action('woocommerce_checkout_create_order', $record, 10);
+add_action('woocommerce_checkout_create_order', $live_record, 10);
+check('live bridge, RM150 card + RM20 charm: RM20 given and RM20 recorded (not trimmed twice)', $winback_order($buys_card), [150.0, 20.0]);
+check('live bridge, a card pays for the whole order: the win-back gave nothing, so nothing is recorded',
+    $winback_order($paid_by_card($covering[0])), [0.0, 0.0]);
+check('negative control: a 100% promo (no gift card) leaves the bridge\'s own figure alone',
+    $winback_order(function () use ($charm60) { WC()->cart->add_to_cart($charm60); WC()->cart->apply_coupon('ALLOFF'); }), [0.0, 30.0]);
+check('negative control: no card, nothing trimmed: RM30 given and recorded',
+    $winback_order(function () use ($charm150) { WC()->cart->add_to_cart($charm150); }), [120.0, 30.0]);
+remove_action('woocommerce_checkout_create_order', $live_record, 10);
+add_action('woocommerce_checkout_create_order', $fixes_record, 10);
+if (!class_exists('Galado_Club_Bridge')) {
+    final class Galado_Club_Bridge { private static $winback_rm = 0.0; } // the money-fixes build's marker
+}
+check('money-fixes bridge, RM150 card + RM20 charm: its RM30 figure becomes the RM20 given', $winback_order($buys_card), [150.0, 20.0]);
+check('money-fixes bridge, a card pays for the whole order: nothing recorded',
+    $winback_order($paid_by_card($covering[1])), [0.0, 0.0]);
+check('negative control: no card, RM30 given and recorded',
+    $winback_order(function () use ($charm150) { WC()->cart->add_to_cart($charm150); }), [120.0, 30.0]);
+remove_action('woocommerce_checkout_create_order', $fixes_record, 10);
+// A Store API draft order is reused across checkout updates; the bridge never clears its figure.
 gct_cart();
-gct_add_gift('Custom amount', ['galado_gc_custom_amount' => '150', 'galado_gc_recipient_email' => 'friend@example.test']);
-WC()->cart->add_to_cart($charm20);
-$order = gct_order_from_cart();
-check('RM30 win-back on a RM150 card + RM20 charm: RM20 given (the card paid in full), RM20 recorded for the balance',
-    [(float) $order->get_total(), (float) $order->get_meta('_galado_winback_applied')], [150.0, 20.0]);
-gct_cart();
-WC()->cart->add_to_cart($charm150);
-$order = gct_order_from_cart();
-check('negative control: no card in the order, the full RM30 given and recorded',
-    [(float) $order->get_total(), (float) $order->get_meta('_galado_winback_applied')], [120.0, 30.0]);
+gct_add_gift('RM100', ['galado_gc_recipient_email' => 'friend@example.test']);
+WC()->cart->calculate_totals();
+$draft = wc_create_order();
+$draft->update_meta_data('_galado_winback_applied', 30); // from an earlier pass, before the card was added
+do_action('woocommerce_store_api_checkout_update_order_from_request', $draft, new WP_REST_Request('POST', '/wc/store/v1/checkout'));
+check('app checkout: a cart of only a card drops the win-back, and a figure left from an earlier pass is cleared',
+    [count(WC()->cart->get_fees()), (float) $draft->get_meta('_galado_winback_applied')], [0, 0.0]);
 remove_action('woocommerce_cart_calculate_fees', $winback);
-remove_action('woocommerce_checkout_create_order', $record, 10);
 
 echo "-- the [Remove] link and order notes never carry a code\n";
 $card = $new_card(100);

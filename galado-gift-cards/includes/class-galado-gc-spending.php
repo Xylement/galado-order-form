@@ -19,11 +19,12 @@
  *    subtotal conditions, and never help meet an item-quantity minimum or an "all items" bulk count
  *    (an item-quantity maximum still counts them: REDIS checks that itself, after this plugin).
  * 5. Free-shipping minimums ignore gift card lines.
- * 6. Codes stay out of page text (Clarity), URLs (GA4, Cloudflare) and order notes: totals label,
- *    remove link, notices, notes.
+ * 6. Codes stay out of customer-facing page text (Clarity), URLs (GA4, Cloudflare) and order notes:
+ *    totals label, remove link, notices, notes. (Staff see full codes on the admin order screen.)
  * 7. Discount fees (REDIS cart rules, Club offers, anything added as a negative fee) never pay for
  *    a gift card being bought: together they are capped at what the other lines and shipping cost.
- *    When that trims a Club win-back, the amount the Club bridge records is trimmed to match.
+ *    When a gift card trims a Club win-back (this cap, or a card paying for the whole order), the
+ *    figure the Club bridge records for the member's balance is corrected to what was given.
  */
 
 if (!defined('ABSPATH')) {
@@ -379,30 +380,56 @@ class Galado_GC_Spending {
     }
 
     /**
-     * 7. The Club bridge records on the order the RM of win-back it worked out for the cart, and
-     * takes that from the member's balance on payment. When the cap above trimmed the win-back fee,
-     * record only the share actually given, so the balance is charged what the discount was.
+     * 7. The Club bridge records a win-back figure on the order at checkout (priority 10) and takes
+     * it from the member's balance on payment. With a gift card in play the discount actually given
+     * can be smaller: this plugin's cap trims or drops the fee when a card is bought, and WooCommerce
+     * trims it to nothing when a card pays for the whole order. Make the record match what was given.
+     * The bridge's figure depends on its build: up to 0.64.12 (live in Oct 2026) the fee amount after
+     * this plugin's cap, in the cart's currency; the money-fixes build (it has $winback_rm) the RM it
+     * worked out before any cut. Orders without a gift card are left to the bridge.
      */
     public static function match_club_winback_record($order) {
-        if (!$order instanceof WC_Order || !function_exists('WC') || !WC()->cart) {
+        if (!$order instanceof WC_Order || !function_exists('WC') || !WC()->cart || !self::cart_involves_gift_card()) {
             return;
         }
         $recorded = (float) $order->get_meta(self::CLUB_WINBACK_META);
         if ($recorded <= 0) {
             return;
         }
-        $asked = 0.0;
-        $given = 0.0;
+        $asked = 0.0;     // what the bridge added, before this plugin's cap
+        $after_cap = 0.0; // the fee amount after this plugin's cap
+        $given = 0.0;     // what the order really got, after WooCommerce's own cap as well
         foreach (WC()->cart->get_fees() as $fee) {
             if (0 !== strpos((string) $fee->name, self::CLUB_WINBACK_FEE)) {
                 continue;
             }
-            $given += abs((float) $fee->amount);
-            $asked += abs((float) (isset($fee->galado_gc_original) ? $fee->galado_gc_original : $fee->amount));
+            $amount = abs((float) $fee->amount);
+            $after_cap += $amount;
+            $asked += isset($fee->galado_gc_original) ? abs((float) $fee->galado_gc_original) : $amount;
+            $given += isset($fee->total) ? min($amount, abs((float) $fee->total)) : $amount;
         }
-        if ($asked > 0 && $given < $asked) {
-            $order->update_meta_data(self::CLUB_WINBACK_META, wc_format_decimal($recorded * $given / $asked, 2));
+        $base = property_exists('Galado_Club_Bridge', 'winback_rm') ? $asked : $after_cap;
+        if ($base <= 0) {
+            $right = 0.0; // no win-back fee left (the cap dropped it): the figure is from an earlier pass
+        } elseif ($given < $base - 0.005) {
+            $right = $recorded * $given / $base;
+        } else {
+            return; // nothing was held back
         }
+        $order->update_meta_data(self::CLUB_WINBACK_META, wc_format_decimal($right, 2));
+    }
+
+    /** A gift card line in the cart, or a gift card code applied to it. */
+    private static function cart_involves_gift_card() {
+        if (self::cart_gift_qty() > 0) {
+            return true;
+        }
+        foreach (WC()->cart->get_applied_coupons() as $code) {
+            if (Galado_GC_Codes::is_gift_card_code($code)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 6. Errors about a gift card in plain words, never repeating the code. */

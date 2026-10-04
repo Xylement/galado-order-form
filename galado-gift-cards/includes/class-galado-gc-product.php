@@ -8,6 +8,9 @@
  * Variations: RM50, RM100, RM150, RM200, RM300 and "Custom amount" (RM30 up to the per-card
  * limit, whole ringgit, priced from the cart). All virtual, not taxable, sold individually so
  * each cart line is exactly one card to one recipient.
+ *
+ * It sits in its own "Gift cards" category (so catalogue feeds can leave it out by category) and
+ * is on GALADO Bundles' never-bundle list: a card always costs its full price.
  */
 
 if (!defined('ABSPATH')) {
@@ -23,11 +26,36 @@ class Galado_GC_Product {
     const ATTRIBUTE = 'Amount';
     const ATTRIBUTE_KEY = 'amount';              // sanitize_title( 'Amount' ): WooCommerce's key for a local attribute
     const CUSTOM_LABEL = 'Custom amount';
+    const CATEGORY_SLUG = 'gift-cards';
 
     public static function init() {
         add_action('woocommerce_before_add_to_cart_button', [__CLASS__, 'render_fields']);
         add_filter('woocommerce_get_price_html', [__CLASS__, 'price_html'], 20, 2);
         add_filter('woocommerce_available_variation', [__CLASS__, 'custom_variation_price'], 20, 3);
+        add_filter('galado_bundles_excluded_products', [__CLASS__, 'exclude_from_bundles']);
+    }
+
+    /** GALADO Bundles: the card can never be put in a bundle (a bundle discount would cut its price). */
+    public static function exclude_from_bundles($ids) {
+        static $card = null;
+        if (null === $card) {
+            $card = self::find_product_id();
+        }
+        $ids = (array) $ids;
+        if ($card && !in_array($card, $ids, true)) {
+            $ids[] = $card;
+        }
+        return $ids;
+    }
+
+    /** The "Gift cards" product category, created if it does not exist yet. 0 if it cannot be made. */
+    public static function category_id() {
+        $term = get_term_by('slug', self::CATEGORY_SLUG, 'product_cat');
+        if ($term) {
+            return (int) $term->term_id;
+        }
+        $made = wp_insert_term(__('Gift cards', 'galado-gift-cards'), 'product_cat', ['slug' => self::CATEGORY_SLUG]);
+        return is_wp_error($made) ? 0 : (int) $made['term_id'];
     }
 
     /**
@@ -138,6 +166,10 @@ class Galado_GC_Product {
         $product->set_short_description(self::terms_text());
         $product->set_description(self::terms_text());
         $product->set_attributes([$attribute]);
+        $category = self::category_id();
+        if ($category) {
+            $product->set_category_ids([$category]);
+        }
         $product->update_meta_data(self::META_FLAG, 'yes');
         $product_id = $product->save();
 

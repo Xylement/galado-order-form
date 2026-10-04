@@ -38,7 +38,7 @@ class Galado_GC_Cart {
     /**
      * Parse and validate the product page fields.
      *
-     * @return array|WP_Error [value, recipient_name, recipient_email, message, delivery_date]
+     * @return array|WP_Error [value, recipient_name, recipient_email, message, delivery_date, design]
      */
     public static function parse_fields(array $post, $variation_id, $now = null) {
         $get = function ($key) use ($post) {
@@ -98,7 +98,7 @@ class Galado_GC_Cart {
             return new WP_Error('galado_gc', sprintf(__('The message can be up to %d characters.', 'galado-gift-cards'), Galado_GC_Config::MESSAGE_MAX));
         }
 
-        // No design posted (a theme's quick view, no script): the default. An unknown one: refuse.
+        // No design posted (a theme's quick view shows no picker): the default. An unknown one: refuse.
         $design = sanitize_key($get(Galado_GC_Designs::FIELD));
         if ('' === $design) {
             $design = Galado_GC_Designs::default_key();
