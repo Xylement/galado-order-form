@@ -104,6 +104,12 @@
     emptyNote: 'Add a photo or some words to start.',
     capReached: 'A case fits {max} items and yours is full. Remove one to add another.',
     capCount: '{n} / {max} items',
+    sizeMax: 'That is as big as it can print.',
+    sizeMaxPhoto: 'That is as big as it can print. To fill the case with part of a photo, use Crop.',
+    sizeMin: 'That is as small as it can print.',
+    modelSoonH: 'Not in the Studio just yet',
+    modelSoonB: '{model} is not ready in the Studio yet. Pick another model, or check back soon.',
+    modelSoonCta: 'Choose another model',
     doneH: 'Your design is saved',
     doneB: 'Checkout wiring arrives in the next build. This design serialised cleanly:',
     backCta: 'Keep editing',
@@ -157,6 +163,11 @@
     stickers: null,
     multiMode: false,
     multiPicks: [],
+    // Print limits, replaced by the server's own numbers when /v1/session
+    // answers (these match it today; the server keeps the final say).
+    limits: { w_min: 0.02, w_max: 1.5, pos_min: -0.5, pos_max: 1.5 },
+    models: null, // the phones the Studio server can print, from /v1/session
+    capHint: '', // why the last resize stopped, until the next gesture starts
   };
   var C = null; // fabric canvas
   var stageMeta = null; // { plateW, plateH, mock }
@@ -221,6 +232,7 @@
       if (o.gdType === 'text' && o.gdFont === key) {
         o.dirty = true;
         if (o.initDimensions) o.initDimensions();
+        fitToPrint(o); // the real lettering can run wider than the fallback did
         o.setCoords();
       }
     });
@@ -256,7 +268,7 @@
     (cfg.models || []).filter(function (m) {
       var id = m.model_id || m.id || '';
       var isSamsung = id.indexOf('samsung') === 0;
-      return brand === 'samsung' ? isSamsung : !isSamsung;
+      return (brand === 'samsung' ? isSamsung : !isSamsung) && modelReady(id);
     }).forEach(function (m) {
       grid.appendChild(el('button', {
         class: 'gstudio-model', type: 'button', text: m.label,
@@ -309,6 +321,29 @@
     scrollToStudio(); // keep the active step in view (see renderModelSelect note)
   }
 
+  // The shop hides phones the Studio server cannot print, but a cached page can
+  // still offer one. The editor turns it away as it opens instead of letting
+  // Looks Good refuse the finished design (live 2026-09-23 to 10-05: every
+  // iPhone 18 Pro and 18 Pro Max design ended in "Something hiccuped").
+  function modelReady(id) {
+    return !S.models || S.models.indexOf(id) >= 0;
+  }
+
+  function modelSoon() {
+    var brand = S.modelId.indexOf('samsung') === 0 ? 'samsung' : 'apple';
+    ga('studio_designer_model_unavailable', { model_id: S.modelId });
+    Array.prototype.forEach.call(document.querySelectorAll('.gd-tour, .gd-sheetwrap'), function (t) { t.remove(); });
+    mount(screenWrap(
+      el('h2', { text: COPY.modelSoonH }),
+      el('p', { class: 'gstudio-sub', text: COPY.modelSoonB.replace('{model}', S.modelLabel || S.modelId) }),
+      el('button', {
+        class: 'gstudio-btn gstudio-btn--ink', type: 'button', text: COPY.modelSoonCta,
+        onclick: function () { renderModelSelect(brand); },
+      })
+    ));
+    scrollToStudio();
+  }
+
   // ---- session (Turnstile) ---------------------------------------------------
 
   function ensureSession(holder) {
@@ -327,8 +362,16 @@
             // end (live 2026-08-21). No limits in the reply (older API) means no
             // client cap, and the server keeps the final say either way.
             if (b.limits && b.limits.max_elements) S.maxElements = +b.limits.max_elements || 0;
+            // Size and position ranges and the printable phones come from the
+            // same reply, for the same reason (2026-10-05).
+            var l = b.limits || {};
+            if ([l.w_min, l.w_max, l.pos_min, l.pos_max].every(function (v) { return typeof v === 'number'; })) {
+              S.limits = { w_min: l.w_min, w_max: l.w_max, pos_min: l.pos_min, pos_max: l.pos_max };
+            }
+            if (Array.isArray(b.models)) S.models = b.models;
             updateCapUi();
             holder.style.display = 'none';
+            if (S.modelId && !modelReady(S.modelId)) modelSoon();
             return;
           }
           retrySession(); // 4xx/5xx: usually a spent or expired token (they are single-use)
@@ -371,6 +414,8 @@
 
   var manifestRefreshed = false;
   function renderEditor() {
+    // Also covers the self-heal re-render below landing after modelSoon().
+    if (!modelReady(S.modelId)) { modelSoon(); return; }
     var mock = mockFor(S.modelId);
 
     // Self-heal a stale inlined manifest (cached page HTML / cached script
@@ -508,7 +553,7 @@
     }
     var tourSeen = false;
     try { tourSeen = localStorage.getItem('gd_tour_v1') === '1'; } catch (e) { /* private mode */ }
-    if (!tourSeen) setTimeout(function () { showTour(0); }, 600);
+    if (!tourSeen) setTimeout(function () { if (root.contains(canvasEl)) showTour(0); }, 600);
     var tourBtn = el('button', {
       class: 'gd-multitoggle', type: 'button', text: COPY.tourBtn,
       onclick: function () { showTour(0); },
@@ -701,6 +746,45 @@
     C.on('selection:cleared', updateSelUi);
     C.on('object:modified', checkPlacement);
     C.on('object:moving', checkPlacement);
+    // Size cap (2026-10-05): a corner-handle resize stops exactly at the size
+    // the print server takes, with the corner being held still, instead of
+    // Looks Good refusing the design at the end.
+    C.on('before:transform', function () {
+      if (S.capHint) { S.capHint = ''; checkPlacement(); }
+    });
+    C.on('object:scaling', function (opt) {
+      var o = opt.target, t = opt.transform;
+      var k = sizeFix(o);
+      if (k === 1) {
+        if (S.capHint) { S.capHint = ''; checkPlacement(); }
+        return;
+      }
+      // A top or bottom handle leaves the width alone; null: no single size
+      // fits every layer, so serializeScene holds them.
+      if (k === null || !t || t.action === 'scaleY') return;
+      // Only rescale the height when this drag keeps the proportions. A side
+      // handle or a free (shift) drag sets the width alone, and fabric leaves
+      // the height where it is, so shrinking it here would compound per move.
+      var orig = t.original || {};
+      var keepRatio = t.action === 'scale' && orig.scaleX && orig.scaleY &&
+        Math.abs(o.scaleX / o.scaleY - orig.scaleX / orig.scaleY) < 1e-6;
+      var anchor = o.translateToOriginPoint(o.getCenterPoint(), t.originX, t.originY);
+      o.set({ scaleX: o.scaleX * k, scaleY: keepRatio ? o.scaleY * k : o.scaleY });
+      o.setPositionByOrigin(anchor, t.originX, t.originY);
+      o.setCoords();
+      sizeHint(o, k < 1);
+    });
+    // The centre stays inside the range the print server takes, so a big layer
+    // pushed mostly off the case prints the way the editor shows it.
+    C.on('object:moving', function (opt) {
+      var o = opt.target;
+      if (!o || !o.gdType) return; // single layers; a group is held by serializeScene
+      var l = S.limits;
+      o.set({
+        left: clampTo(o.left, l.pos_min * stageMeta.plateW, l.pos_max * stageMeta.plateW),
+        top: clampTo(o.top, l.pos_min * stageMeta.plateH, l.pos_max * stageMeta.plateH),
+      });
+    });
     C.on('mouse:dblclick', function (opt) {
       var t = opt.target;
       if (t && t.gdType === 'text') textSheet(t);
@@ -766,6 +850,7 @@
       if (!obj || obj.gdOverlay) { pinch = null; return; }
       if (C.getActiveObject() !== obj) C.setActiveObject(obj);
       abortFabricGesture();
+      S.capHint = '';
       pinch = { obj: obj, baseW: obj.width || 1, lockX: obj.lockMovementX, lockY: obj.lockMovementY, sel: C.selection };
       seedPinch(e.touches);
       obj.lockMovementX = true; obj.lockMovementY = true; C.selection = false;
@@ -776,13 +861,27 @@
       e.preventDefault();
       var ratio = twoDist(e.touches) / pinch.dist;
       var startW = pinch.baseW * pinch.scaleX;
-      var targetW = Math.max(24, Math.min(stageMeta.plateW * 3, startW * ratio));
+      // Capped at the widest the print server takes (it was 3x the case while
+      // the server stops at 1.5x: three refusals for one photo, 2026-10-01).
+      var maxW = stageMeta.plateW * S.limits.w_max;
+      var targetW = Math.max(24, Math.min(maxW, startW * ratio));
       var newScaleX = targetW / pinch.baseW;
       pinch.obj.set({
         scaleX: newScaleX,
         scaleY: newScaleX * (pinch.scaleY / pinch.scaleX),
         angle: pinch.angle + (twoAngle(e.touches) - pinch.ang),
       });
+      // A "Select many" group or a turned layer can still overshoot inside
+      // that box: bring it back to the biggest size that fits.
+      var k = sizeFix(pinch.obj);
+      if (k !== 1 && k !== null) {
+        pinch.obj.set({ scaleX: pinch.obj.scaleX * k, scaleY: pinch.obj.scaleY * k });
+        sizeHint(pinch.obj, k < 1);
+      } else if (startW * ratio > maxW) {
+        sizeHint(pinch.obj, true);
+      } else {
+        S.capHint = '';
+      }
       pinch.obj.setCoords();
       C.requestRenderAll();
       checkPlacement();
@@ -1023,8 +1122,42 @@
         }
       });
     }
-    stageMeta.warn.textContent = msg;
+    stageMeta.warn.textContent = [S.capHint, msg].filter(Boolean).join(' ');
     stageMeta.warn.className = 'gd-warn';
+  }
+
+  // The factor that brings every layer in o (one layer, or a "Select many"
+  // group) inside the widths the print server takes: 1 when it already fits,
+  // null when no single factor can. The hair of slack lets a resize sit
+  // exactly on the limit; serializeScene rounds onto it.
+  function sizeFix(o) {
+    var group = o.type === 'activeSelection';
+    var parts = group ? o.getObjects() : [o];
+    var g = group ? Math.abs(o.scaleX) : 1;
+    var down = 1, up = 1;
+    parts.forEach(function (p) {
+      var w = Math.abs(p.getScaledWidth()) * g / stageMeta.plateW;
+      if (w > S.limits.w_max + 1e-6) down = Math.min(down, S.limits.w_max / w);
+      if (w < S.limits.w_min - 1e-6) up = Math.max(up, S.limits.w_min / w);
+    });
+    if (down < 1 && up > 1) return null;
+    return down < 1 ? down : up;
+  }
+
+  // Long words at the default lettering size can run wider than the print
+  // takes: shrink them on placement so the editor shows what will print.
+  function fitToPrint(o) {
+    var k = sizeFix(o);
+    if (k !== null && k < 1) {
+      o.set({ scaleX: o.scaleX * k, scaleY: o.scaleY * k });
+      o.setCoords();
+    }
+  }
+
+  function sizeHint(o, grew) {
+    var photo = typeof o.gdRef === 'string' && o.gdRef.indexOf('upload:') === 0;
+    S.capHint = !grew ? COPY.sizeMin : (photo ? COPY.sizeMaxPhoto : COPY.sizeMax);
+    checkPlacement();
   }
 
   function duplicateActive() {
@@ -1279,6 +1412,7 @@
             existing.gdEffect = effectKey;
             existing.gdEffectColour = effectColourKey;
             applyTextEffect(existing);
+            fitToPrint(existing);
           } else {
             var t = new fabric.Text(text, {
               left: stageMeta.plateW / 2, top: stageMeta.plateH * 0.8,
@@ -1291,6 +1425,7 @@
             t.gdEffect = effectKey;
             t.gdEffectColour = effectColourKey;
             applyTextEffect(t);
+            fitToPrint(t);
             C.add(t); C.setActiveObject(t);
           }
           C.requestRenderAll();
@@ -1536,12 +1671,16 @@
     // group; drop it so every object reports absolute print coordinates.
     var act = C.getActiveObject();
     if (act && act.type === 'activeSelection') { C.discardActiveObject(); C.requestRenderAll(); }
-    var pw = stageMeta.plateW, ph = stageMeta.plateH;
-    var elements = contentObjects().map(function (o) {
+    var pw = stageMeta.plateW, ph = stageMeta.plateH, lim = S.limits;
+    // Last guard before Looks Good (2026-10-05). The editor already stops a
+    // resize at the print limits, but a layer dragged right off the case (it
+    // would not print anyway) or rounding at the very edge must never become
+    // a refusal: off-case layers stay out, the rest is held inside the ranges.
+    var elements = contentObjects().filter(onCase).map(function (o) {
       var base = {
-        cx: +(o.left / pw).toFixed(4),
-        cy: +(o.top / ph).toFixed(4),
-        w: +((o.getScaledWidth()) / pw).toFixed(4),
+        cx: clampTo(+(o.left / pw).toFixed(4), lim.pos_min, lim.pos_max),
+        cy: clampTo(+(o.top / ph).toFixed(4), lim.pos_min, lim.pos_max),
+        w: clampTo(+(Math.abs(o.getScaledWidth()) / pw).toFixed(4), lim.w_min, lim.w_max),
         rot: Math.round(((o.angle % 360) + 540) % 360 - 180),
       };
       if (o.gdType === 'text') {
@@ -1562,6 +1701,15 @@
       background: null, // owner call (16 Jul round 4): clear case only
       elements: elements,
     };
+  }
+
+  function onCase(o) {
+    var r = o.getBoundingRect(true, true);
+    return r.left < stageMeta.plateW && r.left + r.width > 0 && r.top < stageMeta.plateH && r.top + r.height > 0;
+  }
+
+  function clampTo(v, lo, hi) {
+    return Math.min(hi, Math.max(lo, v));
   }
 
   function finishDesign() {
