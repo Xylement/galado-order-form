@@ -274,7 +274,7 @@
         class: 'gstudio-model', type: 'button', text: m.label,
         onclick: function () {
           S.modelId = m.model_id || m.id; S.modelLabel = m.label;
-          ga('studio_designer_model', { model_id: m.id });
+          ga('studio_designer_model', { model_id: S.modelId });
           var mock = mockFor(S.modelId);
           var colours = (mock && mock.colours) || ['black'];
           if (colours.length > 1) {
@@ -595,6 +595,7 @@
       height: Math.round(plate.h),
       selection: true,
       preserveObjectStacking: true,
+      uniScaleKey: null, // Shift on a corner would stretch a layer; the print keeps its proportions
     });
     stageMeta = { plateW: Math.round(plate.w), plateH: Math.round(plate.h), mock: mock, warn: warn, selBar: selBar, progress: progress, multiBtn: multiBtn, exitMulti: exitMulti };
     window.__gd = { version: cfg.ver || 'dev', canvas: C, state: S, serialize: serializeScene }; // QA/support handle
@@ -613,7 +614,11 @@
     }
 
     function setGlow(o, on) {
-      o.set('shadow', on ? new fabric.Shadow({ color: 'rgba(228,0,43,0.95)', blur: 14, offsetX: 0, offsetY: 0, nonScaling: true }) : null);
+      // The glow borrows the shadow, so clearing it gives lettering its own Shadow
+      // effect back (a plain clear left the editor without a shadow the print has).
+      if (on) o.set('shadow', new fabric.Shadow({ color: 'rgba(228,0,43,0.95)', blur: 14, offsetX: 0, offsetY: 0, nonScaling: true }));
+      else if (o.gdType === 'text') applyTextEffect(o);
+      else o.set('shadow', null);
       o.gdPicked = !!on;
     }
     function exitMulti() {
@@ -911,6 +916,7 @@
     fabric.Object.prototype.set({
       transparentCorners: false, cornerStyle: 'circle', cornerColor: '#FFFFFF',
       cornerStrokeColor: '#111111', borderColor: '#111111', cornerSize: 12, padding: 4,
+      lockScalingFlip: true, // a corner dragged past its opposite would mirror the layer; the print never does
     });
     // (round 13 #10) an X badge on the object replaces hunting for the
     // Remove button; (#11) the rotate handle draws a curved arrow, not a dot.
@@ -960,6 +966,13 @@
         cls.prototype.controls.mtr.sizeX = 26;
         cls.prototype.controls.mtr.sizeY = 26;
       }
+      // No side handles on anything: they stretch a layer and the print always
+      // keeps its proportions. Set here, once, because a per-layer setting missed
+      // copies (clone() drops it) and every group selection, "Select many" or a
+      // drag across the case.
+      ['ml', 'mr', 'mt', 'mb'].forEach(function (k) {
+        if (cls.prototype.controls[k]) cls.prototype.controls[k].visible = false;
+      });
     });
   }
 
@@ -1247,7 +1260,6 @@
                   left: stageMeta.plateW / 2, top: stageMeta.plateH / 2,
                   originX: 'center', originY: 'center', scaleX: scale, scaleY: scale,
                 });
-                img.setControlsVisibility({ ml: false, mr: false, mt: false, mb: false });
                 img.gdType = 'image'; img.gdRef = 'upload:' + b.upload_id;
                 C.add(img); C.setActiveObject(img); C.requestRenderAll();
                 ga('studio_designer_photo', {});
@@ -1303,7 +1315,6 @@
         left: stageMeta.plateW / 2, top: stageMeta.plateH * 0.55,
         originX: 'center', originY: 'center', scaleX: scale, scaleY: scale,
       });
-      img.setControlsVisibility({ ml: false, mr: false, mt: false, mb: false });
       img.gdType = 'image'; img.gdRef = 'sticker:' + packId + '/' + id;
       C.add(img); C.setActiveObject(img); C.requestRenderAll();
       ga('studio_designer_sticker', { pack: packId, sticker: id });
@@ -1420,7 +1431,6 @@
               fontFamily: 'gd-' + fontSel.value, fill: COLOUR_HEX[colourKey],
               fontSize: Math.round(stageMeta.plateW / 7),
             });
-            t.setControlsVisibility({ ml: false, mr: false, mt: false, mb: false });
             t.gdType = 'text'; t.gdText = text; t.gdFont = fontSel.value; t.gdColour = colourKey;
             t.gdEffect = effectKey;
             t.gdEffectColour = effectColourKey;
