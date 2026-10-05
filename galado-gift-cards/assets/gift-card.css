@@ -1,0 +1,72 @@
+/* GALADO gift card: live preview and design choice on the product page (Brand Guidelines v1.0). */
+@font-face {
+  font-family: 'Archivo';
+  src: url('fonts/archivo-800-latin.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+.galado-gc-preview {
+  --gc-ink: #111111;
+  --gc-surface: #F5F5F3;
+  --gc-muted: #8C8C8C;
+  --gc-shadow: 0 4px 16px rgba(17, 17, 17, 0.08), 0 0 0 1px rgba(17, 17, 17, 0.05);
+  --gc-display: 'Archivo', 'Arial Black', Arial, sans-serif;
+  margin: 0 0 1.25em;
+}
+.galado-gc-card {
+  position: relative;
+  aspect-ratio: 8 / 5;
+  border-radius: 20px;
+  background: #2a2a30 center / cover no-repeat;
+  box-shadow: var(--gc-shadow);
+  color: #ffffff;
+  overflow: hidden;
+}
+.galado-gc-card--ink { color: var(--gc-ink); }
+.galado-gc-card__wordmark { position: absolute; top: 8%; left: 6%; height: 13%; width: auto; max-width: none; }
+.galado-gc-card__wordmark--ink,
+.galado-gc-card--ink .galado-gc-card__wordmark--white { display: none; }
+.galado-gc-card--ink .galado-gc-card__wordmark--ink { display: block; }
+.galado-gc-card__headline {
+  position: absolute; left: 6%; right: 30%; bottom: 26%;
+  font-family: var(--gc-display); font-weight: 800; letter-spacing: -0.02em;
+  font-size: clamp(1.25em, 4.6vw, 2em); line-height: 1.05;
+}
+.galado-gc-card__amount {
+  position: absolute; left: 6%; bottom: 9%;
+  font-family: var(--gc-display); font-weight: 800; letter-spacing: -0.01em;
+  font-size: clamp(1em, 3.2vw, 1.35em);
+}
+.galado-gc-note {
+  margin: -10px 14px 0; padding: 20px 18px 14px;
+  border-radius: 0 0 16px 16px;
+  background: var(--gc-surface); color: var(--gc-ink);
+}
+.galado-gc-note p { margin: 0 0 0.35em; }
+.galado-gc-note__to { font-weight: 600; }
+.galado-gc-note__message { white-space: pre-wrap; overflow-wrap: anywhere; font-style: italic; opacity: 0.85; }
+/* Themes style fieldsets (background, padding, a pulled-out legend): reset them here. */
+.galado-gc-designs { border: 0; background: none; margin: 0 0 1.25em; padding: 4px 0 0 4px; min-width: 0; }
+.galado-gc-designs legend { float: none; width: auto; margin: 0 0 0.5em -4px; padding: 0; background: none; border: 0; font-weight: 600; font-size: inherit; }
+.galado-gc-designs__group { margin: 0 0 12px; }
+.galado-gc-designs__title {
+  margin: 0 0 6px; color: var(--gc-muted, #8C8C8C);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase;
+}
+.galado-gc-designs__list { display: flex; flex-wrap: wrap; gap: 10px; }
+.galado-gc-design { position: relative; display: inline-flex; flex-direction: column; align-items: center; width: 72px; margin: 0; cursor: pointer; }
+.galado-gc-design input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.galado-gc-design__swatch {
+  display: block; width: 72px; aspect-ratio: 8 / 5; border-radius: 10px;
+  background: #2a2a30 center / cover no-repeat;
+  box-shadow: 0 0 0 1px rgba(17, 17, 17, 0.12);
+  transition: box-shadow 150ms ease, transform 150ms ease;
+}
+.galado-gc-design:hover .galado-gc-design__swatch { transform: translateY(-2px); }
+.galado-gc-design input:checked + .galado-gc-design__swatch { box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #111111; }
+.galado-gc-design input:focus-visible + .galado-gc-design__swatch { outline: 2px dashed #111111; outline-offset: 4px; }
+.galado-gc-design__name { margin-top: 5px; font-size: 11.5px; line-height: 1.2; text-align: center; }
+@media (prefers-reduced-motion: reduce) {
+  .galado-gc-design__swatch { transition: none; }
+}
