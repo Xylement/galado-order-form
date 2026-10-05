@@ -43,7 +43,89 @@
     "white"
    ]
   },
+  "iphone-18-pro": {
+   "file": "iphone17-pro-silver.webp",
+   "plate_pct": [
+    0.1241,
+    0.3601,
+    0.7413,
+    0.6106
+   ],
+   "print": {
+    "w": 1516,
+    "h": 3051
+   },
+   "safe": {
+    "x": 0.0389,
+    "y": 0.0193,
+    "w": 0.9222,
+    "h": 0.9613
+   },
+   "keepout": 0.0389,
+   "camera": {
+    "x0": 0.0134,
+    "y0": 0.0,
+    "x1": 0.9927,
+    "y1": 0.2938
+   },
+   "img": {
+    "w": 456,
+    "h": 900
+   },
+   "plate_img": {
+    "x": 0.0526,
+    "y": 0.0492,
+    "w": 0.8942,
+    "h": 0.9197
+   },
+   "file_white": "iphone17-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
+  },
   "iphone-17-pro-max": {
+   "file": "iphone17-pro-silver.webp",
+   "plate_pct": [
+    0.1241,
+    0.3601,
+    0.7413,
+    0.6106
+   ],
+   "print": {
+    "w": 1634,
+    "h": 3327
+   },
+   "safe": {
+    "x": 0.0361,
+    "y": 0.0177,
+    "w": 0.9278,
+    "h": 0.9645
+   },
+   "keepout": 0.0361,
+   "camera": {
+    "x0": 0.0134,
+    "y0": 0.0,
+    "x1": 0.9927,
+    "y1": 0.3019
+   },
+   "img": {
+    "w": 456,
+    "h": 900
+   },
+   "plate_img": {
+    "x": 0.0526,
+    "y": 0.0385,
+    "w": 0.8942,
+    "h": 0.9304
+   },
+   "file_white": "iphone17-pro-white.webp",
+   "colours": [
+    "black",
+    "white"
+   ]
+  },
+  "iphone-18-pro-max": {
    "file": "iphone17-pro-silver.webp",
    "plate_pct": [
     0.1241,

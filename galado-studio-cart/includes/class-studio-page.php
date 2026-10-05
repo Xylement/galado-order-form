@@ -146,13 +146,12 @@ class GSTUDIO_Page {
         printf(
             '<div class="notice notice-warning"><p><strong>Studio:</strong> %s</p></div>',
             esc_html(sprintf(
-                '%1$s %2$s hidden from customers in the Studio. The Studio server has no print template for %3$s yet, so %4$s designs could not be printed. %5$s in the Studio by %6$s within about ten minutes of the template going live on the Studio server.',
+                '%1$s %2$s hidden from customers in the Studio. The Studio server has no print template for %3$s yet, so %4$s designs could not be printed. %5$s offered again once the template is added on the Studio server.',
                 $names,
                 $one ? 'is' : 'are',
                 $one ? 'this phone' : 'these phones',
                 $one ? 'its' : 'their',
-                $one ? 'It appears' : 'They appear',
-                $one ? 'itself' : 'themselves'
+                $one ? 'It will be' : 'They will be'
             ))
         );
     }
