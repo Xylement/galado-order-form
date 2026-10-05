@@ -16,6 +16,7 @@ class GSTUDIO_Page {
     public static function init() {
         add_shortcode('galado_studio', [__CLASS__, 'render']);
         add_action('wp_enqueue_scripts', [__CLASS__, 'assets']);
+        add_action('admin_notices', [__CLASS__, 'hidden_models_notice']);
     }
 
     private static function is_studio_page() {
@@ -78,10 +79,88 @@ class GSTUDIO_Page {
         return isset($data['mocks']) && is_array($data['mocks']) ? $data['mocks'] : [];
     }
 
-    /** Model list for the picker, read from the Studio Case product's
-     * variations (SKU convention studio-<model_id>; label = attribute value).
-     * Source of truth for launch models = the live product (spec section 2). */
+    /** Model list for the picker: the Studio Case product's phones that the
+     * Studio server can print. A phone put on sale before its print template
+     * reaches the server is left out instead of failing every design at Looks
+     * Good (live 2026-09-23 to 10-05: iPhone 18 Pro and 18 Pro Max). */
     public static function models() {
+        $printable = self::api_models();
+        $models = self::product_models();
+        if (null === $printable) return $models;
+        return array_values(array_filter($models, function ($m) use ($printable) {
+            return in_array($m['model_id'], $printable, true);
+        }));
+    }
+
+    /** Phones on sale in the Studio Case product that the picker hides. */
+    public static function hidden_models() {
+        $printable = self::api_models();
+        if (null === $printable) return [];
+        return array_values(array_filter(self::product_models(), function ($m) use ($printable) {
+            return !in_array($m['model_id'], $printable, true);
+        }));
+    }
+
+    /** The phones the Studio server can print (GET /v1/models), cached for ten
+     * minutes. The last good answer stays as the fallback, so a slow or
+     * unreachable server never puts a hidden phone back in the picker. Null
+     * only before the first good answer ever: the picker is then unfiltered. */
+    public static function api_models() {
+        $cached = get_transient('gstudio_api_models');
+        if (false !== $cached) return is_array($cached) ? $cached : null;
+
+        // Short timeout: this runs while the Studio page renders.
+        $res = wp_remote_get(gstudio_api_base() . '/v1/models', ['timeout' => 2]);
+        $body = is_wp_error($res) ? null : json_decode((string) wp_remote_retrieve_body($res), true);
+        $ids = (is_array($body) && isset($body['models']) && is_array($body['models']))
+            ? array_values(array_filter($body['models'], function ($id) {
+                return is_string($id) && 1 === preg_match('/^[a-z0-9-]+$/', $id);
+            }))
+            : [];
+        if (200 === (int) wp_remote_retrieve_response_code($res) && $ids) {
+            set_transient('gstudio_api_models', $ids, 10 * MINUTE_IN_SECONDS);
+            update_option('gstudio_api_models', $ids, false);
+            return $ids;
+        }
+
+        $why = is_wp_error($res) ? $res->get_error_message() : 'HTTP ' . wp_remote_retrieve_response_code($res);
+        error_log('GALADO Studio: model list unavailable (' . $why . '), keeping the last good one');
+        $last = get_option('gstudio_api_models');
+        $last = is_array($last) && $last ? $last : null;
+        // Ask again in a minute, not on every page view.
+        set_transient('gstudio_api_models', $last ?: 'unknown', MINUTE_IN_SECONDS);
+        return $last;
+    }
+
+    /** Staff note on the Studio Case product screen naming the phones the
+     * picker hides, so a new phone that "does not show up" explains itself. */
+    public static function hidden_models_notice() {
+        $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+        $product_id = (int) gstudio_settings()['product_id'];
+        if (!$screen || 'product' !== $screen->id || !$product_id) return;
+        if ($product_id !== absint($_GET['post'] ?? 0)) return; // phpcs:ignore WordPress.Security.NonceVerification
+        $hidden = self::hidden_models();
+        if (!$hidden) return;
+        $names = implode(', ', array_column($hidden, 'label'));
+        $one = 1 === count($hidden);
+        printf(
+            '<div class="notice notice-warning"><p><strong>Studio:</strong> %s</p></div>',
+            esc_html(sprintf(
+                '%1$s %2$s hidden from customers in the Studio. The Studio server has no print template for %3$s yet, so %4$s designs could not be printed. %5$s in the Studio by %6$s within about ten minutes of the template going live on the Studio server.',
+                $names,
+                $one ? 'is' : 'are',
+                $one ? 'this phone' : 'these phones',
+                $one ? 'its' : 'their',
+                $one ? 'It appears' : 'They appear',
+                $one ? 'itself' : 'themselves'
+            ))
+        );
+    }
+
+    /** Every phone in the Studio Case product's variations (SKU convention
+     * studio-<model_id>; label = attribute value). Source of truth for launch
+     * models = the live product (spec section 2). */
+    private static function product_models() {
         $product_id = (int) gstudio_settings()['product_id'];
         if (!$product_id || !function_exists('wc_get_product')) return [];
         $product = wc_get_product($product_id);
