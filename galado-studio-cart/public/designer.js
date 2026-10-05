@@ -1190,7 +1190,11 @@
     C.discardActiveObject();
     targets.forEach(function (o) {
       o.clone(function (copy) {
-        copy.set({ left: o.left + 14, top: o.top + 14 });
+        // clone() rounds the scale to two decimals, so a copy came out another
+        // size: a phone photo 6 to 11 percent smaller on the case and in print,
+        // one made small all but vanished. The size comes from the original,
+        // as the position already does (2026-10-05).
+        copy.set({ left: o.left + 14, top: o.top + 14, scaleX: o.scaleX, scaleY: o.scaleY });
         copy.gdType = o.gdType; copy.gdRef = o.gdRef;
         copy.gdText = o.gdText; copy.gdFont = o.gdFont; copy.gdColour = o.gdColour;
         copy.gdEffect = o.gdEffect; copy.gdEffectColour = o.gdEffectColour; if (copy.gdType === 'text') applyTextEffect(copy);
