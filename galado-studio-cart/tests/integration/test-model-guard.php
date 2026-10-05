@@ -106,7 +106,7 @@ ob_start();
 GSTUDIO_Page::hidden_models_notice();
 $note = ob_get_clean();
 check(false !== strpos($note, 'iPhone 18 Pro is hidden from customers in the Studio'), 'note names the hidden phone (singular)');
-check(false !== strpos($note, 'for this phone yet, so its designs') && false !== strpos($note, 'It appears in the Studio by itself'), 'note grammar (singular)');
+check(false !== strpos($note, 'for this phone yet, so its designs') && false !== strpos($note, 'It will be offered again once'), 'note grammar (singular)');
 check(false === strpos($note, "\u{2014}") && false === strpos($note, "\u{2013}"), 'note has no dashes');
 
 forget();
@@ -114,7 +114,7 @@ $next = reply(200, json_encode(['models' => ['iphone-17-pro']]));
 ob_start();
 GSTUDIO_Page::hidden_models_notice();
 $note = ob_get_clean();
-check(false !== strpos($note, 'iPhone 18 Pro, Galaxy S24 Ultra are hidden') && false !== strpos($note, 'They appear in the Studio by themselves'), 'note grammar (plural)');
+check(false !== strpos($note, 'iPhone 18 Pro, Galaxy S24 Ultra are hidden') && false !== strpos($note, 'They will be offered again once'), 'note grammar (plural)');
 
 $_GET['post'] = (string) ($pid + 999);
 ob_start();
