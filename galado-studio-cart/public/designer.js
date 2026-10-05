@@ -746,6 +746,15 @@
     });
     C.on('object:added', updateCapUi);
     C.on('object:removed', updateCapUi);
+    // A layer taken off the case stops being a pick, whichever control took
+    // it: the X badge left removed layers in "Select many" (still counted, and
+    // Copy put them back), and Remove left "2 picked" on the button (2026-10-05).
+    C.on('object:removed', function (opt) {
+      var at = S.multiPicks.indexOf(opt.target);
+      if (at < 0) return;
+      S.multiPicks.splice(at, 1);
+      refreshMultiLabel();
+    });
     C.on('selection:created', updateSelUi);
     C.on('selection:updated', updateSelUi);
     C.on('selection:cleared', updateSelUi);
