@@ -566,7 +566,6 @@
         S.multiPicks = [];
         multiBtn.textContent = COPY.multiOff;
         multiBtn.classList.add('on');
-        stageMeta.warn.textContent = COPY.multiHint;
         C.discardActiveObject();
         contentObjects().forEach(function (o) { o.selectable = false; });
         C.requestRenderAll();
@@ -1135,7 +1134,12 @@
         }
       });
     }
-    stageMeta.warn.textContent = [S.capHint, msg].filter(Boolean).join(' ');
+    var text = [S.capHint, msg].filter(Boolean).join(' ');
+    // "Select many" with nothing picked yet says how it works, unless a
+    // warning needs the line. Written only on the tap, the hint was wiped
+    // straight away by the selection update that follows it (2026-10-05).
+    if (!text && S.multiMode && !S.multiPicks.length) text = COPY.multiHint;
+    stageMeta.warn.textContent = text;
     stageMeta.warn.className = 'gd-warn';
   }
 
