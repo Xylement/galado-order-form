@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.11.1
+ * Version: 1.12.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.11.1');
+define('GWARR_VERSION', '1.12.0');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -517,6 +517,16 @@ add_action('plugins_loaded', function () {
         });
     } catch (Throwable $e) {
         error_log('[galado-warranty] module load failed: ' . $e->getMessage());
+    }
+
+    // GALADO CP lists and resolves warranties through a key-guarded REST API.
+    // Loaded on its own, last: if it ever failed, the customer pages, emails
+    // and pay hooks above are already in place.
+    try {
+        require_once GWARR_PATH . 'includes/class-warranty-cp-api.php';
+        GWARR_CP_API::init();
+    } catch (Throwable $e) {
+        error_log('[galado-warranty] cp api load failed: ' . $e->getMessage());
     }
 }, 20);
 

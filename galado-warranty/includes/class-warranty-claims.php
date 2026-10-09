@@ -879,6 +879,19 @@ class GWARR_Claims {
     }
 
     /**
+     * Record whether a claim's approval email was handed to the mailer, so the
+     * claims list can show "sent / FAILED" (deliverability vs send failures).
+     * Stored per claim as an option (no schema change). Lives here, not in the
+     * admin screen, since v1.12.0 so CP's API records it the same way.
+     */
+    public static function record_email_status($claim_id, $ok) {
+        update_option('gwarr_claim_email_' . (int) $claim_id, [
+            'at' => current_time('mysql'),
+            'ok' => $ok ? 1 : 0,
+        ], false);
+    }
+
+    /**
      * Decode media_ids JSON to an array of attachment ids.
      */
     public static function media_ids($claim) {

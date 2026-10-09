@@ -427,8 +427,5 @@ function gwarr_handle_claim_admin_post() {
  * apart from send failures. Stored per-claim as an option (no schema change).
  */
 function gwarr_record_claim_email_status($claim_id, $ok) {
-    update_option('gwarr_claim_email_' . (int) $claim_id, [
-        'at' => current_time('mysql'),
-        'ok' => $ok ? 1 : 0,
-    ], false);
+    GWARR_Claims::record_email_status($claim_id, $ok);
 }
