@@ -3,7 +3,7 @@
  * Plugin Name: GALADO AI Crawler Manager
  * Plugin URI: https://galado.com.my
  * Description: Control which AI search engines and crawlers can access your website. Manage GPTBot, ClaudeBot, PerplexityBot, Google-Extended, and more from a simple dashboard.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -12,7 +12,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GAIC_VERSION', '1.0.0');
+define('GAIC_VERSION', '1.1.0');
 define('GAIC_PATH', plugin_dir_path(__FILE__));
 define('GAIC_URL', plugin_dir_url(__FILE__));
 
