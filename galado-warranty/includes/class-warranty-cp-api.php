@@ -235,6 +235,25 @@ class GWARR_CP_API {
             }
             $args['purchase_date'] = $date;
         }
+        // The same Order ID rule as the registration form (v1.12.1), but only for a
+        // number staff change or a move to another marketplace: rows saved before
+        // the rule keep their number and can still have other fields edited.
+        if (isset($args['order_number']) || isset($args['marketplace'])) {
+            $mp    = $args['marketplace'] ?? (string) $row->marketplace;
+            $order = isset($args['order_number'])
+                ? GWARR_Marketplaces::normalise_order_number($mp, $args['order_number'])
+                : (string) $row->order_number;
+            // Case-insensitive like the order_number column (utf8mb4_unicode_520_ci).
+            if (strcasecmp($order, (string) $row->order_number) !== 0 || $mp !== (string) $row->marketplace) {
+                $problem = GWARR_Marketplaces::order_number_problem($mp, $order);
+                if ($problem) {
+                    return self::error('gwarr_bad_order', GWARR_Marketplaces::order_number_message($mp, $problem), 400);
+                }
+            }
+            if (isset($args['order_number'])) {
+                $args['order_number'] = $order;
+            }
+        }
         $result = GWARR_DB::update((int) $row->id, $args);
         if (is_wp_error($result)) {
             return self::fail($result, 422);

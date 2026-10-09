@@ -128,6 +128,18 @@
     box-shadow: 0 0 0 3px rgba(17, 17, 17, .10);
 }
 
+/* On-the-spot order-number message (v1.12.1), under the field. The [hidden]
+   rule is needed because display:block would otherwise beat the attribute. */
+.gwarr-field-error {
+    display: block;
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--gw-red-dark);
+}
+.gwarr-field-error[hidden] { display: none; }
+.gwarr-field input[aria-invalid="true"] { border-color: var(--gw-red); }
+
 .gwarr-help { display: block; font-size: 12px; color: var(--gw-text3); margin-top: 4px; }
 
 .gwarr-consent {
