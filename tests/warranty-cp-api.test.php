@@ -37,8 +37,9 @@ class WP_Error {
     public function get_error_message() { return $this->message; }
 }
 class WP_REST_Response {
-    public $data; public $status;
+    public $data; public $status; public $headers = [];
     public function __construct($d, $s) { $this->data = $d; $this->status = $s; }
+    public function header($k, $v) { $this->headers[$k] = $v; }
 }
 class WP_REST_Request implements ArrayAccess {
     private $params; private $headers;
@@ -50,10 +51,14 @@ class WP_REST_Request implements ArrayAccess {
     public function get_param($k) { return $this->params[$k] ?? null; }
     public function has_param($k) { return array_key_exists($k, $this->params); }
     public function get_header($k) { return $this->headers[$k] ?? null; }
-    #[\ReturnTypeWillChange] public function offsetExists($k) { return isset($this->params[$k]); }
-    #[\ReturnTypeWillChange] public function offsetGet($k) { return $this->params[$k]; }
-    #[\ReturnTypeWillChange] public function offsetSet($k, $v) { $this->params[$k] = $v; }
-    #[\ReturnTypeWillChange] public function offsetUnset($k) { unset($this->params[$k]); }
+    #[\ReturnTypeWillChange]
+    public function offsetExists($k) { return isset($this->params[$k]); }
+    #[\ReturnTypeWillChange]
+    public function offsetGet($k) { return $this->params[$k]; }
+    #[\ReturnTypeWillChange]
+    public function offsetSet($k, $v) { $this->params[$k] = $v; }
+    #[\ReturnTypeWillChange]
+    public function offsetUnset($k) { unset($this->params[$k]); }
 }
 
 // ---------------------------------------------------------- plugin stubs
@@ -140,10 +145,18 @@ class GWARR_Email {
 }
 class GWARR_Marketplaces { public static function label($s) { return ucfirst($s); } }
 class GWARR_Auto_Approve { public static function lookup_cache($m, $o) { return null; } }
+$GLOBALS['lock_answer'] = '1';
+$GLOBALS['locks'] = [];
 class WPDB_Stub {
     public $users = 'wp_users';
     public $prefix = 'wp_';
     public function prepare($sql, ...$a) { return [$sql, $a]; }
+    public function get_var($q) {
+        [$sql, $a] = $q;
+        if (strpos($sql, 'GET_LOCK') !== false) { $GLOBALS['locks'][] = ['get', $a[0]]; return $GLOBALS['lock_answer']; }
+        return null;
+    }
+    public function query($q) { [$sql, $a] = $q; if (strpos($sql, 'RELEASE_LOCK') !== false) $GLOBALS['locks'][] = ['release', $a[0]]; return 1; }
     public function get_row($q) {
         [$sql, $a] = $q;
         $id = (int) $a[0];
@@ -152,6 +165,7 @@ class WPDB_Stub {
 }
 $GLOBALS['wpdb'] = new WPDB_Stub();
 
+require __DIR__ . '/../galado-warranty/includes/class-warranty-lock.php';
 require __DIR__ . '/../galado-warranty/includes/class-warranty-cp-api.php';
 
 // ----------------------------------------------------------------- runner
@@ -163,13 +177,14 @@ function check($label, $cond) {
 }
 function status_of($r) { return $r instanceof WP_Error ? (int) $r->data['status'] : (int) $r->status; }
 function req($params = [], $headers = []) { return new WP_REST_Request($params, $headers + ['X-GWARR-Actor' => 'Crystal']); }
-function reset_state() { $GLOBALS['regs'] = []; $GLOBALS['claims'] = []; $GLOBALS['calls'] = []; }
+function reset_state() { $GLOBALS['regs'] = []; $GLOBALS['claims'] = []; $GLOBALS['calls'] = []; $GLOBALS['locks'] = []; $GLOBALS['lock_answer'] = '1'; }
 function last_call($name) { foreach (array_reverse($GLOBALS['calls']) as $c) if ($c[0] === $name) return $c; return null; }
 
 echo "auth\n";
 GWARR_CP_API::routes();
 check('12 routes, every one behind the key check', count($GLOBALS['routes']) === 12
     && count(array_filter($GLOBALS['routes'], function ($r) { return $r['permission_callback'] === ['GWARR_CP_API', 'authorized']; })) === 12);
+check('none of them listed in the public /wp-json index', count(array_filter($GLOBALS['routes'], function ($r) { return ($r['show_in_index'] ?? true) === false; })) === 12);
 check('no fingerprint stored: refused even with a key', GWARR_CP_API::authorized(req([], ['X-GWARR-CP-Key' => 'k'])) === false);
 update_option('gwarr_cp_key_sha256', hash('sha256', 'right-key'));
 check('wrong key refused', GWARR_CP_API::authorized(req([], ['X-GWARR-CP-Key' => 'wrong'])) === false);
@@ -177,6 +192,8 @@ check('no key refused', GWARR_CP_API::authorized(req()) === false);
 check('the right key is let in', GWARR_CP_API::authorized(req([], ['X-GWARR-CP-Key' => 'right-key'])) === true);
 update_option('gwarr_cp_key_sha256', hash('sha256', ''));
 check('a stored fingerprint of an empty key never lets a keyless call in', GWARR_CP_API::authorized(req()) === false);
+update_option('gwarr_cp_key_sha256', strtoupper(hash('sha256', 'right-key')) . "\n");
+check('a fingerprint stored in capitals with a newline still matches', GWARR_CP_API::authorized(req([], ['X-GWARR-CP-Key' => 'right-key'])) === true);
 update_option('gwarr_cp_key_sha256', hash('sha256', 'right-key'));
 
 echo "registrations\n";
@@ -185,6 +202,7 @@ $r = GWARR_CP_API::run_approve_registration(req(['id' => 1, 'purchase_date' => '
 check('a pending registration is approved with the date given', status_of($r) === 200 && last_call('approve')[2] === '2026-09-30');
 check('a blank note becomes an internal "Approved in CP by" line', last_call('approve')[3] === 'Approved in CP by Crystal');
 check('the answer carries the new coupon', $r->data['data']['couponCode'] === 'W-TEST01');
+check('and tells caches not to keep it (customer details)', ($r->headers['Cache-Control'] ?? '') === 'no-store, private');
 check('approving it again is refused (409)', status_of(GWARR_CP_API::run_approve_registration(req(['id' => 1, 'purchase_date' => '2026-09-30']))) === 409);
 reset_state(); reg(2, 'rejected', ['coupon_code' => 'W-OLD']);
 check('a rejected one is not re-approved here (409)', status_of(GWARR_CP_API::run_approve_registration(req(['id' => 2, 'purchase_date' => '2026-09-30']))) === 409);
@@ -203,6 +221,8 @@ check('rejecting needs the reason the customer reads (400)', status_of(GWARR_CP_
 $r = GWARR_CP_API::run_reject_registration(req(['id' => 4, 'reason' => 'Order not found on Shopee']));
 check('a pending one is rejected with that reason', status_of($r) === 200 && last_call('reject')[2] === 'Order not found on Shopee');
 check('rejecting it again is refused (409)', status_of(GWARR_CP_API::run_reject_registration(req(['id' => 4, 'reason' => 'x']))) === 409);
+reset_state(); reg(8, 'pending', ['coupon_code' => 'W-OLD']);
+check('a pending one that already has a coupon is not rejected here either (409)', status_of(GWARR_CP_API::run_reject_registration(req(['id' => 8, 'reason' => 'x']))) === 409 && !last_call('reject'));
 reset_state(); reg(5, 'approved');
 GWARR_CP_API::run_edit_registration(req(['id' => 5, 'order_number' => ' B2 ', 'notes' => 'fixed']));
 check('edit passes only the fields given', last_call('update')[2] === ['order_number' => 'B2', 'notes' => 'fixed']);
@@ -221,6 +241,10 @@ check('declining an approved claim is refused (409)', status_of(GWARR_CP_API::ru
 reset_state(); claim(2, 'submitted');
 check('a fee over RM 500 is refused (400)', status_of(GWARR_CP_API::run_approve_claim(req(['id' => 2, 'shipping_fee' => '900']))) === 400);
 check('a negative fee is refused (400)', status_of(GWARR_CP_API::run_approve_claim(req(['id' => 2, 'shipping_fee' => '-5']))) === 400);
+foreach (['RM 8', 'abc', '0.004'] as $bad) {
+    check("a fee written as '{$bad}' is refused, never read as free shipping (400)", status_of(GWARR_CP_API::run_approve_claim(req(['id' => 2, 'shipping_fee' => $bad]))) === 400);
+}
+check('nothing was approved by those', !last_call('claim_approve'));
 GWARR_Claims::$order_on_approve = null;
 $r = GWARR_CP_API::run_approve_claim(req(['id' => 2, 'shipping_fee' => '8.5']));
 check('a fee whose order failed still approves, with a warning', status_of($r) === 200 && strpos($r->data['warning'], 'gateway down') !== false);
@@ -240,6 +264,25 @@ $r = GWARR_CP_API::run_charge_shipping(req(['id' => 6, 'shipping_fee' => '8']));
 check('shipping on an approved claim creates the order and emails the pay link', status_of($r) === 200 && last_call('set_fee')[2] === 8.0 && last_call('mail_approved'));
 $r = GWARR_CP_API::run_claim(req(['id' => 6]));
 check('a claim reads back with its photos', $r->data['data']['media'][0]['thumb'] === 'https://example.test/u/3-300.jpg');
+
+echo "locks\n";
+reset_state(); reg(20, 'pending');
+$GLOBALS['lock_answer'] = '0';
+$r = GWARR_CP_API::run_approve_registration(req(['id' => 20, 'purchase_date' => '2026-09-30']));
+check('while another request holds the registration, approving answers 409 busy', $r instanceof WP_Error && $r->code === 'gwarr_busy' && status_of($r) === 409);
+check('and nothing was approved', !last_call('approve'));
+reset_state(); claim(21, 'approved');
+$GLOBALS['lock_answer'] = '0';
+check('a busy claim is not charged shipping', status_of(GWARR_CP_API::run_charge_shipping(req(['id' => 21, 'shipping_fee' => '8']))) === 409 && !last_call('set_fee'));
+reset_state(); reg(22, 'pending');
+GWARR_CP_API::run_approve_registration(req(['id' => 22, 'purchase_date' => '2026-09-30']));
+check('the lock is per registration and released after the approval', $GLOBALS['locks'] === [['get', 'gwarr_wp_reg_22'], ['release', 'gwarr_wp_reg_22']]);
+reset_state(); reg(23, 'approved');
+GWARR_CP_API::run_approve_registration(req(['id' => 23, 'purchase_date' => '2026-09-30']));
+check('and released when a check refuses too', end($GLOBALS['locks']) === ['release', 'gwarr_wp_reg_23']);
+reset_state(); reg(24, 'pending');
+$GLOBALS['lock_answer'] = null;
+check('a database that cannot lock at all still approves, as before', status_of(GWARR_CP_API::run_approve_registration(req(['id' => 24, 'purchase_date' => '2026-09-30']))) === 200);
 
 echo "errors\n";
 reset_state(); claim(9, 'submitted');

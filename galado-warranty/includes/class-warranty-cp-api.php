@@ -16,7 +16,10 @@
  *
  * Guards the admin screens leave to the UI live here: a registration is
  * approved or rejected only while pending, a claim is resolved only once, and
- * a claim never gets a second shipping order.
+ * a claim never gets a second shipping order. Each check and its change run
+ * inside GWARR_Lock, so two staff or a double click cannot both pass a check;
+ * the second gets a 409. Routes stay out of the public /wp-json index, and
+ * answers carry Cache-Control: no-store (they hold customer details).
  */
 
 if (!defined('ABSPATH')) exit;
@@ -50,13 +53,14 @@ class GWARR_CP_API {
                 'methods'             => $r[1],
                 'callback'            => [__CLASS__, 'run_' . $r[2]],
                 'permission_callback' => [__CLASS__, 'authorized'],
+                'show_in_index'       => false,
             ]);
         }
     }
 
     /** Only CP: its key must hash to the stored fingerprint. */
     public static function authorized($req) {
-        $hash = (string) get_option(self::KEY_OPTION, '');
+        $hash = strtolower(trim((string) get_option(self::KEY_OPTION, '')));
         $key  = (string) $req->get_header('x_gwarr_cp_key');
         if ($hash === '' || $key === '') {
             return false;
@@ -155,18 +159,11 @@ class GWARR_CP_API {
     }
 
     // -------------------------------------------------------- registration acts
+    // Each act checks and changes inside GWARR_Lock, so two staff, a double
+    // click or a retry can never both pass the check (one gets a 409 "busy").
 
     public static function approve_registration($req) {
-        $row = GWARR_DB::find((int) $req['id']);
-        if (!$row) {
-            return self::error('gwarr_not_found', 'Registration not found.', 404);
-        }
-        if ($row->status !== 'pending') {
-            return self::error('gwarr_not_pending', 'Only a pending registration can be approved here (this one is ' . $row->status . ').', 409);
-        }
-        if (!empty($row->coupon_code)) {
-            return self::error('gwarr_has_coupon', 'This registration already has coupon ' . $row->coupon_code . '. Approve it in wp-admin so no second coupon is made.', 409);
-        }
+        $id   = (int) $req['id'];
         $date = self::date_param($req->get_param('purchase_date'));
         if (is_wp_error($date)) {
             return $date;
@@ -176,31 +173,49 @@ class GWARR_CP_API {
         if ($note === '') {
             $note = 'Approved in CP' . (self::actor($req) !== '' ? ' by ' . self::actor($req) : '');
         }
-        $result = GWARR_Approval::approve((int) $row->id, $date, $note);
-        if (is_wp_error($result)) {
-            return self::error($result->get_error_code(), $result->get_error_message(), 422);
-        }
-        return self::ok(self::registration_view(self::registration_row((int) $row->id)));
+        return GWARR_Lock::run('reg_' . $id, function () use ($id, $date, $note) {
+            $row = GWARR_DB::find($id);
+            if (!$row) {
+                return self::error('gwarr_not_found', 'Registration not found.', 404);
+            }
+            if ($row->status !== 'pending') {
+                return self::error('gwarr_not_pending', 'Only a pending registration can be approved here (this one is ' . $row->status . ').', 409);
+            }
+            if (!empty($row->coupon_code)) {
+                return self::error('gwarr_has_coupon', 'This registration already has coupon ' . $row->coupon_code . '. Approve it in wp-admin so no second coupon is made.', 409);
+            }
+            $result = GWARR_Approval::approve($id, $date, $note);
+            if (is_wp_error($result)) {
+                return self::fail($result, 422);
+            }
+            return self::ok(self::registration_view(self::registration_row($id)));
+        });
     }
 
     public static function reject_registration($req) {
-        $row = GWARR_DB::find((int) $req['id']);
-        if (!$row) {
-            return self::error('gwarr_not_found', 'Registration not found.', 404);
-        }
-        if ($row->status !== 'pending') {
-            return self::error('gwarr_not_pending', 'Only a pending registration can be rejected here (this one is ' . $row->status . ').', 409);
-        }
+        $id = (int) $req['id'];
         // The customer reads this, in the email and on My Warranties.
-        $reason = sanitize_text_field((string) $req->get_param('reason'));
+        $reason = mb_substr(sanitize_text_field((string) $req->get_param('reason')), 0, 300);
         if ($reason === '') {
             return self::error('gwarr_no_reason', 'Write the reason the customer will read.', 400);
         }
-        $result = GWARR_Approval::reject((int) $row->id, $reason);
-        if (is_wp_error($result)) {
-            return self::error($result->get_error_code(), $result->get_error_message(), 422);
-        }
-        return self::ok(self::registration_view(self::registration_row((int) $row->id)));
+        return GWARR_Lock::run('reg_' . $id, function () use ($id, $reason) {
+            $row = GWARR_DB::find($id);
+            if (!$row) {
+                return self::error('gwarr_not_found', 'Registration not found.', 404);
+            }
+            if ($row->status !== 'pending') {
+                return self::error('gwarr_not_pending', 'Only a pending registration can be rejected here (this one is ' . $row->status . ').', 409);
+            }
+            if (!empty($row->coupon_code)) {
+                return self::error('gwarr_has_coupon', 'This registration already has coupon ' . $row->coupon_code . '. Handle it in wp-admin so the coupon is dealt with too.', 409);
+            }
+            $result = GWARR_Approval::reject($id, $reason);
+            if (is_wp_error($result)) {
+                return self::fail($result, 422);
+            }
+            return self::ok(self::registration_view(self::registration_row($id)));
+        });
     }
 
     public static function edit_registration($req) {
@@ -222,7 +237,7 @@ class GWARR_CP_API {
         }
         $result = GWARR_DB::update((int) $row->id, $args);
         if (is_wp_error($result)) {
-            return self::error($result->get_error_code(), $result->get_error_message(), 422);
+            return self::fail($result, 422);
         }
         return self::ok(self::registration_view(self::registration_row((int) $row->id)));
     }
@@ -230,51 +245,57 @@ class GWARR_CP_API {
     // --------------------------------------------------------------- claim acts
 
     public static function approve_claim($req) {
-        $claim = GWARR_Claims::find((int) $req['id']);
-        if (!$claim) {
-            return self::error('gwarr_claim_not_found', 'Claim not found.', 404);
-        }
-        if ($claim->status !== 'submitted') {
-            return self::error('gwarr_claim_resolved', 'This claim was already ' . ($claim->status === 'approved' ? 'approved' : 'declined') . '.', 409);
-        }
+        $id  = (int) $req['id'];
         $fee = self::fee_param($req->get_param('shipping_fee'), true);
         if (is_wp_error($fee)) {
             return $fee;
         }
         // The customer reads this note in the approval email.
-        $note   = sanitize_textarea_field((string) $req->get_param('note'));
-        $result = GWARR_Claims::approve((int) $claim->id, $note, $fee);
-        if (is_wp_error($result)) {
-            return self::error($result->get_error_code(), $result->get_error_message(), 422);
-        }
-        $warning = '';
-        if ($fee > 0 && empty($result->shipping_order_id)) {
-            $why     = GWARR_Claims::last_order_error();
-            $warning = 'The claim is approved, but the shipping order could not be created' . ($why ? ' (' . $why . ')' : '') . ', so the email has no pay button. Use "Charge shipping" to try again.';
-        }
-        $sent = self::send_claim_email('approved', (int) $claim->id);
-        return self::ok(self::claim_view(self::claim_row((int) $claim->id), true), $sent, $warning);
+        $note = mb_substr(sanitize_textarea_field((string) $req->get_param('note')), 0, 1000);
+        return GWARR_Lock::run('claim_' . $id, function () use ($id, $fee, $note) {
+            $claim = GWARR_Claims::find($id);
+            if (!$claim) {
+                return self::error('gwarr_claim_not_found', 'Claim not found.', 404);
+            }
+            if ($claim->status !== 'submitted') {
+                return self::error('gwarr_claim_resolved', 'This claim was already ' . ($claim->status === 'approved' ? 'approved' : 'declined') . '.', 409);
+            }
+            $result = GWARR_Claims::approve($id, $note, $fee);
+            if (is_wp_error($result)) {
+                return self::fail($result, 422);
+            }
+            $warning = '';
+            if ($fee > 0 && empty($result->shipping_order_id)) {
+                $why     = GWARR_Claims::last_order_error();
+                $warning = 'The claim is approved, but the shipping order could not be created' . ($why ? ' (' . $why . ')' : '') . ', so the email has no pay button. Use "Charge shipping" to try again.';
+            }
+            $sent = self::send_claim_email('approved', $id);
+            return self::ok(self::claim_view(self::claim_row($id), true), $sent, $warning);
+        });
     }
 
     public static function decline_claim($req) {
-        $claim = GWARR_Claims::find((int) $req['id']);
-        if (!$claim) {
-            return self::error('gwarr_claim_not_found', 'Claim not found.', 404);
-        }
-        if ($claim->status !== 'submitted') {
-            return self::error('gwarr_claim_resolved', 'This claim was already ' . ($claim->status === 'approved' ? 'approved' : 'declined') . '.', 409);
-        }
+        $id = (int) $req['id'];
         // The customer reads this, in the email and on My Warranties.
-        $reason = sanitize_textarea_field((string) $req->get_param('reason'));
+        $reason = mb_substr(sanitize_textarea_field((string) $req->get_param('reason')), 0, 1000);
         if ($reason === '') {
             return self::error('gwarr_no_reason', 'Write the reason the customer will read.', 400);
         }
-        $result = GWARR_Claims::reject((int) $claim->id, $reason);
-        if (is_wp_error($result)) {
-            return self::error($result->get_error_code(), $result->get_error_message(), 422);
-        }
-        $sent = self::send_claim_email('rejected', (int) $claim->id);
-        return self::ok(self::claim_view(self::claim_row((int) $claim->id), true), $sent);
+        return GWARR_Lock::run('claim_' . $id, function () use ($id, $reason) {
+            $claim = GWARR_Claims::find($id);
+            if (!$claim) {
+                return self::error('gwarr_claim_not_found', 'Claim not found.', 404);
+            }
+            if ($claim->status !== 'submitted') {
+                return self::error('gwarr_claim_resolved', 'This claim was already ' . ($claim->status === 'approved' ? 'approved' : 'declined') . '.', 409);
+            }
+            $result = GWARR_Claims::reject($id, $reason);
+            if (is_wp_error($result)) {
+                return self::fail($result, 422);
+            }
+            $sent = self::send_claim_email('rejected', $id);
+            return self::ok(self::claim_view(self::claim_row($id), true), $sent);
+        });
     }
 
     public static function resend_claim($req) {
@@ -296,23 +317,26 @@ class GWARR_CP_API {
     }
 
     public static function charge_shipping($req) {
-        $claim = GWARR_Claims::find((int) $req['id']);
-        if (!$claim || $claim->status !== 'approved') {
-            return self::error('gwarr_claim_not_approved', 'Shipping can only be charged on an approved claim.', 409);
-        }
-        if (!empty($claim->shipping_order_id)) {
-            return self::error('gwarr_has_order', 'This claim already has shipping order #' . (int) $claim->shipping_order_id . '. Use Resend to send its pay link again.', 409);
-        }
+        $id  = (int) $req['id'];
         $fee = self::fee_param($req->get_param('shipping_fee'), false);
         if (is_wp_error($fee)) {
             return $fee;
         }
-        $result = GWARR_Claims::set_shipping_fee((int) $claim->id, $fee);
-        if (is_wp_error($result)) {
-            return self::error($result->get_error_code(), $result->get_error_message(), 422);
-        }
-        $sent = self::send_claim_email('approved', (int) $claim->id);
-        return self::ok(self::claim_view(self::claim_row((int) $claim->id), true), $sent);
+        return GWARR_Lock::run('claim_' . $id, function () use ($id, $fee) {
+            $claim = GWARR_Claims::find($id);
+            if (!$claim || $claim->status !== 'approved') {
+                return self::error('gwarr_claim_not_approved', 'Shipping can only be charged on an approved claim.', 409);
+            }
+            if (!empty($claim->shipping_order_id)) {
+                return self::error('gwarr_has_order', 'This claim already has shipping order #' . (int) $claim->shipping_order_id . '. Use Resend to send its pay link again.', 409);
+            }
+            $result = GWARR_Claims::set_shipping_fee($id, $fee);
+            if (is_wp_error($result)) {
+                return self::fail($result, 422);
+            }
+            $sent = self::send_claim_email('approved', $id);
+            return self::ok(self::claim_view(self::claim_row($id), true), $sent);
+        });
     }
 
     // ---------------------------------------------------------------- helpers
@@ -447,14 +471,16 @@ class GWARR_CP_API {
         return $raw;
     }
 
+    /** A fee in RM between 0.01 and 500. Optional: blank or exactly zero means no fee; anything else must be a real amount. */
     private static function fee_param($raw, $optional) {
-        if ($optional && ($raw === null || $raw === '' || (float) $raw == 0)) {
+        if ($optional && ($raw === null || $raw === '' || (is_numeric($raw) && (float) $raw == 0))) {
             return 0.0;
         }
-        if (!is_numeric($raw) || (float) $raw <= 0 || (float) $raw > 500) {
+        $fee = is_numeric($raw) ? round((float) $raw, 2) : 0.0;
+        if ($fee < 0.01 || $fee > 500) {
             return self::error('gwarr_bad_fee', 'The shipping fee must be between RM 0.01 and RM 500.', 400);
         }
-        return round((float) $raw, 2);
+        return $fee;
     }
 
     private static function actor($req) {
@@ -465,7 +491,16 @@ class GWARR_CP_API {
         $body = ['ok' => true, 'data' => $data];
         if ($email_sent !== null) $body['emailSent'] = (bool) $email_sent;
         if ($warning !== '') $body['warning'] = $warning;
-        return new WP_REST_Response($body, 200);
+        $response = new WP_REST_Response($body, 200);
+        // Customer names, emails and addresses: never kept by a cache on the way.
+        $response->header('Cache-Control', 'no-store, private');
+        return $response;
+    }
+
+    /** A WP_Error from the plugin, keeping its own HTTP status when it has one. */
+    private static function fail($e, $status) {
+        $data = $e->get_error_data();
+        return self::error($e->get_error_code(), $e->get_error_message(), is_array($data) && isset($data['status']) ? (int) $data['status'] : $status);
     }
 
     private static function error($code, $message, $status) {

@@ -452,6 +452,7 @@ add_action('plugins_loaded', function () {
         require_once GWARR_PATH . 'includes/class-warranty-email.php';
         require_once GWARR_PATH . 'includes/class-warranty-klaviyo.php';
         require_once GWARR_PATH . 'includes/class-warranty-gsend.php';
+        require_once GWARR_PATH . 'includes/class-warranty-lock.php';
         require_once GWARR_PATH . 'includes/class-warranty-approval.php';
         require_once GWARR_PATH . 'includes/class-warranty-sheet-api.php';
         require_once GWARR_PATH . 'includes/class-warranty-sheet-sync.php';
