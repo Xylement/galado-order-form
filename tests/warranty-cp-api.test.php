@@ -143,7 +143,6 @@ class GWARR_Email {
     public static function send_claim_approved($c) { $GLOBALS['calls'][] = ['mail_approved', $c->id]; return true; }
     public static function send_claim_rejected($c) { $GLOBALS['calls'][] = ['mail_rejected', $c->id]; return true; }
 }
-class GWARR_Marketplaces { public static function label($s) { return ucfirst($s); } }
 class GWARR_Auto_Approve { public static function lookup_cache($m, $o) { return null; } }
 $GLOBALS['lock_answer'] = '1';
 $GLOBALS['locks'] = [];
@@ -165,6 +164,7 @@ class WPDB_Stub {
 }
 $GLOBALS['wpdb'] = new WPDB_Stub();
 
+require __DIR__ . '/../galado-warranty/includes/class-warranty-marketplaces.php';
 require __DIR__ . '/../galado-warranty/includes/class-warranty-lock.php';
 require __DIR__ . '/../galado-warranty/includes/class-warranty-cp-api.php';
 
@@ -224,8 +224,20 @@ check('rejecting it again is refused (409)', status_of(GWARR_CP_API::run_reject_
 reset_state(); reg(8, 'pending', ['coupon_code' => 'W-OLD']);
 check('a pending one that already has a coupon is not rejected here either (409)', status_of(GWARR_CP_API::run_reject_registration(req(['id' => 8, 'reason' => 'x']))) === 409 && !last_call('reject'));
 reset_state(); reg(5, 'approved');
-GWARR_CP_API::run_edit_registration(req(['id' => 5, 'order_number' => ' B2 ', 'notes' => 'fixed']));
-check('edit passes only the fields given', last_call('update')[2] === ['order_number' => 'B2', 'notes' => 'fixed']);
+GWARR_CP_API::run_edit_registration(req(['id' => 5, 'order_number' => ' 2610 0952 kdu4js ', 'notes' => 'fixed']));
+check('edit passes only the fields given, a Shopee number normalised', last_call('update')[2] === ['order_number' => '26100952KDU4JS', 'notes' => 'fixed']);
+reset_state(); reg(5, 'pending');
+$r = GWARR_CP_API::run_edit_registration(req(['id' => 5, 'order_number' => 'SPXMY0412345678']));
+check('edit refuses an SPX tracking number on Shopee (400) with the form\'s message', status_of($r) === 400 && strpos($r->message, 'SPX tracking number') !== false && !last_call('update'));
+check('edit refuses a number that is not a Shopee Order ID (400)', status_of(GWARR_CP_API::run_edit_registration(req(['id' => 5, 'order_number' => '261399KXBRPS2K']))) === 400);
+reset_state(); reg(6, 'rejected', ['order_number' => 'SPXMY0412345678']);
+GWARR_CP_API::run_edit_registration(req(['id' => 6, 'order_number' => 'SPXMY0412345678', 'notes' => 'called the customer']));
+check('a row saved before the rule keeps its number and other fields still edit', last_call('update')[2] === ['order_number' => 'SPXMY0412345678', 'notes' => 'called the customer']);
+reset_state(); reg(7, 'pending', ['marketplace' => 'lazada', 'order_number' => '504161478968273']);
+check('moving a Lazada number to Shopee is refused (400)', status_of(GWARR_CP_API::run_edit_registration(req(['id' => 7, 'marketplace' => 'shopee']))) === 400 && !last_call('update'));
+GWARR_CP_API::run_edit_registration(req(['id' => 7, 'order_number' => 'SPX123']));
+check('Lazada numbers are not checked', last_call('update')[2] === ['order_number' => 'SPX123']);
+reset_state(); reg(5, 'approved');
 check('edit refuses a bad date (400)', status_of(GWARR_CP_API::run_edit_registration(req(['id' => 5, 'purchase_date' => 'soon']))) === 400);
 GWARR_CP_API::run_registrations(req(['status' => 'pending']));
 check('the pending queue lists oldest first', last_call('list')[1]['order'] === 'ASC');
