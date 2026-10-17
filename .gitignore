@@ -1,0 +1,3 @@
+# Graphify generated code graph — derived from source, regenerate locally with:
+#   graphify . --code-only && graphify export obsidian
+graphify-out/
