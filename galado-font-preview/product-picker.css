@@ -41,3 +41,8 @@
 .gfpp legend.gfpp-label{text-transform:none !important;letter-spacing:normal !important;border:0 !important;width:auto !important;font-size:13px !important;
   margin:0 0 6px !important;padding:0 !important;font-weight:600 !important;color:#4A4A4A !important;}
 .gfpp .gfpp-grid{width:100%;}
+/* Script fonts (Rustling Sound, Shorelines Script, Angelic Bonques) loop far above and below the line on J, g, y;
+   give the sample room and never clip it vertically. Width stays in check through the JS fit. */
+.gfpp .gfpp-sample{overflow:visible !important;line-height:1.8 !important;padding:.1em 0 !important;min-height:0 !important;}
+.gfpp .gfpp-card{overflow:visible !important;padding-top:8px !important;}
+.gfpp .gfpp-card{gap:6px !important;}
