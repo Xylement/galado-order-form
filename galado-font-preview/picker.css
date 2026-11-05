@@ -292,3 +292,7 @@
   .gfp-page *, .gfp-page *::before, .gfp-page *::after { transition-duration: .01ms !important; }
   .gfp-page .gfp-card:hover { transform: none; }
 }
+
+/* No site footer on this page: customers come from chat to do one thing.
+   This stylesheet loads only on the font page, so every other page keeps it. */
+#footer.footer-wrapper { display: none; }
