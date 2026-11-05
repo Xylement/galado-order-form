@@ -1,0 +1,294 @@
+/* "Find your font" page (GALADO Brand Guidelines v1.0). Everything is scoped
+   under .gfp-page and resets what the theme styles on inputs, labels, legends
+   and buttons, so the page looks the same whatever the theme does. */
+
+.gfp-page {
+  --gfp-ink: #111111;
+  --gfp-paper: #FFFFFF;
+  --gfp-surface: #F5F5F3;
+  --gfp-text-2: #4A4A4A;
+  --gfp-text-3: #8C8C8C;
+  --gfp-border: #D9D9D9;
+  --gfp-fill: #F2F2F2;
+  --gfp-red: #E4002B;
+  --gfp-ease: cubic-bezier(.16, 1, .3, 1);
+  --gfp-display: 'Archivo', 'Arial Black', Arial, sans-serif;
+  --gfp-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --gfp-top: var(--wp-admin--admin-bar--height, 0px);
+
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 20px;
+  color: var(--gfp-ink);
+  font-family: var(--gfp-body);
+  font-size: 15px;
+  line-height: 1.5;
+  text-align: left;
+  -webkit-font-smoothing: antialiased;
+}
+.gfp-page *, .gfp-page *::before, .gfp-page *::after { box-sizing: border-box; }
+.gfp-page p { margin: 0; }
+.gfp-page fieldset { border: 0; margin: 0; padding: 0; min-width: 0; background: none; }
+.gfp-page legend {
+  float: none;
+  width: auto;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  line-height: 1.5;
+  text-transform: none;
+  overflow: visible;
+}
+
+.gfp-page .gfp-intro { padding: 32px 0 8px; }
+.gfp-page .gfp-eyebrow {
+  margin: 0 0 12px;
+  color: var(--gfp-red);
+  font-family: var(--gfp-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+.gfp-page .gfp-title {
+  margin: 0 0 14px;
+  padding: 0;
+  color: var(--gfp-ink);
+  font-family: var(--gfp-display);
+  font-weight: 800;
+  font-size: clamp(30px, 7.5vw, 44px);
+  line-height: 1.05;
+  letter-spacing: -.02em;
+  text-transform: none;
+}
+.gfp-page .gfp-lede { color: var(--gfp-text-2); font-size: 16px; max-width: 34em; }
+
+/* ── Name and colour, pinned while scrolling through the styles ── */
+.gfp-page .gfp-controls {
+  position: sticky;
+  top: var(--gfp-top);
+  z-index: 5;
+  margin: 24px -20px 0;
+  padding: 14px 20px 16px;
+  background: rgba(255, 255, 255, .94);
+  -webkit-backdrop-filter: saturate(1.4) blur(10px);
+  backdrop-filter: saturate(1.4) blur(10px);
+}
+.gfp-page .gfp-label {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--gfp-ink);
+  font-family: var(--gfp-body);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.gfp-page .gfp-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.gfp-page .gfp-name-field { flex: 1 1 120px; min-width: 0; }
+.gfp-page .gfp-input {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 52px;
+  margin: 0;
+  padding: 0 16px;
+  border: 1.5px solid var(--gfp-border);
+  border-radius: 12px;
+  background: var(--gfp-paper);
+  box-shadow: none;
+  color: var(--gfp-ink);
+  font: 500 18px/1 var(--gfp-body);
+  transition: border-color .15s var(--gfp-ease), box-shadow .15s var(--gfp-ease);
+}
+.gfp-page .gfp-input::placeholder { color: var(--gfp-text-3); font-weight: 400; }
+.gfp-page .gfp-input:focus { outline: none; border-color: var(--gfp-ink); box-shadow: 0 0 0 3px rgba(17, 17, 17, .08); }
+
+.gfp-page .gfp-colour { flex: 0 0 auto; }
+.gfp-page .gfp-seg { display: inline-flex; padding: 4px; border-radius: 999px; background: var(--gfp-fill); }
+.gfp-page .gfp-seg-option {
+  position: relative;
+  display: block;
+  margin: 0;
+  cursor: pointer;
+  font-size: inherit;
+  font-weight: inherit;
+}
+.gfp-page .gfp-seg-option input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.gfp-page .gfp-seg-option span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--gfp-text-2);
+  font: 600 14px/1 var(--gfp-body);
+  transition: background-color .15s var(--gfp-ease), color .15s var(--gfp-ease), box-shadow .15s var(--gfp-ease);
+}
+.gfp-page .gfp-seg-option span::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--gfp-swatch);
+  box-shadow: inset 0 0 0 1px rgba(17, 17, 17, .25);
+}
+.gfp-page .gfp-seg-option input:checked + span { background: var(--gfp-paper); color: var(--gfp-ink); box-shadow: 0 1px 4px rgba(17, 17, 17, .12); }
+.gfp-page .gfp-seg-option input:focus-visible + span { outline: 2px solid var(--gfp-ink); outline-offset: 2px; }
+
+/* ── The styles ── */
+.gfp-page .gfp-styles { margin-top: 20px; }
+.gfp-page .gfp-hint { margin: -4px 0 14px; color: var(--gfp-text-3); font-size: 14px; }
+/* minmax(0, 1fr): a long name must never widen the column. */
+.gfp-page .gfp-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 600px) { .gfp-page .gfp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.gfp-page .gfp-card {
+  --gfp-bg: var(--gfp-surface);
+  --gfp-fg: var(--gfp-ink);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+  min-height: 132px;
+  margin: 0;
+  padding: 18px 18px 14px;
+  border-radius: 20px;
+  background: var(--gfp-bg);
+  color: var(--gfp-fg);
+  cursor: pointer;
+  font-size: inherit;
+  font-weight: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .2s var(--gfp-ease), box-shadow .2s var(--gfp-ease), background-color .25s var(--gfp-ease);
+}
+.gfp-page .gfp-grid.is-white .gfp-card { --gfp-bg: var(--gfp-ink); --gfp-fg: #FFFFFF; }
+.gfp-page .gfp-card input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.gfp-page .gfp-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(17, 17, 17, .06); }
+.gfp-page .gfp-card:active { transform: scale(.985); }
+.gfp-page .gfp-card.is-focus { outline: 2px solid var(--gfp-ink); outline-offset: 3px; }
+.gfp-page .gfp-card.is-picked { box-shadow: 0 0 0 2px var(--gfp-paper), 0 0 0 4px var(--gfp-ink); transform: none; }
+
+.gfp-page .gfp-sample {
+  display: block;
+  padding: 6px 0 10px;
+  color: var(--gfp-fg);
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+  overflow-wrap: anywhere;
+  transition: opacity .25s var(--gfp-ease);
+}
+.gfp-page .gfp-card.is-loading .gfp-sample { opacity: 0; }
+.gfp-page .gfp-card.is-empty .gfp-sample { opacity: .4; }
+.gfp-page .gfp-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gfp-page .gfp-font-name { color: var(--gfp-fg); font: 500 13px/1.3 var(--gfp-body); opacity: .62; }
+.gfp-page .gfp-tick {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  opacity: .35;
+  transition: opacity .15s var(--gfp-ease), background-color .15s var(--gfp-ease);
+}
+.gfp-page .gfp-card.is-picked .gfp-tick { opacity: 1; background: var(--gfp-fg); }
+.gfp-page .gfp-card.is-picked .gfp-tick::after {
+  content: '';
+  width: 6px;
+  height: 11px;
+  margin-top: -2px;
+  border: solid var(--gfp-bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.gfp-page .gfp-card.is-picked .gfp-font-name { opacity: 1; font-weight: 600; }
+
+.gfp-page .gfp-foot { margin: 36px 0 24px; color: var(--gfp-text-3); font-size: 13px; }
+
+/* ── Your pick: sticks to the bottom while the picker is on screen, so one
+   screenshot holds everything, and never covers the site footer ── */
+.gfp-page .gfp-pick {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  margin: 0 -20px;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: var(--gfp-paper);
+  box-shadow: 0 -4px 16px rgba(17, 17, 17, .08);
+}
+.gfp-page .gfp-pick-inner { display: flex; align-items: center; gap: 14px; }
+.gfp-page .gfp-pick-preview {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 64px;
+  padding: 0 8px;
+  border-radius: 14px;
+  background: var(--gfp-surface);
+  color: var(--gfp-ink);
+  font-size: 24px;
+  line-height: 1.05;
+  overflow: hidden;
+  text-align: center;
+}
+.gfp-page .gfp-pick.is-white .gfp-pick-preview { background: var(--gfp-ink); color: #FFFFFF; }
+.gfp-page .gfp-pick-preview:empty { display: none; }
+.gfp-page .gfp-pick-text { flex: 1 1 auto; min-width: 0; }
+.gfp-page .gfp-pick-label { margin: 0 0 2px; color: var(--gfp-text-3); font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+.gfp-page .gfp-pick-line {
+  color: var(--gfp-ink);
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  -webkit-user-select: all;
+  user-select: all;
+}
+.gfp-page .gfp-pick-line .gfp-keep { white-space: nowrap; }
+.gfp-page .gfp-pick-line.is-waiting { color: var(--gfp-text-3); font-weight: 500; -webkit-user-select: none; user-select: none; }
+.gfp-page .gfp-btn {
+  flex: 0 0 auto;
+  display: inline-block;
+  height: 48px;
+  min-height: 0;
+  min-width: 92px;
+  margin: 0;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--gfp-ink);
+  box-shadow: none;
+  color: var(--gfp-paper);
+  font: 700 15px/48px var(--gfp-display);
+  letter-spacing: .01em;
+  text-transform: none;
+  cursor: pointer;
+  transition: transform .15s var(--gfp-ease), background-color .15s var(--gfp-ease), color .15s var(--gfp-ease);
+}
+.gfp-page .gfp-btn:hover { background: #2A2A2A; color: var(--gfp-paper); }
+.gfp-page .gfp-btn:active { transform: scale(.96); }
+.gfp-page .gfp-btn:focus-visible { outline: 2px solid var(--gfp-ink); outline-offset: 3px; }
+.gfp-page .gfp-btn:disabled { background: var(--gfp-fill); color: var(--gfp-text-3); cursor: default; transform: none; opacity: 1; }
+.gfp-page .gfp-status { margin: 6px 0 0; color: var(--gfp-text-2); font-size: 13px; }
+.gfp-page .gfp-status:empty { display: none; }
+
+@media (max-width: 420px) {
+  .gfp-page .gfp-pick-inner { gap: 12px; }
+  .gfp-page .gfp-pick-preview { width: 76px; height: 56px; }
+  .gfp-page .gfp-pick-line { font-size: 14px; }
+  .gfp-page .gfp-btn { min-width: 84px; padding: 0 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gfp-page *, .gfp-page *::before, .gfp-page *::after { transition-duration: .01ms !important; }
+  .gfp-page .gfp-card:hover { transform: none; }
+}
