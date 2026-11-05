@@ -1,5 +1,6 @@
 /**
  * "Find your font" on a product page: the customer's text in every lettering font, black or white, one tap to pick.
+ * Customers never see a font name: cards and the pick carry opaque ids only and show the drawn text.
  * Hides the Make It Mine (WCPA) text fields it replaces, matching their labels the same way the app does.
  * The text is only ever set as textContent, never as HTML.
  */
@@ -62,10 +63,23 @@
     update();
   }
 
+  // The pick is shown as a picture of the customer's text in the chosen lettering: never a font name.
   function update() {
     var t = clean();
     pick.classList.remove('gfpp-err');
-    pick.textContent = chosen && t ? 'Font Style: ' + chosen + ' - ' + t + ' - ' + colour() : (t ? 'Tap a style to pick it.' : '');
+    pick.textContent = '';
+    pick.style.fontFamily = '';
+    if (!t) return;
+    if (!chosen) { pick.textContent = 'Tap a style to pick it.'; return; }
+    var label = document.createElement('span');
+    label.className = 'gfpp-pick-label';
+    label.textContent = 'Your pick';
+    var art = document.createElement('span');
+    art.className = 'gfpp-pick-art' + (colour() === 'White' ? ' gfpp-pick-white' : '');
+    art.style.fontFamily = "'gfpp-" + chosen + "', cursive";
+    art.textContent = t;
+    pick.appendChild(label);
+    pick.appendChild(art);
   }
 
   fonts.forEach(function (f) {
@@ -76,12 +90,9 @@
     b.setAttribute('aria-checked', 'false');
     var s = document.createElement('span');
     s.className = 'gfpp-sample';
-    s.style.fontFamily = "'GFP " + f + "', cursive";
-    var n = document.createElement('span');
-    n.className = 'gfpp-name';
-    n.textContent = f;
+    s.style.fontFamily = "'gfpp-" + f + "', cursive";
+    b.setAttribute('aria-label', 'Lettering style ' + (fonts.indexOf(f) + 1));
     b.appendChild(s);
-    b.appendChild(n);
     b.addEventListener('click', function () {
       chosen = f;
       hidden.value = f;
@@ -106,7 +117,7 @@
   // Catch a half-filled picker before the page reloads; the server checks the same rules again.
   if (form) form.addEventListener('submit', function (e) {
     if (!on.checked) return;
-    var msg = !clean() ? 'Please type the text for your case.' : (!chosen ? 'Please pick a font style.' : '');
+    var msg = !clean() ? 'Please type the text for your case.' : (!chosen ? 'Please pick a lettering style.' : '');
     if (msg) { e.preventDefault(); pick.textContent = msg; pick.classList.add('gfpp-err'); body.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
   });
 })();
