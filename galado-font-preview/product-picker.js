@@ -26,14 +26,21 @@
       var label = item.querySelector('label, .wcpa_label, .wcpa-label');
       var t = ((label && label.textContent) || '').toLowerCase();
       if (!want.some(function (w) { return t.indexOf(w) !== -1; })) return;
-      item.style.display = 'none';
+      // !important: the product page styles force some WCPA rows (e.g. the tick-box row) to show.
+      item.style.setProperty('display', 'none', 'important');
       item.querySelectorAll('input[type="checkbox"]').forEach(function (c) {
         if (c.checked) { c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); }
       });
     });
   }
   hideWcpa();
-  setTimeout(hideWcpa, 600); // WCPA can render after this script
+  // WCPA draws its form after load and redraws it when the model changes, so re-hide whenever it does.
+  var queued = false;
+  new MutationObserver(function () {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () { queued = false; hideWcpa(); });
+  }).observe(form || document.body, { childList: true, subtree: true });
 
   function colour() {
     var c = root.querySelector('input[name="gfpp_colour"]:checked');
@@ -90,7 +97,11 @@
   });
   text.addEventListener('input', draw);
   root.querySelectorAll('input[name="gfpp_colour"]').forEach(function (r) { r.addEventListener('change', draw); });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  // Each lettering font arrives on its own; re-fit the samples as each one lands so none stays cut off.
+  if (document.fonts) {
+    if (document.fonts.ready) document.fonts.ready.then(draw);
+    if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', draw);
+  }
 
   // Catch a half-filled picker before the page reloads; the server checks the same rules again.
   if (form) form.addEventListener('submit', function (e) {

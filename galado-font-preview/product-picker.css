@@ -30,3 +30,14 @@
 .gfpp-pick.gfpp-err{color:#B80023;}
 @media (min-width:560px){.gfpp-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
 @media (prefers-reduced-motion:reduce){.gfpp-card{transition:none;}}
+/* The theme styles every button and legend (uppercase, letter-spacing, fixed heights, rules); undo that inside the
+   picker so the preview shows the customer's text exactly as typed. */
+.gfpp .gfpp-card{text-transform:none !important;letter-spacing:normal !important;margin:0 !important;width:100% !important;max-width:none !important;
+  height:auto !important;min-height:0 !important;line-height:1.2 !important;font-weight:400 !important;box-shadow:none;}
+.gfpp .gfpp-card[aria-checked="true"]{box-shadow:0 0 0 1px #111 !important;}
+.gfpp .gfpp-white .gfpp-card[aria-checked="true"]{box-shadow:0 0 0 2px #fff,0 0 0 4px #111 !important;}
+.gfpp .gfpp-sample,.gfpp .gfpp-name{text-transform:none !important;letter-spacing:normal !important;}
+.gfpp .gfpp-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.gfpp legend.gfpp-label{text-transform:none !important;letter-spacing:normal !important;border:0 !important;width:auto !important;font-size:13px !important;
+  margin:0 0 6px !important;padding:0 !important;font-weight:600 !important;color:#4A4A4A !important;}
+.gfpp .gfpp-grid{width:100%;}
