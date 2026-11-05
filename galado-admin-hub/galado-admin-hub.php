@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Admin Hub
  * Plugin URI: https://galado.com.my
  * Description: Unified admin sidebar for all GALADO plugins. Groups FAQ Schema, AI Crawler Manager, Smart Cross-Sells, Font Preview, and Git Sync under one menu.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -87,16 +87,6 @@ class Galado_Admin_Hub {
                 }
             }
         }
-
-        // External links
-        add_submenu_page(
-            'galado-hub',
-            'Order Form',
-            '↗ Order Form',
-            'manage_options',
-            'galado-order-form-link',
-            [$this, 'redirect_order_form']
-        );
     }
 
     /**
@@ -339,7 +329,6 @@ class Galado_Admin_Hub {
             <?php
             // Quick links - configurable via Settings
             $quick_links = get_option('galado_hub_quick_links', [
-                ['icon' => '📝', 'label' => 'Walk-In Order Form', 'url' => 'https://xylement.github.io/galado-order-form/'],
                 ['icon' => '📦', 'label' => 'GitHub Repository', 'url' => 'https://github.com/Xylement/galado-order-form'],
                 ['icon' => '📊', 'label' => 'Order Submissions (Google Sheets)', 'url' => ''],
             ]);
@@ -428,14 +417,6 @@ class Galado_Admin_Hub {
             </script>
         </div>
         <?php
-    }
-
-    /**
-     * Redirect to order form
-     */
-    public function redirect_order_form() {
-        wp_redirect('https://xylement.github.io/galado-order-form/');
-        exit;
     }
 
     /**
