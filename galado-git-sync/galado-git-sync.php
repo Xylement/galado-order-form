@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: GALADO Git Sync
- * Description: Auto-sync WordPress plugins from public GitHub repos. Push to GitHub → your site updates automatically via webhook.
- * Version: 1.0.1
+ * Description: Auto-sync WordPress plugins from GitHub repos (public, or private with a read-only token). Push to GitHub → your site updates automatically via webhook.
+ * Version: 1.1.0
  * Author: GALADO
  * Text Domain: galado-git-sync
  */
@@ -13,6 +13,8 @@ class Galado_Git_Sync {
 
     private $option_key = 'galado_git_sync_repos';
     private $webhook_slug = 'galado-git-sync-webhook';
+    // GitHub token for private repos. Never shown back in full (last 4 characters only).
+    private $token_key = 'galado_git_sync_token';
 
     public function __construct() {
         // Admin page
@@ -78,6 +80,10 @@ class Galado_Git_Sync {
             .ggs-badge-ok { background: #e6f4ea; color: #137333; }
             .ggs-badge-miss { background: #fef7e0; color: #b45309; }
             .ggs-empty { text-align: center; padding: 40px; color: #999; }
+            .ggs-token-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+            .ggs-token-form input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; flex: 1 1 280px; }
+            .ggs-token-form button { padding: 8px 20px; background: #1a1a1a; color: #fff; border: 1px solid #1a1a1a; border-radius: 6px; font-size: 14px; cursor: pointer; height: 38px; white-space: nowrap; }
+            .ggs-token-form .ggs-remove { background: #fff; color: #d63638; border-color: #d63638; }
             @media (max-width: 782px) { .ggs-add-form { grid-template-columns: 1fr; } }
         ' );
     }
@@ -96,7 +102,7 @@ class Galado_Git_Sync {
         ?>
         <div class="wrap ggs-wrap">
             <h1 style="margin-bottom:4px;">GALADO Git Sync</h1>
-            <p style="color:#666;margin-bottom:20px;">Sync WordPress plugins from public GitHub repos. Push to GitHub and your site updates automatically.</p>
+            <p style="color:#666;margin-bottom:20px;">Sync WordPress plugins from GitHub repos. Push to GitHub and your site updates automatically.</p>
 
             <!-- Add New Repo -->
             <div class="ggs-card">
@@ -124,6 +130,28 @@ class Galado_Git_Sync {
                 <p style="margin-top:8px;font-size:12px;color:#888;">
                     Secret: <code><?php echo esc_html( $secret ); ?></code> (optional — add as webhook secret for security)
                 </p>
+            </div>
+
+            <!-- GitHub Access (private repos) -->
+            <?php $token = $this->get_token(); ?>
+            <div class="ggs-card">
+                <h3>GitHub Access (Private Repos)</h3>
+                <?php if ( '' !== $token ) : ?>
+                    <p>A GitHub token is saved (ending in <code><?php echo esc_html( substr( $token, -4 ) ); ?></code>). Syncs download through the GitHub API with it, so private repositories work.</p>
+                <?php else : ?>
+                    <p>No token saved, so syncing works only while the repositories are public. For a private repository, paste a fine-grained GitHub token with read-only access to its Contents. It is tested with GitHub before it is saved.</p>
+                <?php endif; ?>
+                <form method="post" class="ggs-token-form">
+                    <?php wp_nonce_field( 'ggs_save_token' ); ?>
+                    <input type="password" name="github_token" placeholder="<?php echo esc_attr( '' !== $token ? 'Paste a new token to replace it' : 'github_pat_...' ); ?>" autocomplete="off" spellcheck="false" required>
+                    <button type="submit" name="ggs_action" value="save_token">Test and save</button>
+                </form>
+                <?php if ( '' !== $token ) : ?>
+                    <form method="post" class="ggs-token-form" style="margin-top:10px;" onsubmit="return confirm('Remove the GitHub token? Private repositories will stop syncing.');">
+                        <?php wp_nonce_field( 'ggs_remove_token' ); ?>
+                        <button type="submit" name="ggs_action" value="remove_token" class="ggs-remove">Remove token</button>
+                    </form>
+                <?php endif; ?>
             </div>
 
             <!-- Repos List -->
@@ -235,6 +263,118 @@ class Galado_Git_Sync {
             $this->save_repos( array_values( $repos ) );
             $this->set_notice( 'Repository removed.', 'success' );
         }
+
+        if ( $action === 'save_token' ) {
+            check_admin_nonce( 'ggs_save_token' );
+            $token = isset( $_POST['github_token'] ) ? trim( wp_unslash( $_POST['github_token'] ) ) : '';
+            // GitHub tokens (github_pat_..., ghp_...) are letters, digits and underscores.
+            if ( ! preg_match( '/^[A-Za-z0-9_]{20,255}$/', $token ) ) {
+                $this->set_notice( 'That does not look like a GitHub token. Paste the whole token, starting with github_pat_ or ghp_.', 'error' );
+                return;
+            }
+            // Test before saving, so syncing never runs with a token GitHub refuses.
+            $check = $this->check_token( $token );
+            if ( ! $check['ok'] ) {
+                $this->set_notice( 'Token not saved. ' . $check['message'], 'error' );
+                return;
+            }
+            update_option( $this->token_key, $token, false );
+            $this->set_notice( 'Token saved. ' . $check['message'], 'success' );
+        }
+
+        if ( $action === 'remove_token' ) {
+            check_admin_nonce( 'ggs_remove_token' );
+            delete_option( $this->token_key );
+            $this->set_notice( 'Token removed. Syncing now works only while the repositories are public.', 'success' );
+        }
+    }
+
+    /**
+     * ── GitHub token ──
+     */
+    private function get_token() {
+        return trim( (string) get_option( $this->token_key, '' ) );
+    }
+
+    private function github_headers( $token ) {
+        return array(
+            'Authorization'        => 'Bearer ' . $token,
+            'Accept'               => 'application/vnd.github+json',
+            'X-GitHub-Api-Version' => '2022-11-28',
+            'User-Agent'           => 'galado-git-sync',
+        );
+    }
+
+    private function github_error( $code ) {
+        if ( 401 === $code ) return 'GitHub rejected the token (wrong or expired).';
+        if ( 403 === $code ) return 'GitHub refused access (the token cannot read this repository, or the rate limit was hit).';
+        if ( 404 === $code ) return 'GitHub could not find it with this token (check the token includes this repository and the branch exists).';
+        return "GitHub answered HTTP {$code}.";
+    }
+
+    /**
+     * Ask GitHub whether $token can read every tracked repository.
+     * Returns array( 'ok' => bool, 'message' => string ).
+     */
+    private function check_token( $token ) {
+        $results = array();
+        foreach ( $this->get_repos() as $repo ) {
+            $full = $repo['owner'] . '/' . $repo['repo'];
+            if ( isset( $results[ strtolower( $full ) ] ) ) continue;
+            $response = wp_remote_get( 'https://api.github.com/repos/' . $full, array(
+                'timeout' => 20,
+                'headers' => $this->github_headers( $token ),
+            ) );
+            if ( is_wp_error( $response ) ) {
+                $results[ strtolower( $full ) ] = array( false, "{$full}: could not reach GitHub (" . $response->get_error_message() . ').' );
+                continue;
+            }
+            $code = (int) wp_remote_retrieve_response_code( $response );
+            if ( 200 === $code ) {
+                $data = json_decode( wp_remote_retrieve_body( $response ), true );
+                $kind = ! empty( $data['private'] ) ? 'private' : 'public';
+                $results[ strtolower( $full ) ] = array( true, "It can read {$full} ({$kind})." );
+            } else {
+                $results[ strtolower( $full ) ] = array( false, "{$full}: " . $this->github_error( $code ) );
+            }
+        }
+        if ( empty( $results ) ) {
+            return array( 'ok' => false, 'message' => 'Add a repository first, so the token can be tested against it.' );
+        }
+        $ok = ! in_array( false, array_column( $results, 0 ), true );
+        return array( 'ok' => $ok, 'message' => implode( ' ', array_column( $results, 1 ) ) );
+    }
+
+    /**
+     * Download the branch as a zip. Returns the temp file path or a WP_Error.
+     */
+    private function download_zip( $owner, $name, $branch ) {
+        if ( ! function_exists( 'download_url' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+        }
+        $token = $this->get_token();
+        if ( '' === $token ) {
+            // Public repositories: the plain archive download, as before.
+            return download_url( "https://github.com/{$owner}/{$name}/archive/refs/heads/{$branch}.zip", 60 );
+        }
+        // With a token: the API zipball, which also works for private repositories.
+        $tmp_file = wp_tempnam( $name . '.zip' );
+        $response = wp_remote_get( "https://api.github.com/repos/{$owner}/{$name}/zipball/{$branch}", array(
+            'timeout'  => 60,
+            'stream'   => true,
+            'filename' => $tmp_file,
+            'headers'  => $this->github_headers( $token ),
+        ) );
+        if ( is_wp_error( $response ) ) {
+            @unlink( $tmp_file );
+            return $response;
+        }
+        $code = (int) wp_remote_retrieve_response_code( $response );
+        if ( 200 !== $code ) {
+            @unlink( $tmp_file );
+            return new WP_Error( 'github_http_' . $code, $this->github_error( $code ) );
+        }
+        return $tmp_file;
     }
 
     /**
@@ -270,9 +410,8 @@ class Galado_Git_Sync {
         $folder = $repo['folder'];
         $subfolder = ! empty( $repo['subfolder'] ) ? $repo['subfolder'] : '';
 
-        // Download zip from GitHub
-        $zip_url = "https://github.com/{$owner}/{$name}/archive/refs/heads/{$branch}.zip";
-        $tmp_file = download_url( $zip_url, 60 );
+        // Download zip from GitHub (with the token when one is saved)
+        $tmp_file = $this->download_zip( $owner, $name, $branch );
 
         if ( is_wp_error( $tmp_file ) ) {
             return new WP_Error( 'download_failed', 'Could not download from GitHub: ' . $tmp_file->get_error_message() );
