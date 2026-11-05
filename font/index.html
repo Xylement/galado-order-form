@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Find your font | GALADO</title>
+  <meta name="description" content="Type your name and see it in all ten GALADO lettering styles. Pick black or white, then copy your choice and send it to us.">
+  <meta property="og:title" content="Find your font | GALADO">
+  <meta property="og:description" content="See your name in all ten GALADO lettering styles, then copy your pick and send it to us.">
+  <meta name="theme-color" content="#FFFFFF">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* The ten lettering styles, the same files and names as the GT2 form and the
+       shop's name cases, so what a customer copies matches what staff pick. */
+    @font-face { font-family: 'G Rustling Sound'; src: url('../fonts/Rustling%20Sound.ttf') format('truetype'); font-display: block; }
+    @font-face { font-family: 'G Ayla Handwritten'; src: url('../fonts/AylaHandwritten-Regular.ttf') format('truetype'); font-display: block; }
+    @font-face { font-family: 'G Right Strongline'; src: url('../fonts/Right%20Strongline.ttf') format('truetype'); font-display: block; }
+    @font-face { font-family: 'G Angelic Bonques'; src: url('../fonts/Angelic_Bonques_Script.ttf') format('truetype'); font-display: block; }
+    @font-face { font-family: 'G Bebas'; src: url('../fonts/Bebas-Regular.otf') format('opentype'); font-display: block; }
+    @font-face { font-family: 'G Orange Gummy'; src: url('../fonts/Orange%20Gummy.otf') format('opentype'); font-display: block; }
+    @font-face { font-family: 'G LadylikeBB'; src: url('../fonts/LadylikeBB.otf') format('opentype'); font-display: block; }
+    @font-face { font-family: 'G Kiss Me or Not'; src: url('../fonts/Kiss%20Me%20or%20Not%20-%20OTF.otf') format('opentype'); font-display: block; }
+    @font-face { font-family: 'G Shorelines Script'; src: url('../fonts/Shorelines%20Script%20Bold.otf') format('opentype'); font-display: block; }
+    @font-face { font-family: 'G Gotcha'; src: url('../fonts/gotcha-regular.ttf') format('truetype'); font-display: block; }
+
+    /* GALADO Brand Guidelines v1.0 */
+    :root {
+      --ink: #111111;
+      --paper: #FFFFFF;
+      --surface: #F5F5F3;
+      --text-2: #4A4A4A;
+      --text-3: #8C8C8C;
+      --border: #D9D9D9;
+      --fill: #F2F2F2;
+      --red: #E4002B;
+      --radius-pill: 999px;
+      --radius-card: 20px;
+      --radius-field: 12px;
+      --shadow: 0 4px 16px rgba(17, 17, 17, .06);
+      --ease: cubic-bezier(.16, 1, .3, 1);
+      --font-display: 'Archivo', 'Arial Black', Arial, sans-serif;
+      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --bar-space: 156px;
+    }
+
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+    img { max-width: 100%; display: block; }
+
+    .wrap {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 0 20px calc(var(--bar-space) + env(safe-area-inset-bottom, 0px));
+    }
+
+    .top { padding: 28px 0 8px; }
+    .top img { height: 30px; width: auto; }
+
+    .intro { padding: 28px 0 8px; }
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--red);
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0 0 14px;
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(30px, 7.5vw, 44px);
+      line-height: 1.05;
+      letter-spacing: -.02em;
+    }
+    .lede { margin: 0; color: var(--text-2); font-size: 16px; max-width: 34em; }
+
+    /* ── Name and colour ── */
+    .controls {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      margin: 24px -20px 0;
+      padding: 14px 20px 16px;
+      background: rgba(255, 255, 255, .94);
+      -webkit-backdrop-filter: saturate(1.4) blur(10px);
+      backdrop-filter: saturate(1.4) blur(10px);
+      border-bottom: 1px solid transparent;
+      transition: border-color .2s var(--ease);
+    }
+    .controls.is-stuck { border-bottom-color: var(--border); }
+    .label {
+      display: block;
+      margin: 0 0 8px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .name-field { flex: 1 1 120px; min-width: 0; }
+    .name-field input {
+      width: 100%;
+      height: 52px;
+      padding: 0 16px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-field);
+      background: var(--paper);
+      color: var(--ink);
+      font: 500 18px/1 var(--font-body);
+      transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
+    }
+    .name-field input::placeholder { color: var(--text-3); font-weight: 400; }
+    .name-field input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px rgba(17, 17, 17, .08); }
+
+    .colour { border: 0; margin: 0; padding: 0; min-width: 0; flex: 0 0 auto; }
+    .colour legend { padding: 0; }
+    .seg {
+      display: inline-flex;
+      padding: 4px;
+      border-radius: var(--radius-pill);
+      background: var(--fill);
+    }
+    .seg label { position: relative; cursor: pointer; }
+    .seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .seg span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 44px;
+      padding: 0 12px;
+      border-radius: var(--radius-pill);
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-2);
+      transition: background-color .15s var(--ease), color .15s var(--ease), box-shadow .15s var(--ease);
+    }
+    .seg span::before {
+      content: '';
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--swatch);
+      box-shadow: inset 0 0 0 1px rgba(17, 17, 17, .25);
+    }
+    .seg input:checked + span { background: var(--paper); color: var(--ink); box-shadow: 0 1px 4px rgba(17, 17, 17, .12); }
+    .seg input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+    /* ── The ten styles ── */
+    .styles { border: 0; margin: 20px 0 0; padding: 0; min-width: 0; }
+    .styles legend { padding: 0; }
+    .styles .hint { margin: -4px 0 14px; color: var(--text-3); font-size: 14px; }
+    /* minmax(0, 1fr): a long name must never widen the column. */
+    .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    @media (min-width: 600px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+    .card {
+      --bg: var(--surface);
+      --fg: var(--ink);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+      min-height: 132px;
+      padding: 18px 18px 14px;
+      border-radius: var(--radius-card);
+      background: var(--bg);
+      color: var(--fg);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .2s var(--ease), box-shadow .2s var(--ease), background-color .25s var(--ease);
+    }
+    .is-white .card { --bg: var(--ink); --fg: #FFFFFF; }
+    .card input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+    .card:active { transform: scale(.985); }
+    .card.is-focus { outline: 2px solid var(--ink); outline-offset: 3px; }
+    .card.is-picked { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--ink); transform: none; }
+
+    .sample {
+      display: block;
+      padding: 6px 0 10px;
+      font-size: 40px;
+      line-height: 1.3;
+      overflow-wrap: anywhere;
+      transition: opacity .25s var(--ease);
+    }
+    .card.is-loading .sample { opacity: 0; }
+    .card.is-empty .sample { opacity: .4; }
+    .meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .font-name { font-size: 13px; font-weight: 500; letter-spacing: .01em; opacity: .62; }
+    .tick {
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1.5px solid currentColor;
+      opacity: .35;
+      display: grid;
+      place-items: center;
+      transition: opacity .15s var(--ease), background-color .15s var(--ease);
+    }
+    .card.is-picked .tick { opacity: 1; background: var(--fg); }
+    .card.is-picked .tick::after {
+      content: '';
+      width: 6px;
+      height: 11px;
+      margin-top: -2px;
+      border: solid var(--bg);
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+    .card.is-picked .font-name { opacity: 1; font-weight: 600; }
+
+    /* ── Your pick: fixed to the bottom so one screenshot holds everything ── */
+    .pick {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 10;
+      background: var(--paper);
+      box-shadow: 0 -4px 16px rgba(17, 17, 17, .08);
+      padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+    }
+    .pick-inner { max-width: 680px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+    .pick-preview {
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      width: 92px;
+      height: 64px;
+      padding: 0 8px;
+      border-radius: 14px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 24px;
+      line-height: 1.05;
+      overflow: hidden;
+      text-align: center;
+    }
+    .is-white-pick .pick-preview { background: var(--ink); color: #FFFFFF; }
+    .pick-preview:empty { display: none; }
+    .pick-text { flex: 1 1 auto; min-width: 0; }
+    .pick-label { margin: 0 0 2px; font-size: 12px; font-weight: 600; color: var(--text-3); letter-spacing: .02em; }
+    .pick-line {
+      margin: 0;
+      font-weight: 600;
+      font-size: 15px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      text-wrap: balance;
+      -webkit-user-select: all;
+      user-select: all;
+    }
+    .pick-line .keep { white-space: nowrap; }
+    .pick-line.is-waiting { color: var(--text-3); font-weight: 500; -webkit-user-select: none; user-select: none; }
+    .btn {
+      flex: 0 0 auto;
+      height: 48px;
+      min-width: 92px;
+      padding: 0 22px;
+      border: 0;
+      border-radius: var(--radius-pill);
+      background: var(--ink);
+      color: var(--paper);
+      font: 700 15px/1 var(--font-display);
+      letter-spacing: .01em;
+      cursor: pointer;
+      transition: transform .15s var(--ease), background-color .15s var(--ease), color .15s var(--ease);
+    }
+    .btn:hover { background: #2A2A2A; }
+    .btn:active { transform: scale(.96); }
+    .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+    .btn:disabled { background: var(--fill); color: var(--text-3); cursor: default; transform: none; }
+    @media (max-width: 420px) {
+      .pick-inner { gap: 12px; }
+      .pick-preview { width: 76px; height: 56px; }
+      .pick-line { font-size: 14px; }
+      .btn { min-width: 84px; padding: 0 18px; }
+    }
+    .status { max-width: 680px; margin: 6px auto 0; font-size: 13px; color: var(--text-2); min-height: 0; }
+    .status:empty { display: none; }
+
+    .foot { margin: 36px 0 0; color: var(--text-3); font-size: 13px; }
+    .foot a { color: var(--ink); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: .01ms !important; }
+      .card:hover { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a href="https://galado.com.my/" aria-label="GALADO home"><img src="wordmark-black.png" alt="galado" width="77" height="30"></a>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="title">
+        <p class="eyebrow">Name cases</p>
+        <h1 id="title">Find the lettering that feels like you</h1>
+        <p class="lede">Type your name to see it in all ten styles. Pick your favourite, choose black or white, then copy it and paste it to us in chat. A screenshot works too.</p>
+      </section>
+
+      <div class="controls" id="controls">
+        <div class="row">
+          <div class="name-field">
+            <label class="label" for="name">Your name</label>
+            <input id="name" type="text" maxlength="30" placeholder="e.g. Jasmine" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done">
+          </div>
+          <fieldset class="colour">
+            <legend class="label">Lettering colour</legend>
+            <div class="seg">
+              <label><input type="radio" name="colour" value="Black" checked><span style="--swatch:#111111">Black</span></label>
+              <label><input type="radio" name="colour" value="White"><span style="--swatch:#FFFFFF">White</span></label>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+
+      <fieldset class="styles">
+        <legend class="label">Pick a style</legend>
+        <p class="hint">Tap the one you like best.</p>
+        <div class="grid" id="grid"></div>
+      </fieldset>
+
+      <p class="foot">Lettering is printed on your case exactly in the style you pick. Questions? Message us in the chat you came from, or visit <a href="https://galado.com.my/">galado.com.my</a>.</p>
+    </main>
+  </div>
+
+  <aside class="pick" id="pick" aria-label="Your pick">
+    <div class="pick-inner">
+      <div class="pick-preview" id="pick-preview" aria-hidden="true"></div>
+      <div class="pick-text">
+        <p class="pick-label">Your pick</p>
+        <p class="pick-line is-waiting" id="pick-line">Type your name to start</p>
+      </div>
+      <button type="button" class="btn" id="copy" disabled>Copy</button>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </aside>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // Same names as the GT2 form and the shop's name cases.
+    var FONTS = [
+      'Rustling Sound', 'Ayla Handwritten', 'Right Strongline', 'Angelic Bonques', 'Bebas',
+      'Orange Gummy', 'LadylikeBB', 'Kiss Me or Not', 'Shorelines Script', 'Gotcha'
+    ];
+    var PLACEHOLDER = 'Your name';
+
+    var nameEl = document.getElementById('name');
+    var grid = document.getElementById('grid');
+    var pick = document.getElementById('pick');
+    var pickPreview = document.getElementById('pick-preview');
+    var pickLine = document.getElementById('pick-line');
+    var copyBtn = document.getElementById('copy');
+    var statusEl = document.getElementById('status');
+    var controls = document.getElementById('controls');
+
+    var state = { font: '', colour: 'Black', line: '' };
+    var statusTimer = null;
+
+    function family(font) { return "'G " + font + "', cursive"; }
+    function cleanName() { return nameEl.value.replace(/\s+/g, ' ').trim(); }
+
+    // Build the ten cards once; only their text changes as the customer types.
+    var samples = {};
+    FONTS.forEach(function (font) {
+      var card = document.createElement('label');
+      card.className = 'card is-loading is-empty';
+
+      var input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'font';
+      input.value = font;
+      input.addEventListener('change', function () { state.font = font; update(); });
+      input.addEventListener('focus', function () {
+        var keyboard = true;
+        try { keyboard = input.matches(':focus-visible'); } catch (e) { keyboard = true; }
+        if (keyboard) card.classList.add('is-focus');
+      });
+      input.addEventListener('blur', function () { card.classList.remove('is-focus'); });
+
+      var sample = document.createElement('span');
+      sample.className = 'sample';
+      sample.style.fontFamily = family(font);
+      sample.textContent = PLACEHOLDER;
+
+      var meta = document.createElement('span');
+      meta.className = 'meta';
+      var label = document.createElement('span');
+      label.className = 'font-name';
+      label.textContent = font;
+      var tick = document.createElement('span');
+      tick.className = 'tick';
+      tick.setAttribute('aria-hidden', 'true');
+      meta.appendChild(label);
+      meta.appendChild(tick);
+
+      card.appendChild(input);
+      card.appendChild(sample);
+      card.appendChild(meta);
+      grid.appendChild(card);
+      samples[font] = { card: card, sample: sample };
+
+      // Show each sample only once its own font is in, so nobody judges a
+      // style by the fallback font. Shown anyway after a few seconds.
+      var reveal = function () { card.classList.remove('is-loading'); fit(sample); };
+      if (document.fonts && document.fonts.load) {
+        Promise.race([
+          document.fonts.load('40px ' + family(font), PLACEHOLDER),
+          new Promise(function (r) { setTimeout(r, 4000); })
+        ]).then(reveal, reveal);
+      } else {
+        reveal();
+      }
+    });
+
+    // Long names shrink to fit the card instead of breaking mid-word.
+    function fit(el, start, min) {
+      var len = (el.textContent || '').length;
+      var size = start || (len <= 8 ? 40 : len <= 14 ? 34 : len <= 20 ? 28 : 24);
+      min = min || 18;
+      el.style.fontSize = size + 'px';
+      el.style.whiteSpace = 'nowrap';
+      while (size > min && el.scrollWidth > el.clientWidth + 1) {
+        size -= 1;
+        el.style.fontSize = size + 'px';
+      }
+      el.style.whiteSpace = '';
+    }
+
+    // The small preview in the pick bar: long names may wrap, and shrink until
+    // they fit the box both ways.
+    function fitBox(el, start, min) {
+      var fits = function () { return el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1; };
+      var shrink = function (from, to) {
+        var size = from;
+        el.style.fontSize = size + 'px';
+        while (size > to && !fits()) { size -= 1; el.style.fontSize = size + 'px'; }
+        return fits();
+      };
+      // 1. One line, a little smaller.  2. Wrap between words.  3. Only then
+      // break inside a word (a single very long name).
+      el.style.overflowWrap = 'normal';
+      el.style.whiteSpace = 'nowrap';
+      if (shrink(start, 14)) return;
+      el.style.whiteSpace = 'normal';
+      if (shrink(start, min)) return;
+      el.style.overflowWrap = 'anywhere';
+      shrink(start, min);
+    }
+
+    function update() {
+      var name = cleanName();
+      var text = name || PLACEHOLDER;
+      FONTS.forEach(function (font) {
+        var s = samples[font];
+        if (s.sample.textContent !== text) {
+          s.sample.textContent = text;
+          fit(s.sample);
+        }
+        s.card.classList.toggle('is-empty', !name);
+        s.card.classList.toggle('is-picked', state.font === font);
+      });
+
+      grid.classList.toggle('is-white', state.colour === 'White');
+      pick.classList.toggle('is-white-pick', state.colour === 'White');
+
+      if (state.font && name) {
+        pickPreview.textContent = name;
+        pickPreview.style.fontFamily = family(state.font);
+        fitBox(pickPreview, 24, 9);
+      } else {
+        pickPreview.textContent = '';
+      }
+
+      var ready = !!(state.font && name);
+      pickLine.classList.toggle('is-waiting', !ready);
+      // Exactly what staff expect: "Font Style : Bebas - Jasmine - Black".
+      state.line = ready ? 'Font Style : ' + state.font + ' - ' + name + ' - ' + state.colour : '';
+      pickLine.textContent = '';
+      if (ready) {
+        // Each ":" or "-" stays with the word before it, so a wrapped line never
+        // starts with one. Plain text nodes only: the name is never HTML.
+        var parts = [['Font Style', ':'], [state.font, '-'], [name, '-'], [state.colour, '']];
+        parts.forEach(function (part, i) {
+          var words = part[0].split(' ');
+          var last = words.pop();
+          if (words.length) pickLine.appendChild(document.createTextNode(words.join(' ') + ' '));
+          var tail = part[1] ? last + ' ' + part[1] : last;
+          if (last.length <= 12) {
+            var span = document.createElement('span');
+            span.className = 'keep';
+            span.textContent = tail;
+            pickLine.appendChild(span);
+          } else {
+            pickLine.appendChild(document.createTextNode(tail));
+          }
+          if (i < parts.length - 1) pickLine.appendChild(document.createTextNode(' '));
+        });
+      } else {
+        pickLine.textContent = !name ? 'Type your name to start' : 'Now pick a style';
+      }
+      copyBtn.disabled = !ready;
+      copyBtn.textContent = 'Copy';
+      setStatus('');
+    }
+
+    function setStatus(msg) {
+      if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+      statusEl.textContent = msg;
+    }
+
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '0';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      return ok;
+    }
+
+    copyBtn.addEventListener('click', function () {
+      var text = state.line;
+      var done = function (ok) {
+        if (ok) {
+          copyBtn.textContent = 'Copied';
+          setStatus('Copied. Paste it to us in chat.');
+          statusTimer = setTimeout(function () { copyBtn.textContent = 'Copy'; statusEl.textContent = ''; }, 4000);
+        } else {
+          setStatus('Your browser would not copy it. Press and hold the line above to copy, or take a screenshot.');
+        }
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(fallbackCopy(text)); });
+      } else {
+        done(fallbackCopy(text));
+      }
+    });
+
+    nameEl.addEventListener('input', update);
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="colour"]'), function (r) {
+      r.addEventListener('change', function () { state.colour = r.value; update(); });
+    });
+
+    // A hairline under the name bar once it sticks to the top.
+    if ('IntersectionObserver' in window) {
+      var sentinel = document.createElement('div');
+      controls.parentNode.insertBefore(sentinel, controls);
+      new IntersectionObserver(function (entries) {
+        controls.classList.toggle('is-stuck', !entries[0].isIntersecting);
+      }).observe(sentinel);
+    }
+
+    var resizeTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () { FONTS.forEach(function (f) { fit(samples[f].sample); }); }, 120);
+    });
+
+    update();
+  })();
+  </script>
+</body>
+</html>
