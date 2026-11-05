@@ -21,10 +21,8 @@
 .gfpp-card:focus-visible{outline:2px solid #111;outline-offset:2px;}
 .gfpp-card[aria-checked="true"]{border-color:#111;box-shadow:0 0 0 1px #111;}
 .gfpp-sample{display:block;width:100%;text-align:center;line-height:1.25;white-space:nowrap;overflow:hidden;min-height:36px;}
-.gfpp-name{font-size:11px;color:#8C8C8C;font-weight:500;}
 .gfpp-white .gfpp-card{background:#3a3a3a;border-color:#3a3a3a;}
 .gfpp-white .gfpp-card .gfpp-sample{color:#fff;}
-.gfpp-white .gfpp-card .gfpp-name{color:#cfcfcf;}
 .gfpp-white .gfpp-card[aria-checked="true"]{box-shadow:0 0 0 2px #fff,0 0 0 4px #111;}
 .gfpp-pick{margin:0;font-size:13px;color:#111;font-weight:600;min-height:1em;}
 .gfpp-pick.gfpp-err{color:#B80023;}
@@ -36,8 +34,7 @@
   height:auto !important;min-height:0 !important;line-height:1.2 !important;font-weight:400 !important;box-shadow:none;}
 .gfpp .gfpp-card[aria-checked="true"]{box-shadow:0 0 0 1px #111 !important;}
 .gfpp .gfpp-white .gfpp-card[aria-checked="true"]{box-shadow:0 0 0 2px #fff,0 0 0 4px #111 !important;}
-.gfpp .gfpp-sample,.gfpp .gfpp-name{text-transform:none !important;letter-spacing:normal !important;}
-.gfpp .gfpp-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.gfpp .gfpp-sample{text-transform:none !important;letter-spacing:normal !important;}
 .gfpp legend.gfpp-label{text-transform:none !important;letter-spacing:normal !important;border:0 !important;width:auto !important;font-size:13px !important;
   margin:0 0 6px !important;padding:0 !important;font-weight:600 !important;color:#4A4A4A !important;}
 .gfpp .gfpp-grid{width:100%;}
@@ -46,3 +43,7 @@
 .gfpp .gfpp-sample{overflow:visible !important;line-height:1.8 !important;padding:.1em 0 !important;min-height:0 !important;}
 .gfpp .gfpp-card{overflow:visible !important;padding-top:8px !important;}
 .gfpp .gfpp-card{gap:6px !important;}
+.gfpp .gfpp-pick{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.gfpp .gfpp-pick-label{font-size:12px;font-weight:600;color:#8C8C8C;}
+.gfpp .gfpp-pick-art{font-size:26px;line-height:1.8;padding:0 12px;border-radius:10px;background:#fff;border:1px solid rgba(17,17,17,.12);color:#111;font-weight:400;}
+.gfpp .gfpp-pick-art.gfpp-pick-white{background:#3a3a3a;border-color:#3a3a3a;color:#fff;}
