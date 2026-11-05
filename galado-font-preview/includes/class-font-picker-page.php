@@ -23,6 +23,18 @@ class Galado_Font_Picker_Page {
         $this->fonts = $fonts;
         add_shortcode( self::SHORTCODE, array( $this, 'render' ) );
         add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+        add_action( 'wp', array( $this, 'quiet_club_popup' ) );
+    }
+
+    /**
+     * Customers come here from chat to do one thing, so the "Join the Club" popup and
+     * its coin (GALADO Club Bridge, wp_footer at 40) stay off this page. Every other
+     * page keeps them.
+     */
+    public function quiet_club_popup() {
+        if ( $this->on_picker_page() ) {
+            remove_action( 'wp_footer', array( 'Galado_Club_Bridge', 'join_popup' ), 40 );
+        }
     }
 
     private function on_picker_page() {
