@@ -180,7 +180,17 @@ class GWARR_Claims {
         if ($ok === false) {
             return new WP_Error('gwarr_claim_insert_failed', $wpdb->last_error ?: 'Database insert failed.');
         }
-        return (int) $wpdb->insert_id;
+        $claim_id = (int) $wpdb->insert_id;
+        // Repeat-photo check: fingerprint the files now so staff see matches at once.
+        // A failure here must never block the claim.
+        if (class_exists('GWARR_Photo_Match')) {
+            try {
+                GWARR_Photo_Match::fingerprint_claim_media($media);
+            } catch (Throwable $e) {
+                error_log('[galado-warranty] photo fingerprint failed for claim ' . $claim_id . ': ' . $e->getMessage());
+            }
+        }
+        return $claim_id;
     }
 
     public static function find($id) {

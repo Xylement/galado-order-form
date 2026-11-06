@@ -437,6 +437,7 @@ class GWARR_CP_API {
             'resolvedAt'    => !empty($c->resolved_at) ? (string) $c->resolved_at : null,
             'createdAt'     => (string) $c->created_at,
             'mediaCount'    => count(GWARR_Claims::media_ids($c)),
+            'photoMatchCount' => class_exists('GWARR_Photo_Match') ? count(GWARR_Photo_Match::matches($c)) : 0,
         ];
         if (!$full) {
             return $view;
@@ -461,6 +462,8 @@ class GWARR_CP_API {
                 'thumb' => (string) (wp_get_attachment_image_url($mid, 'medium') ?: ''),
             ];
         }
+        $view['photoMatches']   = class_exists('GWARR_Photo_Match') ? GWARR_Photo_Match::matches($c) : [];
+        $view['photoUnchecked'] = class_exists('GWARR_Photo_Match') ? GWARR_Photo_Match::unchecked_count($c) : 0;
         $view['shippingOrder'] = null;
         if (!empty($c->shipping_order_id) && function_exists('wc_get_order')) {
             $order = wc_get_order((int) $c->shipping_order_id);
