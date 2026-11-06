@@ -276,6 +276,12 @@ class GWARR_Email {
         $rows = array_merge($rows, self::claim_delivery_rows($claim));
         $rows['Issue']    = nl2br(esc_html((string) $claim->issue_description));
         $rows['Media']    = $media ? esc_html(count($media) . ' file(s) attached') : 'none';
+        if ($media && class_exists('GWARR_Photo_Match')) {
+            $lines = GWARR_Photo_Match::describe(GWARR_Photo_Match::matches($claim));
+            $rows['Photo check'] = $lines
+                ? '<strong style="color:#E4002B;">Repeat photo:</strong> ' . implode('<br>', array_map('esc_html', $lines))
+                : 'No repeat of an earlier claim\'s photo or video';
+        }
 
         $m = self::render_admin_claim_email($rows);
         return self::send($to, $m['subject'], $m['html']);
