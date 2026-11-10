@@ -14,7 +14,7 @@
  *   Font Style: Bebas - Jasmine - Black          (font - text - colour)
  * plus hidden _galado_font {"v":1,"id","font","text","colour"} and _galado_font_img (the picture's URL).
  * App orders arrive through the Club bridge with the row "Font Style: <id> - <text> - <colour>"; it is rewritten to
- * the real name when the item is saved, so web and app orders end up identical.
+ * the real name once the bridge has finished saving the order, so web and app orders end up identical.
  */
 
 if ( ! defined( 'ABSPATH' ) ) exit;
@@ -52,6 +52,7 @@ class Galado_Font_Product_Picker {
         add_filter( 'woocommerce_get_item_data', array( $this, 'show_in_cart' ), 10, 2 );
         add_action( 'woocommerce_checkout_create_order_line_item', array( $this, 'write_web_item' ), 10, 3 );
         add_action( 'woocommerce_new_order_item', array( $this, 'complete_app_item' ), 10, 3 );
+        add_action( 'woocommerce_after_order_object_save', array( $this, 'complete_app_order' ), 10, 1 );
         add_filter( 'woocommerce_order_item_get_formatted_meta_data', array( $this, 'customer_view' ), 20, 2 );
         add_action( 'woocommerce_email_order_details', array( $this, 'email_start' ), 1, 4 );
         add_action( 'woocommerce_email_order_details', array( $this, 'email_end' ), 999 );
@@ -293,20 +294,40 @@ class Galado_Font_Product_Picker {
     /* ---------- app orders (Club bridge app-order): "<id> - text - colour" becomes the staff row ---------- */
 
     public function complete_app_item( $item_id, $item, $order_id ) {
+        $this->complete_item( $item, $order_id );
+    }
+
+    /** The bridge's /app-order saves each line in add_product() BEFORE it adds the custom rows, then adds them with
+        $item->save() (an update, so woocommerce_new_order_item never sees the row; orders 430602/430612/430645/430661
+        reached staff with the code). It then reads the rows back and cancels the order if a value changed, so the
+        rewrite must wait until the bridge is done: its final $order->save(), after _galado_app_order is set. Lines
+        are read fresh from the database, since the order's own copies of them never got the custom rows. */
+    public function complete_app_order( $order ) {
+        if ( ! $order instanceof WC_Order || ! $order->get_id() || '1' !== (string) $order->get_meta( '_galado_app_order' ) ) return;
+        if ( 'pending' !== $order->get_status() ) return; // only while it is being created; staff emails come after.
+        foreach ( array_keys( $order->get_items( 'line_item' ) ) as $item_id ) {
+            $item = WC_Order_Factory::get_order_item( $item_id );
+            if ( $item && $this->complete_item( $item, $order->get_id() ) ) $item->save();
+        }
+    }
+
+    /** Rewrites an app row "<id> - text - colour" to the staff row on the item object. @return bool written */
+    private function complete_item( $item, $order_id ) {
         // Any product: the app can show the picker on products whose web switch is off (order 430661, Clear Guard),
         // and staff must always get the real font name. A row that is not an app row simply does not parse.
-        if ( ! $item instanceof WC_Order_Item_Product ) return;
-        if ( '' !== (string) $item->get_meta( self::HIDDEN ) ) return;
+        if ( ! $item instanceof WC_Order_Item_Product ) return false;
+        if ( '' !== (string) $item->get_meta( self::HIDDEN ) ) return false;
         $row = (string) $item->get_meta( self::ROW );
         // Only app rows, which start with an opaque id ("ff67a32 - "); the older preview's "Font Style: Bebas" is left alone.
-        if ( ! preg_match( '/^f[0-9a-f]{6} - /', $row ) ) return;
+        if ( ! preg_match( '/^f[0-9a-f]{6} - /', $row ) ) return false;
         $c = $this->parse_row( $row );
         if ( is_wp_error( $c ) ) {
             $order = wc_get_order( $order_id );
             if ( $order ) $order->add_order_note( 'Font Style row could not be read: ' . $row );
-            return;
+            return false;
         }
         $this->write( $item, $c );
+        return true;
     }
 
     /* ---------- who is looking at an order line ---------- */
