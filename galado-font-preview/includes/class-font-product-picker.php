@@ -293,10 +293,13 @@ class Galado_Font_Product_Picker {
     /* ---------- app orders (Club bridge app-order): "<id> - text - colour" becomes the staff row ---------- */
 
     public function complete_app_item( $item_id, $item, $order_id ) {
-        if ( ! $item instanceof WC_Order_Item_Product || ! $this->mode( $item->get_product_id() ) ) return;
+        // Any product: the app can show the picker on products whose web switch is off (order 430661, Clear Guard),
+        // and staff must always get the real font name. A row that is not an app row simply does not parse.
+        if ( ! $item instanceof WC_Order_Item_Product ) return;
         if ( '' !== (string) $item->get_meta( self::HIDDEN ) ) return;
         $row = (string) $item->get_meta( self::ROW );
-        if ( '' === $row ) return;
+        // Only app rows, which start with an opaque id ("ff67a32 - "); the older preview's "Font Style: Bebas" is left alone.
+        if ( ! preg_match( '/^f[0-9a-f]{6} - /', $row ) ) return;
         $c = $this->parse_row( $row );
         if ( is_wp_error( $c ) ) {
             $order = wc_get_order( $order_id );
