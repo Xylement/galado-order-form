@@ -566,7 +566,6 @@
         S.multiPicks = [];
         multiBtn.textContent = COPY.multiOff;
         multiBtn.classList.add('on');
-        stageMeta.warn.textContent = COPY.multiHint;
         C.discardActiveObject();
         contentObjects().forEach(function (o) { o.selectable = false; });
         C.requestRenderAll();
@@ -597,7 +596,7 @@
       preserveObjectStacking: true,
       uniScaleKey: null, // Shift on a corner would stretch a layer; the print keeps its proportions
     });
-    stageMeta = { plateW: Math.round(plate.w), plateH: Math.round(plate.h), mock: mock, warn: warn, selBar: selBar, progress: progress, multiBtn: multiBtn, exitMulti: exitMulti };
+    stageMeta = { plateW: Math.round(plate.w), plateH: Math.round(plate.h), mock: mock, warn: warn, selBar: selBar, progress: progress, multiBtn: multiBtn, exitMulti: exitMulti, pickCopies: pickCopies };
     window.__gd = { version: cfg.ver || 'dev', canvas: C, state: S, serialize: serializeScene }; // QA/support handle
 
     // Camera keep-out overlay (from the die-line, via mocks.json).
@@ -651,6 +650,17 @@
       refreshMultiLabel();
       C.requestRenderAll();
       updateSelUi();
+    }
+    // Copy in "Select many" moves the picks onto the copies, as Copy selects a
+    // single layer's copy: the copies glow and move together, the originals
+    // rest. Before, a photo or sticker copy kept the glow (a clone keeps the
+    // shadow) without being picked, and any copy could be grabbed on its own
+    // (2026-10-05).
+    function pickCopies(copies) {
+      S.multiPicks.forEach(function (o) { setGlow(o, false); });
+      copies.forEach(function (o) { o.selectable = false; setGlow(o, true); });
+      S.multiPicks = copies.slice();
+      rebuildPickSelection();
     }
     var multiTap = null;
     C.on('mouse:down', function (opt) {
@@ -1144,7 +1154,12 @@
         }
       });
     }
-    stageMeta.warn.textContent = [S.capHint, msg].filter(Boolean).join(' ');
+    var text = [S.capHint, msg].filter(Boolean).join(' ');
+    // "Select many" with nothing picked yet says how it works, unless a
+    // warning needs the line. Written only on the tap, the hint was wiped
+    // straight away by the selection update that follows it (2026-10-05).
+    if (!text && S.multiMode && !S.multiPicks.length) text = COPY.multiHint;
+    stageMeta.warn.textContent = text;
     stageMeta.warn.className = 'gd-warn';
   }
 
@@ -1188,15 +1203,23 @@
     // not one item, or a copy of six could step straight past the cap.
     if (S.maxElements && contentObjects().length + targets.length > S.maxElements) { capBlocks(); return; }
     C.discardActiveObject();
+    var copies = [];
     targets.forEach(function (o) {
       o.clone(function (copy) {
-        copy.set({ left: o.left + 14, top: o.top + 14 });
+        // clone() rounds the scale to two decimals, so a copy came out another
+        // size: a phone photo 6 to 11 percent smaller on the case and in print,
+        // one made small all but vanished. The size comes from the original,
+        // as the position already does (2026-10-05).
+        copy.set({ left: o.left + 14, top: o.top + 14, scaleX: o.scaleX, scaleY: o.scaleY });
         copy.gdType = o.gdType; copy.gdRef = o.gdRef;
         copy.gdText = o.gdText; copy.gdFont = o.gdFont; copy.gdColour = o.gdColour;
         copy.gdEffect = o.gdEffect; copy.gdEffectColour = o.gdEffectColour; if (copy.gdType === 'text') applyTextEffect(copy);
         copy.gdCrop = o.gdCrop; copy.gdVariants = o.gdVariants;
         C.add(copy);
-        if (targets.length === 1) C.setActiveObject(copy);
+        copies.push(copy);
+        // Photos and stickers clone asynchronously: the picks move once all are in.
+        if (S.multiMode && copies.length === targets.length) stageMeta.pickCopies(copies);
+        if (!S.multiMode && targets.length === 1) C.setActiveObject(copy);
       });
     });
     C.requestRenderAll();
