@@ -94,8 +94,11 @@ class GWARR_DB {
                 'notes'             => (string) $row['notes'],
                 'marketing_consent' => $row['marketing_consent'] ? 1 : 0,
                 'status'            => (string) $row['status'],
+                // Written by PHP, not left to the column's CURRENT_TIMESTAMP default: created_at is the
+                // consent time sent to G-Send, so it must be site time whatever the MySQL clock says.
+                'created_at'        => current_time('mysql'),
             ],
-            ['%d', '%s', '%s', '%s', '%s', '%d', '%s']
+            ['%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s']
         );
 
         if ($ok === false) {
@@ -190,8 +193,9 @@ class GWARR_DB {
                 'purchase_date'     => $row['purchase_date'] ?: null,
                 'warranty_ends'     => $row['warranty_ends'] ?: null,
                 'approved_at'       => current_time('mysql'),
+                'created_at'        => current_time('mysql'), // same reason as insert() above
             ],
-            ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s']
+            ['%d', '%s', '%s', '%s', '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s']
         );
 
         if ($ok === false) {
