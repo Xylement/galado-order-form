@@ -3,7 +3,7 @@
  * Plugin Name: GALADO Warranty Registration
  * Plugin URI: https://galado.com.my
  * Description: Lets marketplace customers (Shopee, Lazada, TikTok, WhatsApp, social) register their purchase to extend warranty from 1 month to 6 months. Captures their contact info, subscribes them to Klaviyo marketing, and rewards them with a welcome coupon for future direct-website orders.
- * Version: 1.11.1
+ * Version: 1.13.0
  * Author: GALADO
  * Author URI: https://galado.com.my
  * License: GPL v2 or later
@@ -15,7 +15,7 @@
 
 if (!defined('ABSPATH')) exit;
 
-define('GWARR_VERSION', '1.11.1');
+define('GWARR_VERSION', '1.13.0');
 define('GWARR_PATH', plugin_dir_path(__FILE__));
 define('GWARR_URL', plugin_dir_url(__FILE__));
 define('GWARR_TABLE', 'galado_warranties');
@@ -452,12 +452,14 @@ add_action('plugins_loaded', function () {
         require_once GWARR_PATH . 'includes/class-warranty-email.php';
         require_once GWARR_PATH . 'includes/class-warranty-klaviyo.php';
         require_once GWARR_PATH . 'includes/class-warranty-gsend.php';
+        require_once GWARR_PATH . 'includes/class-warranty-lock.php';
         require_once GWARR_PATH . 'includes/class-warranty-approval.php';
         require_once GWARR_PATH . 'includes/class-warranty-sheet-api.php';
         require_once GWARR_PATH . 'includes/class-warranty-sheet-sync.php';
         require_once GWARR_PATH . 'includes/class-warranty-auto-approve.php';
         require_once GWARR_PATH . 'includes/class-warranty-orders.php';
         require_once GWARR_PATH . 'includes/class-warranty-claims.php';
+        require_once GWARR_PATH . 'includes/class-warranty-photo-match.php';
         require_once GWARR_PATH . 'includes/class-warranty-diagnostics.php';
         require_once GWARR_PATH . 'public/register-shortcode.php';
         require_once GWARR_PATH . 'public/my-warranties.php';
@@ -477,6 +479,14 @@ add_action('plugins_loaded', function () {
 
         // Auto-capture WooCommerce orders as per-item warranties.
         GWARR_Orders::init();
+
+        // Repeat-photo check on claims (v1.13.0): fingerprints older claim
+        // files in the background; new claims are fingerprinted on submit.
+        GWARR_Photo_Match::init();
+        if (get_option('gwarr_photo_fp_backfilled') !== GWARR_VERSION) {
+            GWARR_Photo_Match::schedule_backfill();
+            update_option('gwarr_photo_fp_backfilled', GWARR_VERSION, false);
+        }
 
         // Warranty shipping-fee pay pages: restore gateways (FPX online
         // banking, Touch 'n Go) that hide themselves because the cart is
@@ -517,6 +527,16 @@ add_action('plugins_loaded', function () {
         });
     } catch (Throwable $e) {
         error_log('[galado-warranty] module load failed: ' . $e->getMessage());
+    }
+
+    // GALADO CP lists and resolves warranties through a key-guarded REST API.
+    // Loaded on its own, last: if it ever failed, the customer pages, emails
+    // and pay hooks above are already in place.
+    try {
+        require_once GWARR_PATH . 'includes/class-warranty-cp-api.php';
+        GWARR_CP_API::init();
+    } catch (Throwable $e) {
+        error_log('[galado-warranty] cp api load failed: ' . $e->getMessage());
     }
 }, 20);
 

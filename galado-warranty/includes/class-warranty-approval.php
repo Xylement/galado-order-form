@@ -20,6 +20,14 @@ class GWARR_Approval {
      * @return object|WP_Error The updated row on success, WP_Error otherwise.
      */
     public static function approve($id, $purchase_date, $admin_note = '') {
+        // One approval or rejection per registration at a time (v1.12.0): the
+        // status check below must see what a parallel request just did.
+        return GWARR_Lock::run('reg_' . (int) $id, function () use ($id, $purchase_date, $admin_note) {
+            return self::approve_locked($id, $purchase_date, $admin_note);
+        });
+    }
+
+    private static function approve_locked($id, $purchase_date, $admin_note) {
         $row = GWARR_DB::find($id);
         if (!$row) {
             return new WP_Error('gwarr_not_found', 'Registration not found.');
@@ -58,6 +66,12 @@ class GWARR_Approval {
     }
 
     public static function reject($id, $reason) {
+        return GWARR_Lock::run('reg_' . (int) $id, function () use ($id, $reason) {
+            return self::reject_locked($id, $reason);
+        });
+    }
+
+    private static function reject_locked($id, $reason) {
         $row = GWARR_DB::find($id);
         if (!$row) {
             return new WP_Error('gwarr_not_found', 'Registration not found.');

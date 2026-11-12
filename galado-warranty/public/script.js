@@ -25,6 +25,74 @@
             updateOrderPlaceholder();
         }
 
+        // Shopee Order ID check (v1.12.1). Customers kept registering their SPX
+        // tracking number, which was only caught at review. The rule and the copy
+        // ride on the marketplace <option> (data-pattern and friends, from
+        // GWARR_Marketplaces), so this never drifts from the server check, which
+        // stays the real gate. setCustomValidity lets the submit handler below
+        // refuse the form until the number is fixed.
+        var checkOrderNumber = null;
+        if ($marketplace.length && $orderInput.length) {
+            var orderEl = $orderInput[0];
+            var $orderError = $('<span class="gwarr-field-error" id="gwarr-order-error" role="alert" hidden></span>');
+            $orderInput.after($orderError);
+
+            // Same normalising as GWARR_Marketplaces::normalise_order_number(): every
+            // \s character out, a leading # off, and ASCII-only upper-casing like PHP's
+            // strtoupper (toUpperCase would also turn the dotless i into I).
+            var normalisedOrder = function () {
+                return orderEl.value.replace(/\s+/g, '').replace(/^#+/, '')
+                    .replace(/[a-z]/g, function (c) { return c.toUpperCase(); });
+            };
+            var orderProblem = function () {
+                var $opt = $marketplace.find(':selected');
+                var pattern = $opt.attr('data-pattern');
+                var v = normalisedOrder();
+                // An empty field is left to "required" and the server's own message.
+                // Empty means what the server trims away (ASCII spaces only): a lone #
+                // or a lone non-breaking space gets the format message there, so here too.
+                if (!pattern || /^[ \t\n\r\0\x0B]*$/.test(orderEl.value)) return '';
+                var prefix = $opt.attr('data-tracking-prefix') || '';
+                if (prefix && v.indexOf(prefix) === 0) return $opt.attr('data-msg-tracking') || '';
+                var bad = $opt.attr('data-msg-format') || '';
+                if (!new RegExp(pattern).test(v)) return bad;
+                var maxDate = $opt.attr('data-max-date');
+                if (maxDate) {
+                    // First 6 digits: a real YYMMDD date, not after tomorrow in KL.
+                    var y = 2000 + parseInt(v.substr(0, 2), 10);
+                    var m = parseInt(v.substr(2, 2), 10);
+                    var d = parseInt(v.substr(4, 2), 10);
+                    var dt = new Date(Date.UTC(y, m - 1, d));
+                    var real = dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+                    var iso = y + '-' + (m < 10 ? '0' : '') + m + '-' + (d < 10 ? '0' : '') + d;
+                    if (!real || iso > maxDate) return bad;
+                }
+                return '';
+            };
+
+            // eager: show the message now (blur, marketplace change, submit). While
+            // typing, wait until the number looks complete (14 or more characters)
+            // or is an SPX number, so nobody is told off for the first digit.
+            checkOrderNumber = function (eager) {
+                var msg = orderProblem();
+                orderEl.setCustomValidity(msg);
+                if (!msg) {
+                    $orderError.text('').prop('hidden', true);
+                    $orderInput.removeAttr('aria-invalid aria-describedby');
+                    return;
+                }
+                var tracking = msg === $marketplace.find(':selected').attr('data-msg-tracking');
+                if (eager || tracking || !$orderError.prop('hidden') || normalisedOrder().length >= 14) {
+                    $orderError.text(msg).prop('hidden', false);
+                    $orderInput.attr({ 'aria-invalid': 'true', 'aria-describedby': 'gwarr-order-error' });
+                }
+            };
+            $orderInput.on('input', function () { checkOrderNumber(false); });
+            $orderInput.on('blur', function () { checkOrderNumber(true); });
+            $marketplace.on('change', function () { checkOrderNumber(true); });
+            checkOrderNumber(false);
+        }
+
         // Processing overlay — the registration form does a full POST → server
         // work (Club webhook, sheet auto-approve, emails) → redirect. That wait
         // can take a few seconds and otherwise looks frozen, so show an overlay
@@ -51,14 +119,18 @@
 
             $regForm.on('submit', function (e) {
                 var formEl = this;
+                if (checkOrderNumber) checkOrderNumber(true);
 
-                // The form is novalidate, but honour required fields so the
-                // overlay never shows for a submit the browser will reject.
+                // The form is novalidate, but honour required fields and the order
+                // number check so the overlay never shows for a submit that cannot
+                // go through. novalidate means the browser would post it anyway,
+                // so stop it here.
                 if (typeof formEl.checkValidity === 'function' && !formEl.checkValidity()) {
+                    e.preventDefault();
                     if (typeof formEl.reportValidity === 'function') {
                         formEl.reportValidity();
                     }
-                    return; // let native validation handle it; no overlay
+                    return;
                 }
 
                 // Guard against double submit with a flag — NOT by disabling the

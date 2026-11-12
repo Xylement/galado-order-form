@@ -84,7 +84,8 @@ class GWARR_Auto_Approve {
         return $approved;
     }
 
-    private static function lookup_cache($marketplace, $order_number) {
+    /** The sheet-cache row for an order, or null. Public since v1.12.0: CP shows it beside a pending registration. */
+    public static function lookup_cache($marketplace, $order_number) {
         global $wpdb;
         $cache = GWARR_Sheet_Sync::cache_table();
 

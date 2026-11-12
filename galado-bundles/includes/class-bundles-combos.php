@@ -370,8 +370,9 @@ class GALADO_Bundles_Combos {
 
             if (!$ok) { $map[$slug] = ['ok' => false]; continue; }
 
-            $combo_price = (float) $combo['combo_price'];
-            $save = ($combo_price > 0 && $combo_price < $sum) ? $sum - $combo_price : (float) $combo['save'];
+            // $sum is in display prices; the RM constants join it in the same currency.
+            $combo_price = GALADO_Bundles_Currency::convert($combo['combo_price']);
+            $save = ($combo_price > 0 && $combo_price < $sum) ? $sum - $combo_price : GALADO_Bundles_Currency::convert($combo['save']);
             if ($save >= $sum) $save = 0.0;
             $map[$slug] = [
                 'ok'    => true,
@@ -430,7 +431,7 @@ class GALADO_Bundles_Combos {
      * shows an option that then fails cleanly with "sold out".
      */
     public static function page_data($product) {
-        $ck = 'gldpd_' . $product->get_id() . '_' . self::cat_ver();
+        $ck = 'gldpd_' . $product->get_id() . '_' . self::cat_ver() . '_' . GALADO_Bundles_Currency::code();
         $cached = get_transient($ck);
         if (false !== $cached) return $cached ?: null; // '' sentinel = not a case PDP
 

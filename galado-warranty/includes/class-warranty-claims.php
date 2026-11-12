@@ -180,7 +180,17 @@ class GWARR_Claims {
         if ($ok === false) {
             return new WP_Error('gwarr_claim_insert_failed', $wpdb->last_error ?: 'Database insert failed.');
         }
-        return (int) $wpdb->insert_id;
+        $claim_id = (int) $wpdb->insert_id;
+        // Repeat-photo check: fingerprint the files now so staff see matches at once.
+        // A failure here must never block the claim.
+        if (class_exists('GWARR_Photo_Match')) {
+            try {
+                GWARR_Photo_Match::fingerprint_claim_media($media);
+            } catch (Throwable $e) {
+                error_log('[galado-warranty] photo fingerprint failed for claim ' . $claim_id . ': ' . $e->getMessage());
+            }
+        }
+        return $claim_id;
     }
 
     public static function find($id) {
@@ -876,6 +886,19 @@ class GWARR_Claims {
             return new WP_Error('gwarr_claim_update_failed', $wpdb->last_error ?: 'Database update failed.');
         }
         return self::find($id);
+    }
+
+    /**
+     * Record whether a claim's approval email was handed to the mailer, so the
+     * claims list can show "sent / FAILED" (deliverability vs send failures).
+     * Stored per claim as an option (no schema change). Lives here, not in the
+     * admin screen, since v1.12.0 so CP's API records it the same way.
+     */
+    public static function record_email_status($claim_id, $ok) {
+        update_option('gwarr_claim_email_' . (int) $claim_id, [
+            'at' => current_time('mysql'),
+            'ok' => $ok ? 1 : 0,
+        ], false);
     }
 
     /**

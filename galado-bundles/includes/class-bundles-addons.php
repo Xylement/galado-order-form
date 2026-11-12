@@ -149,7 +149,8 @@ class GALADO_Bundles_Addons {
             foreach ($state as $t) {
                 if ($t['pct'] > 0 && isset($t['members'][(int) $ci['product_id']])) {
                     $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
-                    if ($p) $ci['data']->set_price(round((float) $p->get_price() * (1 - $t['pct'] / 100), 2));
+                    // BASE price in, CURCY converts once on read (a converted price here was converted twice: order 423727).
+                    if ($p) $ci['data']->set_price(round(GALADO_Bundles_Currency::base_price($p) * (1 - $t['pct'] / 100), 2));
                     break;
                 }
             }
@@ -245,7 +246,8 @@ class GALADO_Bundles_Addons {
                     if ($p) $own_sum += (float) wc_get_price_to_display($p) * max(1, (int) $ci['quantity']);
                 }
                 // Whichever is cheaper, same rule as the repricer.
-                $promised = ($own_sum > 0 && $own_sum < (float) $e['combo_price']) ? $own_sum : (float) $e['combo_price'];
+                $combo_disp = GALADO_Bundles_Currency::convert($e['combo_price']);
+                $promised = ($own_sum > 0 && $own_sum < $combo_disp) ? $own_sum : $combo_disp;
                 $bundle_total += $promised;
                 if ($own_sum > $promised) $saved += $own_sum - $promised;
             }
@@ -259,7 +261,8 @@ class GALADO_Bundles_Addons {
                     $p = wc_get_product(!empty($ci['variation_id']) ? $ci['variation_id'] : $ci['product_id']);
                     $own = $p ? (float) wc_get_price_to_display($p) : 0.0;
                     if (!empty($ci['galado_addon_price'])) {
-                        $promised = min($own > 0 ? $own : (float) $ci['galado_addon_price'], (float) $ci['galado_addon_price']);
+                        $addon_disp = GALADO_Bundles_Currency::convert($ci['galado_addon_price']);
+                        $promised = min($own > 0 ? $own : $addon_disp, $addon_disp);
                         $bundle_total += $promised * $qty;
                         if ($own > $promised) $saved += ($own - $promised) * $qty;
                     } else {
@@ -355,7 +358,7 @@ class GALADO_Bundles_Addons {
      * Cached 15 minutes per (product, catalogue version), same reasoning and
      * same invalidation salt as the combos module. */
     public static function page_groups($product) {
-        $ck = 'gldag_' . $product->get_id() . '_' . GALADO_Bundles_Combos::cat_ver();
+        $ck = 'gldag_' . $product->get_id() . '_' . GALADO_Bundles_Combos::cat_ver() . '_' . GALADO_Bundles_Currency::code();
         $cached = get_transient($ck);
         if (false !== $cached) return $cached ?: null;
 
@@ -553,6 +556,9 @@ class GALADO_Bundles_Addons {
         // On non-case surfaces the with-case price does not apply: everything
         // downstream (price, strike, option flattening) follows from zeroing it.
         $addon_price = $apply_pwp ? max(0.0, (float) ($it['addon_price'] ?? 0)) : 0.0;
+        // Display payload: the with-case price in the shopper's currency, next to display
+        // prices. lookup_addon() keeps the RM figure that actually prices the line.
+        $addon_price = GALADO_Bundles_Currency::convert($addon_price);
         $own_price   = (float) wc_get_price_to_display($p);
         $base = [
             'key'         => (string) $pid,

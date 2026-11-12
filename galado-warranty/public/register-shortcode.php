@@ -142,8 +142,20 @@ function gwarr_render_register_form($atts = []) {
                     <select name="marketplace" required>
                         <option value="">Select marketplace</option>
                         <?php foreach ($marketplaces as $slug => $label): ?>
+                            <?php
+                            // The order-number rule rides on the option, so script.js checks
+                            // exactly what gwarr_handle_form_submission() enforces.
+                            $rule = GWARR_Marketplaces::order_rules()[$slug] ?? null;
+                            ?>
                             <option value="<?php echo esc_attr($slug); ?>"
                                     data-example="<?php echo esc_attr(GWARR_Marketplaces::order_example($slug)); ?>"
+                                    <?php if ($rule): ?>
+                                    data-pattern="<?php echo esc_attr($rule['pattern']); ?>"
+                                    data-tracking-prefix="<?php echo esc_attr($rule['tracking_prefix']); ?>"
+                                    data-max-date="<?php echo esc_attr(!empty($rule['dated']) ? GWARR_Marketplaces::order_max_date() : ''); ?>"
+                                    data-msg-tracking="<?php echo esc_attr($rule['messages']['tracking']); ?>"
+                                    data-msg-format="<?php echo esc_attr($rule['messages']['format']); ?>"
+                                    <?php endif; ?>
                                     <?php selected($form_values['marketplace'], $slug); ?>>
                                 <?php echo esc_html($label); ?>
                             </option>
@@ -260,6 +272,15 @@ function gwarr_handle_form_submission() {
         $errors[] = 'Order number is required.';
     } elseif (strlen($order) > 64) {
         $errors[] = 'Order number is too long.';
+    } else {
+        // Shopee (v1.12.1): an SPX tracking number, or anything else that is not a
+        // Shopee Order ID, is refused here, before anything is saved or emailed.
+        // This is the real gate; the on-the-spot message in script.js sits on top.
+        $order   = GWARR_Marketplaces::normalise_order_number($marketplace, $order);
+        $problem = GWARR_Marketplaces::order_number_problem($marketplace, $order);
+        if ($problem) {
+            $errors[] = GWARR_Marketplaces::order_number_message($marketplace, $problem);
+        }
     }
     if (!empty($errors)) {
         return gwarr_result(false, gwarr_notice('error', implode('<br>', array_map('esc_html', $errors))));
